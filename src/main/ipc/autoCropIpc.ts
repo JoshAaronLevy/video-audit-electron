@@ -10,6 +10,7 @@ import type {
 import type { JobRecord } from '../services/jobRegistry';
 import { JobRegistry } from '../services/jobRegistry';
 import { runAutoCrop, validateAutoCropRequest } from '../services/autoCropService';
+import { notifyLongJobComplete } from '../services/notificationService';
 import { getSettings } from '../services/settingsService';
 
 const autoCropJobs = new JobRegistry<AutoCropRequest, AutoCropJobSnapshot, AutoCropResult>();
@@ -136,6 +137,10 @@ async function runAutoCropJob(
     };
 
     autoCropJobs.setResult(job, result);
+    notifyLongJobComplete(
+      'Auto-Crop complete',
+      `${result.summary.succeeded.toLocaleString()} created, ${result.summary.failed.toLocaleString()} failed.`
+    );
     updateAutoCropProgress(job, browserWindow, {
       jobId: job.id,
       status: 'complete',

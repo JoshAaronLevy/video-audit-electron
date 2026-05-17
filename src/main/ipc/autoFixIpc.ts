@@ -10,6 +10,7 @@ import type {
 import type { JobRecord } from '../services/jobRegistry';
 import { JobRegistry } from '../services/jobRegistry';
 import { runAutoFix, validateAutoFixRequest } from '../services/autoFixService';
+import { notifyLongJobComplete } from '../services/notificationService';
 import { getSettings } from '../services/settingsService';
 
 const autoFixJobs = new JobRegistry<AutoFixRequest, AutoFixJobSnapshot, AutoFixResult>();
@@ -138,6 +139,10 @@ async function runAutoFixJob(
     };
 
     autoFixJobs.setResult(job, result);
+    notifyLongJobComplete(
+      'Auto-Fix complete',
+      `${result.summary.succeeded.toLocaleString()} succeeded, ${result.summary.failed.toLocaleString()} failed.`
+    );
     updateAutoFixProgress(job, browserWindow, {
       jobId: job.id,
       status: 'complete',

@@ -23,6 +23,7 @@ import { normalizeAuditOptions, runAudit } from '../services/auditService';
 import { discoverVideoFiles } from '../services/fileDiscoveryService';
 import { probeVideoFiles } from '../services/ffprobeService';
 import { JobRegistry, type JobRecord } from '../services/jobRegistry';
+import { notifyLongJobComplete } from '../services/notificationService';
 import { getSettings, updateSettings } from '../services/settingsService';
 
 interface FileDiscoveryJob {
@@ -422,6 +423,10 @@ async function runAuditJob(
     };
 
     auditJobs.setResult(job, result);
+    notifyLongJobComplete(
+      'Audit complete',
+      `${result.summary.flaggedCount.toLocaleString()} flagged of ${result.summary.scannedVideos.toLocaleString()} scanned videos.`
+    );
     updateAuditProgress(job, browserWindow, {
       jobId: job.id,
       status: 'complete',

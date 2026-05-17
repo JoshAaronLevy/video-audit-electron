@@ -1,6 +1,7 @@
 import { ipcRenderer } from 'electron';
 import { IPC_CHANNELS } from '../shared/constants/ipcChannels';
 import type { AppInfo } from '../shared/types/app';
+import type { AppCommand } from '../shared/types/appCommands';
 import type {
   AuditJobSnapshot,
   AuditRequest,
@@ -26,6 +27,7 @@ import type {
   AutoFixStartResponse
 } from '../shared/types/autoFix';
 import type { PathSelectionResult, RevealPathResult } from '../shared/types/dialog';
+import type { ToolDiagnosticsResult } from '../shared/types/diagnostics';
 import type {
   MediaPreviewJobSnapshot,
   MediaPreviewRequest,
@@ -56,6 +58,10 @@ import type { AppSettings, AppSettingsUpdate } from '../shared/types/settings';
 export interface VideoAuditApi {
   app: {
     getInfo: () => Promise<AppInfo>;
+    onCommand: (callback: (command: AppCommand) => void) => () => void;
+  };
+  diagnostics: {
+    checkTools: () => Promise<ToolDiagnosticsResult>;
   };
   dialog: {
     chooseFolders: () => Promise<PathSelectionResult>;
@@ -124,7 +130,21 @@ export interface VideoAuditApi {
 
 export const videoAuditApi: VideoAuditApi = {
   app: {
-    getInfo: () => ipcRenderer.invoke(IPC_CHANNELS.appGetInfo)
+    getInfo: () => ipcRenderer.invoke(IPC_CHANNELS.appGetInfo),
+    onCommand: (callback: (command: AppCommand) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, command: AppCommand): void => {
+        callback(command);
+      };
+
+      ipcRenderer.on(IPC_CHANNELS.appCommand, listener);
+
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.appCommand, listener);
+      };
+    }
+  },
+  diagnostics: {
+    checkTools: () => ipcRenderer.invoke(IPC_CHANNELS.diagnosticsCheckTools)
   },
   dialog: {
     chooseFolders: () => ipcRenderer.invoke(IPC_CHANNELS.dialogChooseFolders),

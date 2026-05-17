@@ -5,15 +5,20 @@ import {
   registerMediaPreviewProtocolHandler,
   registerMediaPreviewProtocolScheme
 } from './services/mediaPreviewProtocol';
+import { installAppMenu } from './services/appMenuService';
+import { getInitialWindowOptions, trackWindowState } from './services/windowStateService';
 
 const isDev = Boolean(process.env.ELECTRON_RENDERER_URL);
 
 registerMediaPreviewProtocolScheme();
 
-function createMainWindow(): void {
+async function createMainWindow(): Promise<void> {
+  const windowOptions = await getInitialWindowOptions();
   const mainWindow = new BrowserWindow({
-    width: 1180,
-    height: 760,
+    width: windowOptions.width,
+    height: windowOptions.height,
+    x: windowOptions.x,
+    y: windowOptions.y,
     minWidth: 920,
     minHeight: 620,
     title: 'Video Audit',
@@ -25,6 +30,12 @@ function createMainWindow(): void {
       sandbox: false
     }
   });
+
+  trackWindowState(mainWindow);
+
+  if (windowOptions.shouldMaximize) {
+    mainWindow.maximize();
+  }
 
   if (isDev && process.env.ELECTRON_RENDERER_URL) {
     void mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL);
@@ -38,11 +49,12 @@ function createMainWindow(): void {
 app.whenReady().then(() => {
   registerMediaPreviewProtocolHandler();
   registerIpcHandlers();
-  createMainWindow();
+  void installAppMenu();
+  void createMainWindow();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createMainWindow();
+      void createMainWindow();
     }
   });
 });

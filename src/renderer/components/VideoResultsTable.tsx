@@ -263,6 +263,13 @@ export function VideoResultsTable({
   return (
     <section className="results-panel" aria-label="Loaded videos">
       {storageMessage ? <Message severity="info" text={storageMessage} /> : null}
+      {!isStorageLoading && !allRows ? (
+        <Message
+          severity="info"
+          text="Choose a folder or video files, then run an audit to populate the results table."
+        />
+      ) : null}
+      {isStorageLoading ? <Message severity="info" text="Loading saved audit data..." /> : null}
       <PremiereStatusBanner
         isLoading={isPremiereStatusLoading}
         status={premiereStatus}

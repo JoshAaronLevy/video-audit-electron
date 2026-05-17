@@ -16,6 +16,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   previewClipDurationSecondsDefault: 5,
   previewClipWidthDefault: 640,
   latestSelectedFolder: null,
+  windowState: null,
   lastAuditResultSummary: null
 };
 
@@ -83,6 +84,7 @@ function normalizeSettings(value: unknown): AppSettings {
     ),
     previewClipWidthDefault: normalizePreviewClipWidth(candidate.previewClipWidthDefault),
     latestSelectedFolder: normalizeNullableString(candidate.latestSelectedFolder),
+    windowState: normalizeWindowState(candidate.windowState),
     lastAuditResultSummary: normalizeLastAuditResultSummary(candidate.lastAuditResultSummary)
   };
 }
@@ -132,6 +134,31 @@ function normalizeLastAuditResultSummary(value: unknown): AppSettings['lastAudit
     flaggedCount,
     errorCount
   };
+}
+
+function normalizeWindowState(value: unknown): AppSettings['windowState'] {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const width = normalizeFiniteNumber(value.width);
+  const height = normalizeFiniteNumber(value.height);
+
+  if (width === null || height === null) {
+    return null;
+  }
+
+  return {
+    width: Math.max(920, Math.round(width)),
+    height: Math.max(620, Math.round(height)),
+    x: normalizeNullableNumber(value.x),
+    y: normalizeNullableNumber(value.y),
+    isMaximized: normalizeBoolean(value.isMaximized, false)
+  };
+}
+
+function normalizeNullableNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : null;
 }
 
 function normalizeFiniteNumber(value: unknown): number | null {

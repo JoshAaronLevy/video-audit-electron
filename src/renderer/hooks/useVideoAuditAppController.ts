@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AppInfo } from '../../shared/types/app';
+import type { AppCommand } from '../../shared/types/appCommands';
 import type {
   AuditJobSnapshot,
   AuditOptions,
@@ -13,6 +14,7 @@ import type {
 } from '../../shared/types/audit';
 import type { AutoCropJobSnapshot, AutoCropResult } from '../../shared/types/autoCrop';
 import type { PathSelectionResult } from '../../shared/types/dialog';
+import type { ToolDiagnosticsResult } from '../../shared/types/diagnostics';
 import type { AutoFixJobSnapshot, AutoFixResult } from '../../shared/types/autoFix';
 import type {
   MediaPreviewJobSnapshot,
@@ -73,6 +75,9 @@ export interface VideoAuditAppController {
   appInfoMessage: string | null;
   settings: AppSettings | null;
   settingsMessage: string | null;
+  toolDiagnostics: ToolDiagnosticsResult | null;
+  toolDiagnosticsError: string | null;
+  isToolDiagnosticsLoading: boolean;
   selectionMessage: string | null;
   workflowMessage: string | null;
   activeAction: ActiveAction;
@@ -157,10 +162,12 @@ export interface VideoAuditAppController {
   chooseFolders: () => Promise<void>;
   chooseFiles: () => Promise<void>;
   chooseOutputFolder: () => Promise<void>;
+  chooseRecentFolder: (path: string) => Promise<void>;
   revealPath: (path: string) => Promise<void>;
   updateAuditOption: <Key extends keyof AuditOptions>(key: Key, value: AuditOptions[Key]) => Promise<void>;
   updateSettingsField: <Key extends keyof AppSettings>(key: Key, value: AppSettings[Key]) => Promise<void>;
   resetSettings: () => Promise<void>;
+  runToolDiagnostics: () => Promise<void>;
   runAudit: () => Promise<void>;
   refreshAudit: () => Promise<void>;
   cancelAudit: () => Promise<void>;
@@ -205,6 +212,9 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const [appInfoMessage, setAppInfoMessage] = useState<string | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
+  const [toolDiagnostics, setToolDiagnostics] = useState<ToolDiagnosticsResult | null>(null);
+  const [toolDiagnosticsError, setToolDiagnosticsError] = useState<string | null>(null);
+  const [isToolDiagnosticsLoading, setIsToolDiagnosticsLoading] = useState(false);
   const [selectionMessage, setSelectionMessage] = useState<string | null>(null);
   const [workflowMessage, setWorkflowMessage] = useState<string | null>(null);
   const [activeAction, setActiveAction] = useState<ActiveAction>(null);
@@ -663,6 +673,23 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     }
   }, [handleSelectionResult, persistSettings, settings?.recentFolders]);
 
+  const chooseRecentFolder = useCallback(
+    async (path: string): Promise<void> => {
+      if (!path) {
+        return;
+      }
+
+      setSelectedFolders([path]);
+      setSelectedFiles([]);
+      setSelectionMessage(null);
+      await persistSettings({
+        recentFolders: mergeRecentPaths([path], settings?.recentFolders ?? []),
+        latestSelectedFolder: path
+      });
+    },
+    [persistSettings, settings?.recentFolders]
+  );
+
   const chooseFiles = useCallback(async (): Promise<void> => {
     setActiveAction('files');
 
@@ -758,6 +785,21 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       setSettingsMessage(getErrorMessage(error, 'Could not reset settings.'));
     } finally {
       setActiveAction(null);
+    }
+  }, []);
+
+  const runToolDiagnostics = useCallback(async (): Promise<void> => {
+    setIsToolDiagnosticsLoading(true);
+    setToolDiagnosticsError(null);
+
+    try {
+      const result = await window.videoAudit.diagnostics.checkTools();
+      setToolDiagnostics(result);
+      setSettingsMessage(result.message ?? 'Media tool diagnostic complete.');
+    } catch (error: unknown) {
+      setToolDiagnosticsError(getErrorMessage(error, 'Unable to check ffmpeg/ffprobe availability.'));
+    } finally {
+      setIsToolDiagnosticsLoading(false);
     }
   }, []);
 
@@ -1785,6 +1827,128 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setMigrationResultError(null);
   }, [isMigrationActive]);
 
+  const cancelActiveWork = useCallback(async (): Promise<void> => {
+    if (isAuditActive) {
+      await cancelAudit();
+      return;
+    }
+
+    if (isAutoFixActive) {
+      await cancelAutoFix();
+      return;
+    }
+
+    if (isAutoCropActive) {
+      await cancelAutoCrop();
+      return;
+    }
+
+    if (isMediaPreviewActive) {
+      await cancelThumbnailGeneration();
+      return;
+    }
+
+    if (isPreviewClipActive) {
+      await cancelPreviewClipGeneration();
+      return;
+    }
+
+    if (isMigrationScanDialogVisible) {
+      closeMigrationDialog();
+      return;
+    }
+
+    if (isMigrationResultDialogVisible) {
+      closeMigrationResultDialog();
+      return;
+    }
+
+    if (isThumbnailDialogVisible) {
+      closeThumbnailDialog();
+      return;
+    }
+
+    if (isAutoCropDialogVisible) {
+      closeAutoCropDialog();
+      return;
+    }
+
+    if (isAutoFixDialogVisible) {
+      closeAutoFixDialog();
+    }
+  }, [
+    cancelAudit,
+    cancelAutoCrop,
+    cancelAutoFix,
+    cancelPreviewClipGeneration,
+    cancelThumbnailGeneration,
+    closeAutoCropDialog,
+    closeAutoFixDialog,
+    closeMigrationDialog,
+    closeMigrationResultDialog,
+    closeThumbnailDialog,
+    isAuditActive,
+    isAutoCropActive,
+    isAutoCropDialogVisible,
+    isAutoFixActive,
+    isAutoFixDialogVisible,
+    isMediaPreviewActive,
+    isMigrationResultDialogVisible,
+    isMigrationScanDialogVisible,
+    isPreviewClipActive,
+    isThumbnailDialogVisible
+  ]);
+
+  const handleAppCommand = useCallback(
+    async (command: AppCommand): Promise<void> => {
+      if (command === 'choose-folder') {
+        await chooseFolders();
+        return;
+      }
+
+      if (command === 'choose-files') {
+        await chooseFiles();
+        return;
+      }
+
+      if (command === 'refresh-audit') {
+        await refreshAudit();
+        return;
+      }
+
+      if (command === 'cancel-active') {
+        await cancelActiveWork();
+        return;
+      }
+
+      if (command === 'open-settings') {
+        setSettingsMessage('Settings are open in the App panel.');
+      }
+    },
+    [cancelActiveWork, chooseFiles, chooseFolders, refreshAudit]
+  );
+
+  useEffect(() => window.videoAudit.app.onCommand((command) => {
+    void handleAppCommand(command);
+  }), [handleAppCommand]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') {
+        return;
+      }
+
+      event.preventDefault();
+      void handleAppCommand('cancel-active');
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [handleAppCommand]);
+
   const editSelectedInPremiere = useCallback(async (): Promise<void> => {
     if (selectedVideos.length === 0) {
       setPremiereImportError('Select at least one video to import into Premiere.');
@@ -1840,6 +2004,9 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     appInfoMessage,
     settings,
     settingsMessage,
+    toolDiagnostics,
+    toolDiagnosticsError,
+    isToolDiagnosticsLoading,
     selectionMessage,
     workflowMessage,
     activeAction,
@@ -1924,10 +2091,12 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     chooseFolders,
     chooseFiles,
     chooseOutputFolder,
+    chooseRecentFolder,
     revealPath,
     updateAuditOption,
     updateSettingsField,
     resetSettings,
+    runToolDiagnostics,
     runAudit,
     refreshAudit,
     cancelAudit,

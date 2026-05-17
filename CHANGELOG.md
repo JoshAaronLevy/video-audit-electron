@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-05-17
+
+### Added
+
+- Added a native macOS app menu with keyboard shortcuts for choosing folders/files, refreshing the latest audit, and opening settings.
+- Added persisted window size and position so the app reopens where the user left it.
+- Added native completion notifications for long-running audit, media-preview, auto-fix, auto-crop, migration, and preview-clip jobs.
+- Added ffmpeg/ffprobe availability diagnostics to the settings panel.
+- Added recent-folder selection UI, explicit output-folder reveal, and clearer empty/loading guidance.
+
 ## [0.15.0] - 2026-05-17
 
 ### Added

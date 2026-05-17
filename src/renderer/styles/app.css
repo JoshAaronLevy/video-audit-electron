@@ -148,6 +148,24 @@ select {
   gap: 0.75rem;
 }
 
+.recent-folder-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+  padding: 0.5rem 0.6rem;
+  background: #f8fafc;
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+}
+
+.recent-folder-strip > span {
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
 .path-list-panel {
   display: grid;
   gap: 0.65rem;
@@ -512,17 +530,59 @@ select {
 }
 
 .settings-summary,
+.tool-diagnostics,
 .info-list {
   display: grid;
   gap: 0.65rem;
   margin: 0;
 }
 
-.settings-summary {
+.settings-summary,
+.tool-diagnostics {
   padding: 0.85rem;
   background: #f8fafc;
   border: 1px solid #dbe3ee;
   border-radius: 8px;
+}
+
+.tool-diagnostics ul {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.tool-diagnostics li {
+  display: grid;
+  grid-template-columns: 4.5rem auto minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: center;
+  min-width: 0;
+}
+
+.tool-diagnostics span,
+.tool-diagnostics strong {
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.tool-diagnostics small {
+  min-width: 0;
+  overflow: hidden;
+  color: #64748b;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.76rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-ok {
+  color: #047857;
+}
+
+.tool-error {
+  color: #b42318;
 }
 
 .info-row {
@@ -873,7 +933,8 @@ select {
   .audit-options,
   .source-lists,
   .metric-grid,
-  .video-details-main {
+  .video-details-main,
+  .tool-diagnostics li {
     grid-template-columns: 1fr;
   }
 

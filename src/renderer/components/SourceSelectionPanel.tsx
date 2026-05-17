@@ -10,6 +10,7 @@ interface SourceSelectionPanelProps {
   selectedFolders: string[];
   selectedFiles: string[];
   outputFolder: string | null;
+  recentFolders: string[];
   auditOptions: AuditOptions;
   isAuditActive: boolean;
   canRunAudit: boolean;
@@ -19,6 +20,7 @@ interface SourceSelectionPanelProps {
   onChooseFolders: () => void;
   onChooseFiles: () => void;
   onChooseOutputFolder: () => void;
+  onChooseRecentFolder: (path: string) => void;
   onRunAudit: () => void;
   onCancelAudit: () => void;
   onRevealPath: (path: string) => void;
@@ -29,6 +31,7 @@ export function SourceSelectionPanel({
   selectedFolders,
   selectedFiles,
   outputFolder,
+  recentFolders,
   auditOptions,
   isAuditActive,
   canRunAudit,
@@ -38,6 +41,7 @@ export function SourceSelectionPanel({
   onChooseFolders,
   onChooseFiles,
   onChooseOutputFolder,
+  onChooseRecentFolder,
   onRunAudit,
   onCancelAudit,
   onRevealPath,
@@ -77,7 +81,36 @@ export function SourceSelectionPanel({
           disabled={isAuditActive}
           onClick={onChooseOutputFolder}
         />
+        {outputFolder ? (
+          <Button
+            label="Reveal Output"
+            icon="pi pi-external-link"
+            severity="help"
+            outlined
+            loading={activeAction === 'reveal'}
+            disabled={isAuditActive}
+            onClick={() => onRevealPath(outputFolder)}
+          />
+        ) : null}
       </div>
+
+      {recentFolders.length > 0 ? (
+        <div className="recent-folder-strip" aria-label="Recent folders">
+          <span>Recent</span>
+          {recentFolders.slice(0, 4).map((path) => (
+            <Button
+              key={path}
+              label={shortenPath(path)}
+              title={path}
+              icon="pi pi-history"
+              severity="secondary"
+              text
+              disabled={isAuditActive}
+              onClick={() => onChooseRecentFolder(path)}
+            />
+          ))}
+        </div>
+      ) : null}
 
       <div className="audit-options" aria-label="Audit options">
         <AuditOption
@@ -219,4 +252,14 @@ function PathList({
       )}
     </section>
   );
+}
+
+function shortenPath(path: string): string {
+  const parts = path.split('/').filter(Boolean);
+
+  if (parts.length <= 2) {
+    return path;
+  }
+
+  return `${parts.at(-2)}/${parts.at(-1)}`;
 }

@@ -25,6 +25,7 @@ export function App(): ReactElement {
             selectedFolders={controller.selectedFolders}
             selectedFiles={controller.selectedFiles}
             outputFolder={controller.outputFolder}
+            recentFolders={controller.settings?.recentFolders ?? []}
             auditOptions={controller.auditOptions}
             isAuditActive={controller.isAuditActive}
             canRunAudit={controller.canRunAudit}
@@ -34,6 +35,7 @@ export function App(): ReactElement {
             onChooseFolders={controller.chooseFolders}
             onChooseFiles={controller.chooseFiles}
             onChooseOutputFolder={controller.chooseOutputFolder}
+            onChooseRecentFolder={controller.chooseRecentFolder}
             onRunAudit={controller.runAudit}
             onCancelAudit={controller.cancelAudit}
             onRevealPath={controller.revealPath}
@@ -196,9 +198,13 @@ export function App(): ReactElement {
             appInfoMessage={controller.appInfoMessage}
             settings={controller.settings}
             settingsMessage={controller.settingsMessage}
+            toolDiagnostics={controller.toolDiagnostics}
+            toolDiagnosticsError={controller.toolDiagnosticsError}
+            isToolDiagnosticsLoading={controller.isToolDiagnosticsLoading}
             activeAction={controller.activeAction}
             onUpdateSettingsField={controller.updateSettingsField}
             onResetSettings={controller.resetSettings}
+            onRunToolDiagnostics={controller.runToolDiagnostics}
           />
         </aside>
       </section>

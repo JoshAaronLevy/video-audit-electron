@@ -17,6 +17,7 @@ import {
   scanMigration,
   validateMigrationExecuteRequest
 } from '../services/migrationService';
+import { notifyLongJobComplete } from '../services/notificationService';
 
 const migrationJobs = new JobRegistry<MigrationExecuteRequest, MigrationJobSnapshot, MigrationResult>();
 
@@ -121,6 +122,10 @@ async function runMigrationJob(
     };
 
     migrationJobs.setResult(job, result);
+    notifyLongJobComplete(
+      'Migration complete',
+      `${result.summary.filesCopiedToDestination.toLocaleString()} copied, ${result.summary.destinationMatchesArchived.toLocaleString()} archived.`
+    );
     updateMigrationProgress(job, browserWindow, {
       jobId: job.id,
       migrationId: result.migrationId,

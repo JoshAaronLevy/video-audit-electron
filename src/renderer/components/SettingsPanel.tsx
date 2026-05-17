@@ -6,6 +6,7 @@ import { InputText } from 'primereact/inputtext';
 import { Message } from 'primereact/message';
 import { SelectButton } from 'primereact/selectbutton';
 import type { AppInfo } from '../../shared/types/app';
+import type { ToolDiagnosticsResult } from '../../shared/types/diagnostics';
 import type { AppSettings } from '../../shared/types/settings';
 
 interface SettingsPanelProps {
@@ -13,9 +14,13 @@ interface SettingsPanelProps {
   appInfoMessage: string | null;
   settings: AppSettings | null;
   settingsMessage: string | null;
+  toolDiagnostics: ToolDiagnosticsResult | null;
+  toolDiagnosticsError: string | null;
+  isToolDiagnosticsLoading: boolean;
   activeAction: string | null;
   onUpdateSettingsField: <Key extends keyof AppSettings>(key: Key, value: AppSettings[Key]) => void;
   onResetSettings: () => void;
+  onRunToolDiagnostics: () => void;
 }
 
 export function SettingsPanel({
@@ -23,9 +28,13 @@ export function SettingsPanel({
   appInfoMessage,
   settings,
   settingsMessage,
+  toolDiagnostics,
+  toolDiagnosticsError,
+  isToolDiagnosticsLoading,
   activeAction,
   onUpdateSettingsField,
-  onResetSettings
+  onResetSettings,
+  onRunToolDiagnostics
 }: SettingsPanelProps): ReactElement {
   return (
     <Card className="workspace-card side-card">
@@ -85,6 +94,7 @@ export function SettingsPanel({
           />
 
           {settingsMessage ? <Message severity="info" text={settingsMessage} /> : null}
+          {toolDiagnosticsError ? <Message severity="error" text={toolDiagnosticsError} /> : null}
 
           <div className="settings-summary">
             <InfoRow label="Recent folders" value={String(settings.recentFolders.length)} />
@@ -95,6 +105,44 @@ export function SettingsPanel({
               label="Preview clips"
               value={`${settings.previewClipDurationSecondsDefault}s at ${settings.previewClipWidthDefault}px`}
             />
+            <InfoRow
+              label="Window"
+              value={
+                settings.windowState
+                  ? `${settings.windowState.width}x${settings.windowState.height}`
+                  : 'Default size'
+              }
+            />
+          </div>
+
+          <div className="tool-diagnostics">
+            <div className="compact-heading">
+              <h3>Media Tools</h3>
+              <Button
+                label="Check"
+                icon="pi pi-bolt"
+                severity="info"
+                outlined
+                loading={isToolDiagnosticsLoading}
+                disabled={activeAction === 'settings'}
+                onClick={onRunToolDiagnostics}
+              />
+            </div>
+            {toolDiagnostics ? (
+              <ul>
+                {toolDiagnostics.tools.map((tool) => (
+                  <li key={tool.name}>
+                    <span>{tool.name}</span>
+                    <strong className={tool.ok ? 'tool-ok' : 'tool-error'}>
+                      {tool.ok ? 'Available' : 'Missing'}
+                    </strong>
+                    <small title={tool.command}>{tool.versionLine ?? tool.message}</small>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="empty-copy">Check ffmpeg and ffprobe availability before running media workflows.</p>
+            )}
           </div>
 
           <Button

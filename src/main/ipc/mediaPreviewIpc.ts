@@ -24,6 +24,7 @@ import {
   validateMediaPreviewRequest,
   validatePreviewClipRequest
 } from '../services/mediaPreviewService';
+import { notifyLongJobComplete } from '../services/notificationService';
 import { getSettings } from '../services/settingsService';
 
 const mediaPreviewJobs = new JobRegistry<MediaPreviewRequest, MediaPreviewJobSnapshot, MediaPreviewResult>();
@@ -281,6 +282,10 @@ async function runMediaPreviewJob(
     };
 
     mediaPreviewJobs.setResult(job, result);
+    notifyLongJobComplete(
+      'Thumbnail generation complete',
+      `${result.summary.generated.toLocaleString()} generated, ${result.summary.cached.toLocaleString()} cached.`
+    );
     updateMediaPreviewProgress(job, browserWindow, {
       jobId: job.id,
       status: 'complete',
@@ -337,6 +342,10 @@ async function runPreviewClipJob(
     };
 
     previewClipJobs.setResult(job, result);
+    notifyLongJobComplete(
+      'Preview clip generation complete',
+      `${result.summary.generated.toLocaleString()} generated, ${result.summary.cached.toLocaleString()} cached.`
+    );
     updatePreviewClipProgress(job, browserWindow, {
       jobId: job.id,
       status: 'complete',

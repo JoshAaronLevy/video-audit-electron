@@ -1,5 +1,13 @@
 import type { AuditOptions } from './audit';
 
+export interface AppWindowState {
+  width: number;
+  height: number;
+  x: number | null;
+  y: number | null;
+  isMaximized: boolean;
+}
+
 export interface AppSettings {
   recentFolders: string[];
   recentFiles: string[];
@@ -13,6 +21,7 @@ export interface AppSettings {
   previewClipDurationSecondsDefault: 5 | 10;
   previewClipWidthDefault: 480 | 640;
   latestSelectedFolder: string | null;
+  windowState: AppWindowState | null;
   lastAuditResultSummary: {
     jobId?: string;
     completedAt: string;

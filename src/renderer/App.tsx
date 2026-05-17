@@ -8,11 +8,17 @@ import { Message } from 'primereact/message';
 import { ProgressBar } from 'primereact/progressbar';
 import { Tag } from 'primereact/tag';
 import type { AppInfo } from '../shared/types/app';
-import type { FileDiscoveryJobSnapshot, FileDiscoveryRequest } from '../shared/types/audit';
+import type {
+  FileDiscoveryJobSnapshot,
+  FileDiscoveryRequest,
+  FfprobeMetadataJobSnapshot,
+  FfprobeMetadataRequest
+} from '../shared/types/audit';
 import type { PathSelectionResult } from '../shared/types/dialog';
 import type { AppSettings, AppSettingsUpdate } from '../shared/types/settings';
+import type { FfprobeResult } from '../shared/types/video';
 
-type DialogAction = 'folders' | 'files' | 'output' | 'reveal' | 'settings' | 'discovery';
+type DialogAction = 'folders' | 'files' | 'output' | 'reveal' | 'settings' | 'discovery' | 'ffprobe';
 
 export function App(): ReactElement {
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
@@ -26,6 +32,9 @@ export function App(): ReactElement {
   const [discoveryMessage, setDiscoveryMessage] = useState<string | null>(null);
   const [discoveryJobId, setDiscoveryJobId] = useState<string | null>(null);
   const [discoveryProgress, setDiscoveryProgress] = useState<FileDiscoveryJobSnapshot | null>(null);
+  const [ffprobeMessage, setFfprobeMessage] = useState<string | null>(null);
+  const [ffprobeJobId, setFfprobeJobId] = useState<string | null>(null);
+  const [ffprobeProgress, setFfprobeProgress] = useState<FfprobeMetadataJobSnapshot | null>(null);
   const [activeAction, setActiveAction] = useState<DialogAction | null>(null);
 
   useEffect(() => {
@@ -87,6 +96,26 @@ export function App(): ReactElement {
       if (progress.status === 'error' || progress.status === 'canceled') {
         setActiveAction(null);
         setDiscoveryMessage(progress.message ?? 'File discovery stopped.');
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    return window.videoAudit.ffprobe.onProgress((progress) => {
+      setFfprobeProgress(progress);
+
+      if (progress.jobId) {
+        setFfprobeJobId(progress.jobId);
+      }
+
+      if (progress.status === 'complete') {
+        setActiveAction(null);
+        setFfprobeMessage(progress.message ?? 'Metadata extraction complete.');
+      }
+
+      if (progress.status === 'error' || progress.status === 'canceled') {
+        setActiveAction(null);
+        setFfprobeMessage(progress.message ?? 'Metadata extraction stopped.');
       }
     });
   }, []);
@@ -266,6 +295,67 @@ export function App(): ReactElement {
     discoveryProgress?.totalFiles && discoveryProgress.totalFiles > 0
       ? Math.min(100, Math.round((discoveryProgress.processedFiles / discoveryProgress.totalFiles) * 100))
       : null;
+  const metadataItems = ffprobeProgress?.result?.items ?? [];
+  const isFfprobeActive =
+    activeAction === 'ffprobe' ||
+    ffprobeProgress?.status === 'starting' ||
+    ffprobeProgress?.status === 'running';
+  const ffprobeProgressValue =
+    ffprobeProgress?.totalFiles && ffprobeProgress.totalFiles > 0
+      ? Math.min(100, Math.round((ffprobeProgress.processedFiles / ffprobeProgress.totalFiles) * 100))
+      : null;
+
+  const startFfprobe = async (): Promise<void> => {
+    const request: FfprobeMetadataRequest = {
+      filePaths: discoveredPaths,
+      ffprobePathOverride: settings?.ffprobePathOverride ?? null
+    };
+
+    setFfprobeMessage(null);
+    setFfprobeProgress(null);
+
+    if (request.filePaths.length === 0) {
+      setFfprobeMessage('Scan files before running ffprobe metadata extraction.');
+      return;
+    }
+
+    setActiveAction('ffprobe');
+
+    try {
+      const response = await window.videoAudit.ffprobe.start(request);
+
+      if (response.status !== 'started' || !response.jobId) {
+        setActiveAction(null);
+        setFfprobeMessage(response.message ?? 'Could not start ffprobe metadata extraction.');
+        return;
+      }
+
+      setFfprobeJobId(response.jobId);
+      setFfprobeMessage(response.message ?? 'ffprobe metadata extraction started.');
+    } catch (error: unknown) {
+      setActiveAction(null);
+      setFfprobeMessage(
+        error instanceof Error ? error.message : 'Could not start ffprobe metadata extraction.'
+      );
+    }
+  };
+
+  const cancelFfprobe = async (): Promise<void> => {
+    if (!ffprobeJobId) {
+      return;
+    }
+
+    try {
+      const progress = await window.videoAudit.ffprobe.cancel(ffprobeJobId);
+      setFfprobeProgress(progress);
+      setFfprobeMessage(progress.message ?? 'ffprobe metadata extraction canceled.');
+      setActiveAction(null);
+    } catch (error: unknown) {
+      setFfprobeMessage(
+        error instanceof Error ? error.message : 'Could not cancel ffprobe metadata extraction.'
+      );
+    }
+  };
 
   return (
     <main className="app-shell">
@@ -335,10 +425,27 @@ export function App(): ReactElement {
                 disabled={!isDiscoveryActive}
                 onClick={cancelDiscovery}
               />
+              <Button
+                label="Read Metadata"
+                icon="pi pi-info-circle"
+                severity="info"
+                loading={activeAction === 'ffprobe'}
+                disabled={isFfprobeActive || isDiscoveryActive || discoveredPaths.length === 0}
+                onClick={startFfprobe}
+              />
+              <Button
+                label="Cancel Metadata"
+                icon="pi pi-times"
+                severity="danger"
+                outlined
+                disabled={!isFfprobeActive}
+                onClick={cancelFfprobe}
+              />
             </div>
 
             {selectionMessage ? <Message severity="warn" text={selectionMessage} /> : null}
             {discoveryMessage ? <Message severity="info" text={discoveryMessage} /> : null}
+            {ffprobeMessage ? <Message severity="info" text={ffprobeMessage} /> : null}
 
             {discoveryProgress ? (
               <section className="discovery-panel" aria-label="File discovery progress">
@@ -363,6 +470,31 @@ export function App(): ReactElement {
                 {discoveryProgress.currentPath ? (
                   <p className="path-hint" title={discoveryProgress.currentPath}>
                     {discoveryProgress.currentPath}
+                  </p>
+                ) : null}
+              </section>
+            ) : null}
+
+            {ffprobeProgress ? (
+              <section className="discovery-panel" aria-label="ffprobe metadata progress">
+                <div className="path-section-header">
+                  <h2>Metadata</h2>
+                  <Tag value={ffprobeProgress.status} severity={getJobSeverity(ffprobeProgress.status)} />
+                </div>
+                <ProgressBar
+                  mode={ffprobeProgressValue === null && isFfprobeActive ? 'indeterminate' : 'determinate'}
+                  value={ffprobeProgressValue ?? 0}
+                  showValue={ffprobeProgressValue !== null}
+                />
+                <div className="metric-grid">
+                  <Metric label="Ready" value={String(ffprobeProgress.succeededCount)} />
+                  <Metric label="Errors" value={String(ffprobeProgress.errorCount)} />
+                  <Metric label="Processed" value={String(ffprobeProgress.processedFiles)} />
+                </div>
+                <p className="empty-copy">{ffprobeProgress.message}</p>
+                {ffprobeProgress.currentFile ? (
+                  <p className="path-hint" title={ffprobeProgress.currentFile}>
+                    {ffprobeProgress.currentFile}
                   </p>
                 ) : null}
               </section>
@@ -397,6 +529,7 @@ export function App(): ReactElement {
                 onReveal={revealPath}
                 revealDisabled={activeAction === 'reveal'}
               />
+              <MetadataList items={metadataItems} />
             </div>
           </div>
         </Card>
@@ -584,6 +717,12 @@ function mergeRecentPaths(nextPaths: string[], currentPaths: string[]): string[]
 function getDiscoverySeverity(
   status: FileDiscoveryJobSnapshot['status']
 ): 'success' | 'secondary' | 'info' | 'warning' | 'danger' | 'contrast' {
+  return getJobSeverity(status);
+}
+
+function getJobSeverity(
+  status: FileDiscoveryJobSnapshot['status'] | FfprobeMetadataJobSnapshot['status']
+): 'success' | 'secondary' | 'info' | 'warning' | 'danger' | 'contrast' {
   if (status === 'complete') {
     return 'success';
   }
@@ -597,6 +736,46 @@ function getDiscoverySeverity(
   }
 
   return 'secondary';
+}
+
+function MetadataList({ items }: { items: FfprobeResult[] }): ReactElement {
+  return (
+    <section className="path-section" aria-label="ffprobe metadata">
+      <div className="path-section-header">
+        <h2>Metadata Results</h2>
+        <Tag value={String(items.length)} severity={items.length > 0 ? 'success' : 'secondary'} />
+      </div>
+
+      {items.length > 0 ? (
+        <ul className="metadata-list">
+          {items.map((item) => (
+            <li key={item.path} className="metadata-item">
+              <span className="metadata-title" title={item.path}>
+                {item.fileName ?? item.path}
+              </span>
+              <span className={item.ok ? 'metadata-detail' : 'metadata-error'}>
+                {item.ok ? formatMetadataSummary(item) : (item.error ?? 'Metadata extraction failed.')}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="empty-copy">No metadata extracted yet</p>
+      )}
+    </section>
+  );
+}
+
+function formatMetadataSummary(item: FfprobeResult): string {
+  const width = item.stream?.width;
+  const height = item.stream?.height;
+  const resolution = width && height ? `${width}x${height}` : 'Unknown resolution';
+  const codec = item.stream?.codec_name ?? 'unknown codec';
+  const duration = item.stream?.duration ?? item.format?.duration ?? null;
+  const durationLabel = duration ? `${Number(duration).toFixed(1)}s` : 'unknown duration';
+  const frameRate = item.stream?.avg_frame_rate ?? item.stream?.r_frame_rate ?? 'unknown frame rate';
+
+  return `${resolution} · ${codec} · ${durationLabel} · ${frameRate}`;
 }
 
 function SelectedPathList({

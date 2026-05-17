@@ -206,6 +206,7 @@ export interface FfprobeFormat {
 export interface FfprobeResult {
   path: string;
   ok: boolean;
+  fileName?: string;
   stream?: FfprobeVideoStream;
   format?: FfprobeFormat;
   error?: string;

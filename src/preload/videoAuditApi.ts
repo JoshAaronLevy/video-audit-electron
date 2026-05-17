@@ -4,7 +4,10 @@ import type { AppInfo } from '../shared/types/app';
 import type {
   FileDiscoveryJobSnapshot,
   FileDiscoveryRequest,
-  FileDiscoveryStartResponse
+  FileDiscoveryStartResponse,
+  FfprobeMetadataJobSnapshot,
+  FfprobeMetadataRequest,
+  FfprobeMetadataStartResponse
 } from '../shared/types/audit';
 import type { PathSelectionResult, RevealPathResult } from '../shared/types/dialog';
 import type { AppSettings, AppSettingsUpdate } from '../shared/types/settings';
@@ -30,6 +33,11 @@ export interface VideoAuditApi {
     start: (request: FileDiscoveryRequest) => Promise<FileDiscoveryStartResponse>;
     cancel: (jobId: string) => Promise<FileDiscoveryJobSnapshot>;
     onProgress: (callback: (progress: FileDiscoveryJobSnapshot) => void) => () => void;
+  };
+  ffprobe: {
+    start: (request: FfprobeMetadataRequest) => Promise<FfprobeMetadataStartResponse>;
+    cancel: (jobId: string) => Promise<FfprobeMetadataJobSnapshot>;
+    onProgress: (callback: (progress: FfprobeMetadataJobSnapshot) => void) => () => void;
   };
 }
 
@@ -64,6 +72,21 @@ export const videoAuditApi: VideoAuditApi = {
 
       return () => {
         ipcRenderer.removeListener(IPC_CHANNELS.auditDiscoveryProgress, listener);
+      };
+    }
+  },
+  ffprobe: {
+    start: (request: FfprobeMetadataRequest) => ipcRenderer.invoke(IPC_CHANNELS.ffprobeStart, request),
+    cancel: (jobId: string) => ipcRenderer.invoke(IPC_CHANNELS.ffprobeCancel, jobId),
+    onProgress: (callback: (progress: FfprobeMetadataJobSnapshot) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, progress: FfprobeMetadataJobSnapshot): void => {
+        callback(progress);
+      };
+
+      ipcRenderer.on(IPC_CHANNELS.ffprobeProgress, listener);
+
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.ffprobeProgress, listener);
       };
     }
   }

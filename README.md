@@ -61,3 +61,5 @@ The current app includes:
 - settings preload APIs for reading, updating, and resetting local settings
 - discovery-only video scanning for selected folders and files
 - cancellable file discovery progress reported through Electron IPC
+- ffprobe metadata extraction for discovered videos
+- cancellable child-process metadata progress reported through Electron IPC

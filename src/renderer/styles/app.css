@@ -176,6 +176,14 @@ select {
   list-style: none;
 }
 
+.metadata-list {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
 .path-item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 2.25rem;
@@ -203,6 +211,37 @@ select {
   margin: 0;
   color: #64748b;
   line-height: 1.5;
+}
+
+.metadata-item {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+  padding: 0.7rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.metadata-title {
+  min-width: 0;
+  overflow: hidden;
+  color: #172033;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metadata-detail,
+.metadata-error {
+  color: #475569;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.metadata-error {
+  color: #b42318;
 }
 
 .path-hint {

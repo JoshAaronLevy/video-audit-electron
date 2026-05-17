@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-05-17
+
+### Added
+
+- Added main-process ffprobe metadata extraction for discovered videos.
+- Added an abort-aware child process helper for ffprobe and future ffmpeg workflows.
+- Added ffprobe progress, result, and cancellation IPC through the typed preload API.
+- Added renderer controls for reading and canceling metadata extraction, plus structured metadata result display.
+- Added support for the saved ffprobe path override when extracting metadata.
+
 ## [0.5.0] - 2026-05-17
 
 ### Added

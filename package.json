@@ -1,6 +1,6 @@
 {
   "name": "video-audit-electron",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Private macOS Electron version of Video Audit.",
   "main": "out/main/main.js",
   "type": "module",

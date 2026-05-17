@@ -6,9 +6,16 @@ import type {
   FileDiscoveryProgress,
   FileDiscoveryRequest,
   FileDiscoveryResult,
-  FileDiscoveryStartResponse
+  FileDiscoveryStartResponse,
+  FfprobeMetadataJobSnapshot,
+  FfprobeMetadataProgress,
+  FfprobeMetadataRequest,
+  FfprobeMetadataResult,
+  FfprobeMetadataStartResponse
 } from '../../shared/types/audit';
 import { discoverVideoFiles } from '../services/fileDiscoveryService';
+import { probeVideoFiles } from '../services/ffprobeService';
+import { getSettings } from '../services/settingsService';
 
 interface FileDiscoveryJob {
   id: string;
@@ -19,6 +26,16 @@ interface FileDiscoveryJob {
 }
 
 const discoveryJobs = new Map<string, FileDiscoveryJob>();
+
+interface FfprobeMetadataJob {
+  id: string;
+  request: FfprobeMetadataRequest;
+  abortController: AbortController;
+  snapshot: FfprobeMetadataJobSnapshot;
+  result: FfprobeMetadataResult | null;
+}
+
+const ffprobeJobs = new Map<string, FfprobeMetadataJob>();
 
 export function registerAuditIpcHandlers(): void {
   ipcMain.handle(
@@ -103,6 +120,86 @@ export function registerAuditIpcHandlers(): void {
       return job.snapshot;
     }
   );
+
+  ipcMain.handle(
+    IPC_CHANNELS.ffprobeStart,
+    async (event, request: FfprobeMetadataRequest): Promise<FfprobeMetadataStartResponse> => {
+      const normalizedRequest = normalizeFfprobeRequest(request);
+
+      if (normalizedRequest.filePaths.length === 0) {
+        return {
+          status: 'invalid_request',
+          message: 'Discover videos before running ffprobe metadata extraction.'
+        };
+      }
+
+      const jobId = randomUUID();
+      const browserWindow = BrowserWindow.fromWebContents(event.sender);
+      const job: FfprobeMetadataJob = {
+        id: jobId,
+        request: normalizedRequest,
+        abortController: new AbortController(),
+        result: null,
+        snapshot: {
+          jobId,
+          status: 'starting',
+          phase: 'probing',
+          totalFiles: normalizedRequest.filePaths.length,
+          processedFiles: 0,
+          succeededCount: 0,
+          errorCount: 0,
+          currentFile: null,
+          message: 'Starting ffprobe metadata extraction.',
+          error: null
+        }
+      };
+
+      ffprobeJobs.set(jobId, job);
+      sendFfprobeProgress(browserWindow, job.snapshot);
+
+      void runFfprobeJob(job, browserWindow);
+
+      return {
+        jobId,
+        status: 'started',
+        message: 'ffprobe metadata extraction started.'
+      };
+    }
+  );
+
+  ipcMain.handle(IPC_CHANNELS.ffprobeCancel, (_event, jobId: string): FfprobeMetadataJobSnapshot => {
+    const job = ffprobeJobs.get(jobId);
+
+    if (!job) {
+      return {
+        jobId,
+        status: 'error',
+        phase: 'error',
+        totalFiles: null,
+        processedFiles: 0,
+        succeededCount: 0,
+        errorCount: 0,
+        currentFile: null,
+        message: 'ffprobe job not found.',
+        error: 'ffprobe job not found.'
+      };
+    }
+
+    if (job.snapshot.status === 'complete' || job.snapshot.status === 'error') {
+      return job.snapshot;
+    }
+
+    job.abortController.abort();
+    job.snapshot = {
+      ...job.snapshot,
+      status: 'canceled',
+      phase: 'canceled',
+      currentFile: null,
+      message: 'ffprobe metadata extraction canceled.'
+    };
+
+    return job.snapshot;
+  });
 }
 
 async function runDiscoveryJob(
@@ -195,12 +292,103 @@ function sendProgress(
   browserWindow?.webContents.send(IPC_CHANNELS.auditDiscoveryProgress, snapshot);
 }
 
+async function runFfprobeJob(
+  job: FfprobeMetadataJob,
+  browserWindow: BrowserWindow | null
+): Promise<void> {
+  try {
+    const settings = await getSettings();
+    const serviceResult = await probeVideoFiles({
+      filePaths: job.request.filePaths,
+      ffprobePath: job.request.ffprobePathOverride ?? settings.ffprobePathOverride,
+      signal: job.abortController.signal,
+      onProgress: (progress) =>
+        updateFfprobeProgress(job, browserWindow, {
+          ...progress,
+          jobId: job.id,
+          status: 'running',
+          phase: 'probing',
+          totalFiles: job.request.filePaths.length
+        })
+    });
+
+    const result: FfprobeMetadataResult = {
+      jobId: job.id,
+      status: 'complete',
+      summary: {
+        requested: job.request.filePaths.length,
+        succeeded: serviceResult.succeededCount,
+        failed: serviceResult.errorCount
+      },
+      items: serviceResult.items
+    };
+
+    job.result = result;
+    updateFfprobeProgress(job, browserWindow, {
+      jobId: job.id,
+      status: 'complete',
+      phase: 'complete',
+      totalFiles: job.request.filePaths.length,
+      processedFiles: job.request.filePaths.length,
+      succeededCount: serviceResult.succeededCount,
+      errorCount: serviceResult.errorCount,
+      currentFile: null,
+      message: 'ffprobe metadata extraction complete.',
+      result
+    });
+  } catch (error: unknown) {
+    const wasCanceled = job.abortController.signal.aborted || isAbortError(error);
+    updateFfprobeProgress(job, browserWindow, {
+      ...job.snapshot,
+      jobId: job.id,
+      status: wasCanceled ? 'canceled' : 'error',
+      phase: wasCanceled ? 'canceled' : 'error',
+      currentFile: null,
+      message: wasCanceled ? 'ffprobe metadata extraction canceled.' : 'ffprobe metadata extraction failed.',
+      error: error instanceof Error ? error.message : 'ffprobe metadata extraction failed.'
+    });
+  }
+}
+
+function updateFfprobeProgress(
+  job: FfprobeMetadataJob,
+  browserWindow: BrowserWindow | null,
+  progress: FfprobeMetadataJobSnapshot | FfprobeMetadataProgress
+): void {
+  job.snapshot = {
+    ...job.snapshot,
+    ...progress
+  };
+  sendFfprobeProgress(browserWindow, job.snapshot);
+}
+
+function sendFfprobeProgress(
+  browserWindow: BrowserWindow | null,
+  snapshot: FfprobeMetadataJobSnapshot
+): void {
+  if (browserWindow?.isDestroyed()) {
+    return;
+  }
+
+  browserWindow?.webContents.send(IPC_CHANNELS.ffprobeProgress, snapshot);
+}
+
 function normalizeDiscoveryRequest(request: FileDiscoveryRequest): FileDiscoveryRequest {
   return {
     folderPaths: normalizeStringArray(request?.folderPaths),
     filePaths: normalizeStringArray(request?.filePaths),
     includeSubfolders:
       typeof request?.includeSubfolders === 'boolean' ? request.includeSubfolders : true
+  };
+}
+
+function normalizeFfprobeRequest(request: FfprobeMetadataRequest): FfprobeMetadataRequest {
+  return {
+    filePaths: normalizeStringArray(request?.filePaths),
+    ffprobePathOverride:
+      typeof request?.ffprobePathOverride === 'string' && request.ffprobePathOverride.trim() !== ''
+        ? request.ffprobePathOverride
+        : null
   };
 }
 

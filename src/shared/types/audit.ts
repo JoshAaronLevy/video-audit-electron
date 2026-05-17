@@ -1,5 +1,5 @@
 import type { JobStatus } from './jobs';
-import type { VideoRow } from './video';
+import type { FfprobeResult, VideoRow } from './video';
 
 export interface AuditOptions {
   includeSubfolders: boolean;
@@ -117,5 +117,46 @@ export interface FileDiscoveryStartResponse {
 
 export interface FileDiscoveryJobSnapshot extends FileDiscoveryProgress {
   result?: FileDiscoveryResult;
+  error?: string | null;
+}
+
+export interface FfprobeMetadataRequest {
+  filePaths: string[];
+  ffprobePathOverride?: string | null;
+}
+
+export type FfprobeMetadataPhase = 'probing' | 'complete' | 'error' | 'canceled';
+
+export interface FfprobeMetadataProgress {
+  jobId: string | null;
+  status: JobStatus;
+  phase: FfprobeMetadataPhase;
+  totalFiles: number | null;
+  processedFiles: number;
+  succeededCount: number;
+  errorCount: number;
+  currentFile: string | null;
+  message: string | null;
+}
+
+export interface FfprobeMetadataResult {
+  jobId: string;
+  status: Extract<JobStatus, 'complete'>;
+  summary: {
+    requested: number;
+    succeeded: number;
+    failed: number;
+  };
+  items: FfprobeResult[];
+}
+
+export interface FfprobeMetadataStartResponse {
+  jobId?: string;
+  status: 'started' | 'invalid_request' | 'error' | string;
+  message?: string;
+}
+
+export interface FfprobeMetadataJobSnapshot extends FfprobeMetadataProgress {
+  result?: FfprobeMetadataResult;
   error?: string | null;
 }

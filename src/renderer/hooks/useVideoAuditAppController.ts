@@ -14,6 +14,12 @@ import type {
 import type { AutoCropJobSnapshot, AutoCropResult } from '../../shared/types/autoCrop';
 import type { PathSelectionResult } from '../../shared/types/dialog';
 import type { AutoFixJobSnapshot, AutoFixResult } from '../../shared/types/autoFix';
+import type {
+  MediaPreviewJobSnapshot,
+  MediaPreviewResult,
+  MediaPreviewResultItem,
+  MediaPreviewScope
+} from '../../shared/types/mediaPreview';
 import type { AppSettings, AppSettingsUpdate } from '../../shared/types/settings';
 import type { FfprobeResult, VideoRow } from '../../shared/types/video';
 import {
@@ -32,6 +38,7 @@ type ActiveAction =
   | 'ffprobe'
   | 'autoFix'
   | 'autoCrop'
+  | 'mediaPreview'
   | null;
 
 const DEFAULT_AUDIT_OPTIONS: AuditOptions = {
@@ -95,6 +102,14 @@ export interface VideoAuditAppController {
   isAutoCropActive: boolean;
   canOpenCropOptions: boolean;
   autoCropOutputRootDir: string | null;
+  mediaPreviewProgress: MediaPreviewJobSnapshot | null;
+  mediaPreviewPercent: number | null;
+  mediaPreviewResult: MediaPreviewResult | null;
+  mediaPreviewError: string | null;
+  mediaPreviewScope: MediaPreviewScope;
+  isThumbnailDialogVisible: boolean;
+  isMediaPreviewActive: boolean;
+  canGenerateThumbnails: boolean;
   chooseFolders: () => Promise<void>;
   chooseFiles: () => Promise<void>;
   chooseOutputFolder: () => Promise<void>;
@@ -123,6 +138,11 @@ export interface VideoAuditAppController {
   closeAutoCropDialog: () => void;
   startAutoCrop: () => Promise<void>;
   cancelAutoCrop: () => Promise<void>;
+  openThumbnailDialog: () => void;
+  closeThumbnailDialog: () => void;
+  setMediaPreviewScope: (scope: MediaPreviewScope) => void;
+  startThumbnailGeneration: () => Promise<void>;
+  cancelThumbnailGeneration: () => Promise<void>;
 }
 
 export function useVideoAuditAppController(): VideoAuditAppController {
@@ -164,6 +184,12 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const [autoCropResult, setAutoCropResult] = useState<AutoCropResult | null>(null);
   const [autoCropError, setAutoCropError] = useState<string | null>(null);
   const [isAutoCropDialogVisible, setIsAutoCropDialogVisible] = useState(false);
+  const [mediaPreviewJobId, setMediaPreviewJobId] = useState<string | null>(null);
+  const [mediaPreviewProgress, setMediaPreviewProgress] = useState<MediaPreviewJobSnapshot | null>(null);
+  const [mediaPreviewResult, setMediaPreviewResult] = useState<MediaPreviewResult | null>(null);
+  const [mediaPreviewError, setMediaPreviewError] = useState<string | null>(null);
+  const [mediaPreviewScope, setMediaPreviewScope] = useState<MediaPreviewScope>('all');
+  const [isThumbnailDialogVisible, setIsThumbnailDialogVisible] = useState(false);
   const pendingAuditRequestRef = useRef<AuditRequest | null>(null);
 
   const applyAuditResult = useCallback(
@@ -363,6 +389,10 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     activeAction === 'autoCrop' ||
     autoCropProgress?.status === 'starting' ||
     autoCropProgress?.status === 'running';
+  const isMediaPreviewActive =
+    activeAction === 'mediaPreview' ||
+    mediaPreviewProgress?.status === 'starting' ||
+    mediaPreviewProgress?.status === 'running';
   const auditPercent = getProgressPercent(auditProgress?.processedFiles, auditProgress?.totalFiles);
   const discoveryPercent = getProgressPercent(
     discoveryProgress?.processedFiles,
@@ -371,6 +401,10 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const ffprobePercent = getProgressPercent(ffprobeProgress?.processedFiles, ffprobeProgress?.totalFiles);
   const autoFixPercent = getProgressPercent(autoFixProgress?.processedVideos, autoFixProgress?.totalVideos);
   const autoCropPercent = getProgressPercent(autoCropProgress?.processedFiles, autoCropProgress?.totalFiles);
+  const mediaPreviewPercent = getProgressPercent(
+    mediaPreviewProgress?.processedVideos,
+    mediaPreviewProgress?.totalVideos
+  );
   const discoveredPaths = discoveryProgress?.result?.files.map((file) => file.path) ?? [];
   const metadataItems = ffprobeProgress?.result?.items ?? [];
   const autoFixOutputDirectory = outputFolder ?? settings?.defaultAutoFixDestinationRoot ?? null;
@@ -381,6 +415,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isFfprobeActive &&
     !isAutoFixActive &&
     !isAutoCropActive &&
+    !isMediaPreviewActive &&
     (selectedFolders.length > 0 || selectedFiles.length > 0) &&
     (auditOptions.includeLowResolutionAnalysis || auditOptions.includeBlackBorderAnalysis);
   const canRefreshAudit =
@@ -389,21 +424,32 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isDiscoveryActive &&
     !isFfprobeActive &&
     !isAutoFixActive &&
-    !isAutoCropActive;
+    !isAutoCropActive &&
+    !isMediaPreviewActive;
   const canAutoFixSelected =
     selectedVideos.length > 0 &&
     !isAuditActive &&
     !isDiscoveryActive &&
     !isFfprobeActive &&
     !isAutoFixActive &&
-    !isAutoCropActive;
+    !isAutoCropActive &&
+    !isMediaPreviewActive;
   const canOpenCropOptions =
     selectedVideos.length > 0 &&
     !isAuditActive &&
     !isDiscoveryActive &&
     !isFfprobeActive &&
     !isAutoFixActive &&
-    !isAutoCropActive;
+    !isAutoCropActive &&
+    !isMediaPreviewActive;
+  const canGenerateThumbnails =
+    visibleVideoRows.length > 0 &&
+    !isAuditActive &&
+    !isDiscoveryActive &&
+    !isFfprobeActive &&
+    !isAutoFixActive &&
+    !isAutoCropActive &&
+    !isMediaPreviewActive;
 
   const persistSettings = useCallback(async (partialSettings: AppSettingsUpdate): Promise<AppSettings | null> => {
     setActiveAction('settings');
@@ -773,6 +819,63 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     });
   }, []);
 
+  const applyMediaPreviewResult = useCallback(
+    async (result: MediaPreviewResult): Promise<void> => {
+      if (!auditResult) {
+        return;
+      }
+
+      const nextRows = mergeMediaPreviewItems(auditResult.videos, result.items);
+      const nextResult = {
+        ...auditResult,
+        videos: nextRows
+      };
+
+      setAuditResult(nextResult);
+      setVideoRows(nextRows);
+      setSelectedVideos((currentSelection) => mergeMediaPreviewItems(currentSelection, result.items));
+      await persistCurrentResult(nextResult);
+    },
+    [auditResult, persistCurrentResult]
+  );
+
+  useEffect(() => {
+    return window.videoAudit.mediaPreview.onProgress((progress) => {
+      setMediaPreviewProgress(progress);
+
+      if (progress.jobId) {
+        setMediaPreviewJobId(progress.jobId);
+      }
+
+      if (progress.status === 'running' || progress.status === 'starting') {
+        setActiveAction('mediaPreview');
+      }
+
+      if (progress.status === 'complete' && progress.result) {
+        setActiveAction(null);
+        setMediaPreviewResult(progress.result);
+        setMediaPreviewError(null);
+        void applyMediaPreviewResult(progress.result).then(() => {
+          setWorkflowMessage(
+            `Thumbnail generation complete. ${progress.result?.summary.generated.toLocaleString() ?? '0'} generated, ${progress.result?.summary.cached.toLocaleString() ?? '0'} cached.`
+          );
+        });
+      }
+
+      if (progress.status === 'error') {
+        setActiveAction(null);
+        setMediaPreviewError(progress.error ?? progress.message ?? 'Thumbnail generation failed.');
+        setWorkflowMessage(progress.message ?? 'Thumbnail generation failed.');
+      }
+
+      if (progress.status === 'canceled') {
+        setActiveAction(null);
+        setMediaPreviewError(null);
+        setWorkflowMessage(progress.message ?? 'Thumbnail generation canceled.');
+      }
+    });
+  }, [applyMediaPreviewResult]);
+
   const removeSelectedVideos = useCallback(async (): Promise<void> => {
     if (selectedVideos.length === 0) {
       return;
@@ -832,6 +935,11 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setAutoCropResult(null);
     setAutoCropError(null);
     setIsAutoCropDialogVisible(false);
+    setMediaPreviewJobId(null);
+    setMediaPreviewProgress(null);
+    setMediaPreviewResult(null);
+    setMediaPreviewError(null);
+    setIsThumbnailDialogVisible(false);
     setLastAuditRequest(null);
     pendingAuditRequestRef.current = null;
     setStorageSavedAt(null);
@@ -1106,6 +1214,88 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     }
   }, [autoCropJobId]);
 
+  const openThumbnailDialog = useCallback((): void => {
+    if (visibleVideoRows.length === 0) {
+      setWorkflowMessage('No videos are available for thumbnail generation.');
+      return;
+    }
+
+    setMediaPreviewScope(selectedVideos.length > 0 ? 'selected' : 'all');
+    setMediaPreviewError(null);
+    setMediaPreviewResult(null);
+    setMediaPreviewProgress(null);
+    setIsThumbnailDialogVisible(true);
+  }, [selectedVideos.length, visibleVideoRows.length]);
+
+  const closeThumbnailDialog = useCallback((): void => {
+    if (isMediaPreviewActive) {
+      return;
+    }
+
+    setIsThumbnailDialogVisible(false);
+    setMediaPreviewError(null);
+  }, [isMediaPreviewActive]);
+
+  const startThumbnailGeneration = useCallback(async (): Promise<void> => {
+    const rows = mediaPreviewScope === 'selected' && selectedVideos.length > 0 ? selectedVideos : visibleVideoRows;
+
+    if (rows.length === 0) {
+      setMediaPreviewError('No videos are available for thumbnail generation.');
+      return;
+    }
+
+    setMediaPreviewError(null);
+    setMediaPreviewResult(null);
+    setMediaPreviewProgress({
+      jobId: null,
+      status: 'starting',
+      phase: 'validating',
+      totalVideos: rows.length,
+      processedVideos: 0,
+      generatedCount: 0,
+      cachedCount: 0,
+      failedCount: 0,
+      currentFile: null,
+      message: 'Starting thumbnail generation.',
+      error: null
+    });
+    setActiveAction('mediaPreview');
+
+    try {
+      const response = await window.videoAudit.mediaPreview.start({
+        videos: rows,
+        mode: 'thumbnail'
+      });
+
+      if (response.status !== 'started' || !response.jobId) {
+        setActiveAction(null);
+        setMediaPreviewError(response.message ?? 'Could not start thumbnail generation.');
+        return;
+      }
+
+      setMediaPreviewJobId(response.jobId);
+      setWorkflowMessage(response.message ?? 'Thumbnail generation started.');
+    } catch (error: unknown) {
+      setActiveAction(null);
+      setMediaPreviewError(getErrorMessage(error, 'Could not start thumbnail generation.'));
+    }
+  }, [mediaPreviewScope, selectedVideos, visibleVideoRows]);
+
+  const cancelThumbnailGeneration = useCallback(async (): Promise<void> => {
+    if (!mediaPreviewJobId) {
+      return;
+    }
+
+    try {
+      const progress = await window.videoAudit.mediaPreview.cancel(mediaPreviewJobId);
+      setMediaPreviewProgress(progress);
+      setWorkflowMessage(progress.message ?? 'Thumbnail generation canceled.');
+      setActiveAction(null);
+    } catch (error: unknown) {
+      setMediaPreviewError(getErrorMessage(error, 'Could not cancel thumbnail generation.'));
+    }
+  }, [mediaPreviewJobId]);
+
   return {
     appInfo,
     appInfoMessage,
@@ -1158,6 +1348,14 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     isAutoCropActive,
     canOpenCropOptions,
     autoCropOutputRootDir,
+    mediaPreviewProgress,
+    mediaPreviewPercent,
+    mediaPreviewResult,
+    mediaPreviewError,
+    mediaPreviewScope,
+    isThumbnailDialogVisible,
+    isMediaPreviewActive,
+    canGenerateThumbnails,
     chooseFolders,
     chooseFiles,
     chooseOutputFolder,
@@ -1185,8 +1383,50 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     openAutoCropDialog,
     closeAutoCropDialog,
     startAutoCrop,
-    cancelAutoCrop
+    cancelAutoCrop,
+    openThumbnailDialog,
+    closeThumbnailDialog,
+    setMediaPreviewScope,
+    startThumbnailGeneration,
+    cancelThumbnailGeneration
   };
+}
+
+function mergeMediaPreviewItems(rows: VideoRow[], items: MediaPreviewResultItem[]): VideoRow[] {
+  if (items.length === 0) {
+    return rows;
+  }
+
+  const itemsByPath = new Map<string, MediaPreviewResultItem>();
+
+  for (const item of items) {
+    const key = item.path ?? item.absolutePath;
+
+    if (key) {
+      itemsByPath.set(key, item);
+    }
+  }
+
+  return rows.map((row) => {
+    const item = itemsByPath.get(row.path);
+
+    if (!item) {
+      return row;
+    }
+
+    const nextRow: VideoRow = {
+      ...row,
+      thumbnail: item.thumbnail
+    };
+
+    if (item.previewFrames) {
+      nextRow.previewFrames = item.previewFrames.frames;
+      nextRow.previewFrameBatchId = item.previewFrames.batchId;
+      nextRow.maxPreviewFrameCount = item.previewFrames.maxPreviewFrameCount;
+    }
+
+    return nextRow;
+  });
 }
 
 function settingsToAuditOptions(settings: AppSettings): AuditOptions {

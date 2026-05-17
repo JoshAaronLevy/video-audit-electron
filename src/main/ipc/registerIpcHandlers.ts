@@ -5,6 +5,7 @@ import { registerAuditIpcHandlers } from './auditIpc';
 import { registerAutoCropIpcHandlers } from './autoCropIpc';
 import { registerAutoFixIpcHandlers } from './autoFixIpc';
 import { registerDialogIpcHandlers } from './dialogIpc';
+import { registerMediaPreviewIpcHandlers } from './mediaPreviewIpc';
 import { registerSettingsIpcHandlers } from './settingsIpc';
 
 export function registerIpcHandlers(): void {
@@ -21,5 +22,6 @@ export function registerIpcHandlers(): void {
   registerAutoCropIpcHandlers();
   registerAutoFixIpcHandlers();
   registerDialogIpcHandlers();
+  registerMediaPreviewIpcHandlers();
   registerSettingsIpcHandlers();
 }

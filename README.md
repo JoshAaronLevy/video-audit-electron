@@ -72,6 +72,10 @@ The current app includes:
 - cancellable Auto-Fix progress, per-file result reporting, safe output filename generation, and output-folder reveal support
 - Electron-native Auto-Crop workflow for selected black-border rows using ffmpeg crop/scale output
 - cancellable Auto-Crop progress, ineligible-row skips, per-file result reporting, manifest writing, safe output path handling, and output-folder reveal support
+- Electron-native media-preview workflow for selected or visible-row thumbnail generation using ffmpeg
+- persistent media-preview cache manifests keyed by source path, file size, and modified time for future preview-clip support
+- safe `media-preview://` asset URLs for rendering generated thumbnails without exposing arbitrary filesystem reads
+- cancellable thumbnail generation progress, per-file result reporting, table thumbnail display, and persisted thumbnail metadata
 - cancellable audit progress, result retrieval, flagged rows, and per-file errors through IPC
 - Electron-native renderer controller for source selection, audit lifecycle, and result-state management
 - persisted audit results in renderer IndexedDB with refresh and clear-data controls

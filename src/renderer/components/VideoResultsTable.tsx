@@ -21,12 +21,14 @@ interface VideoResultsTableProps {
   isAuditActive: boolean;
   isAutoFixActive: boolean;
   isAutoCropActive: boolean;
+  isMediaPreviewActive: boolean;
   isStorageLoading: boolean;
   storageMessage: string | null;
   storageSavedAt: string | null;
   canRefreshAudit: boolean;
   canAutoFixSelected: boolean;
   canOpenCropOptions: boolean;
+  canGenerateThumbnails: boolean;
   onSelectedVideosChange: (videos: VideoRow[]) => void;
   onGlobalFilterChange: (value: string) => void;
   onShowThumbnailsChange: (value: boolean) => void;
@@ -36,6 +38,7 @@ interface VideoResultsTableProps {
   onRestoreRemovedVideos: () => void;
   onOpenAutoFixDialog: () => void;
   onOpenAutoCropDialog: () => void;
+  onOpenThumbnailDialog: () => void;
   onRevealPath: (path: string) => void;
 }
 
@@ -68,12 +71,14 @@ export function VideoResultsTable({
   isAuditActive,
   isAutoFixActive,
   isAutoCropActive,
+  isMediaPreviewActive,
   isStorageLoading,
   storageMessage,
   storageSavedAt,
   canRefreshAudit,
   canAutoFixSelected,
   canOpenCropOptions,
+  canGenerateThumbnails,
   onSelectedVideosChange,
   onGlobalFilterChange,
   onShowThumbnailsChange,
@@ -83,6 +88,7 @@ export function VideoResultsTable({
   onRestoreRemovedVideos,
   onOpenAutoFixDialog,
   onOpenAutoCropDialog,
+  onOpenThumbnailDialog,
   onRevealPath
 }: VideoResultsTableProps): ReactElement {
   const tableHeader = (
@@ -178,7 +184,14 @@ export function VideoResultsTable({
           disabled={!canOpenCropOptions}
           onClick={onOpenAutoCropDialog}
         />
-        <Button label="Thumbnails" icon="pi pi-images" severity="info" disabled />
+        <Button
+          label={selectedVideos.length > 0 ? `Generate Thumbnails (${selectedVideos.length})` : 'Generate Thumbnails'}
+          icon="pi pi-images"
+          severity="info"
+          loading={isMediaPreviewActive}
+          disabled={!canGenerateThumbnails}
+          onClick={onOpenThumbnailDialog}
+        />
         <Button label="Edit in Premiere" icon="pi pi-send" severity="success" disabled />
       </div>
     </div>

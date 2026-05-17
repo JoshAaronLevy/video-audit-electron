@@ -8,3 +8,7 @@ export function getAppDataDir(): string {
 export function getSettingsFilePath(): string {
   return join(getAppDataDir(), 'settings.json');
 }
+
+export function getMediaPreviewCacheDir(): string {
+  return join(getAppDataDir(), 'media-preview');
+}

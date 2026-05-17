@@ -24,5 +24,11 @@ export const IPC_CHANNELS = {
   autoCropStart: 'auto-crop:start',
   autoCropCancel: 'auto-crop:cancel',
   autoCropGetResult: 'auto-crop:get-result',
-  autoCropProgress: 'auto-crop:progress'
+  autoCropProgress: 'auto-crop:progress',
+  mediaPreviewStart: 'media-preview:start',
+  mediaPreviewCancel: 'media-preview:cancel',
+  mediaPreviewGetResult: 'media-preview:get-result',
+  mediaPreviewProgress: 'media-preview:progress',
+  mediaPreviewGenerateFrames: 'media-preview:generate-frames',
+  mediaPreviewClearCache: 'media-preview:clear-cache'
 } as const;

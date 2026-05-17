@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-05-17
+
+### Added
+
+- Added an Electron main-process media-preview service for on-demand thumbnail generation with ffmpeg.
+- Added a stable media-preview cache under Electron user data with source path, file size, modified time, duration, and manifest metadata for future preview clips.
+- Added a controlled `media-preview://` asset protocol so generated thumbnails can render in the UI without exposing arbitrary filesystem reads.
+- Added media-preview IPC start, progress, cancel, result retrieval, preview-frame generation, and cache clearing through the typed preload API.
+- Added a renderer Generate Thumbnails workflow for selected rows or all visible rows, with progress, cancellation, result summary, per-file failures, table thumbnail display, and persisted thumbnail metadata.
+
 ## [0.11.0] - 2026-05-17
 
 ### Added

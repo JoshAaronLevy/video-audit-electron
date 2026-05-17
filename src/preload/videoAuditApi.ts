@@ -26,6 +26,14 @@ import type {
   AutoFixStartResponse
 } from '../shared/types/autoFix';
 import type { PathSelectionResult, RevealPathResult } from '../shared/types/dialog';
+import type {
+  MediaPreviewJobSnapshot,
+  MediaPreviewRequest,
+  MediaPreviewResultResponse,
+  MediaPreviewStartResponse,
+  PreviewFrameRequest,
+  PreviewFrameResultResponse
+} from '../shared/types/mediaPreview';
 import type { AppSettings, AppSettingsUpdate } from '../shared/types/settings';
 
 export interface VideoAuditApi {
@@ -72,6 +80,14 @@ export interface VideoAuditApi {
     cancel: (jobId: string) => Promise<AutoCropJobSnapshot>;
     getResult: (jobId: string) => Promise<AutoCropResultResponse>;
     onProgress: (callback: (progress: AutoCropJobSnapshot) => void) => () => void;
+  };
+  mediaPreview: {
+    start: (request: MediaPreviewRequest) => Promise<MediaPreviewStartResponse>;
+    cancel: (jobId: string) => Promise<MediaPreviewJobSnapshot>;
+    getResult: (jobId: string) => Promise<MediaPreviewResultResponse>;
+    generateFrames: (request: PreviewFrameRequest) => Promise<PreviewFrameResultResponse>;
+    clearCache: () => Promise<{ status: string; message: string }>;
+    onProgress: (callback: (progress: MediaPreviewJobSnapshot) => void) => () => void;
   };
 }
 
@@ -169,6 +185,26 @@ export const videoAuditApi: VideoAuditApi = {
 
       return () => {
         ipcRenderer.removeListener(IPC_CHANNELS.autoCropProgress, listener);
+      };
+    }
+  },
+  mediaPreview: {
+    start: (request: MediaPreviewRequest) =>
+      ipcRenderer.invoke(IPC_CHANNELS.mediaPreviewStart, request),
+    cancel: (jobId: string) => ipcRenderer.invoke(IPC_CHANNELS.mediaPreviewCancel, jobId),
+    getResult: (jobId: string) => ipcRenderer.invoke(IPC_CHANNELS.mediaPreviewGetResult, jobId),
+    generateFrames: (request: PreviewFrameRequest) =>
+      ipcRenderer.invoke(IPC_CHANNELS.mediaPreviewGenerateFrames, request),
+    clearCache: () => ipcRenderer.invoke(IPC_CHANNELS.mediaPreviewClearCache),
+    onProgress: (callback: (progress: MediaPreviewJobSnapshot) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, progress: MediaPreviewJobSnapshot): void => {
+        callback(progress);
+      };
+
+      ipcRenderer.on(IPC_CHANNELS.mediaPreviewProgress, listener);
+
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.mediaPreviewProgress, listener);
       };
     }
   }

@@ -5,6 +5,7 @@ import { AutoCropDialog } from './components/AutoCropDialog';
 import { AutoFixDialog } from './components/AutoFixDialog';
 import { SettingsPanel } from './components/SettingsPanel';
 import { SourceSelectionPanel } from './components/SourceSelectionPanel';
+import { ThumbnailGenerationDialog } from './components/ThumbnailGenerationDialog';
 import { UtilityPanel } from './components/UtilityPanel';
 import { VideoResultsTable } from './components/VideoResultsTable';
 import { useVideoAuditAppController } from './hooks/useVideoAuditAppController';
@@ -56,12 +57,14 @@ export function App(): ReactElement {
             isAuditActive={controller.isAuditActive}
             isAutoFixActive={controller.isAutoFixActive}
             isAutoCropActive={controller.isAutoCropActive}
+            isMediaPreviewActive={controller.isMediaPreviewActive}
             isStorageLoading={controller.isStorageLoading}
             storageMessage={controller.storageMessage}
             storageSavedAt={controller.storageSavedAt}
             canRefreshAudit={controller.canRefreshAudit}
             canAutoFixSelected={controller.canAutoFixSelected}
             canOpenCropOptions={controller.canOpenCropOptions}
+            canGenerateThumbnails={controller.canGenerateThumbnails}
             onSelectedVideosChange={controller.setSelectedVideos}
             onGlobalFilterChange={controller.setGlobalFilter}
             onShowThumbnailsChange={controller.setShowThumbnails}
@@ -71,6 +74,7 @@ export function App(): ReactElement {
             onRestoreRemovedVideos={controller.restoreRemovedVideos}
             onOpenAutoFixDialog={controller.openAutoFixDialog}
             onOpenAutoCropDialog={controller.openAutoCropDialog}
+            onOpenThumbnailDialog={controller.openThumbnailDialog}
             onRevealPath={controller.revealPath}
           />
 
@@ -102,6 +106,22 @@ export function App(): ReactElement {
             onCancel={controller.cancelAutoCrop}
             onHide={controller.closeAutoCropDialog}
             onRevealOutputDir={controller.revealPath}
+          />
+
+          <ThumbnailGenerationDialog
+            visible={controller.isThumbnailDialogVisible}
+            allCount={controller.visibleVideoRows.length}
+            selectedCount={controller.selectedVideos.length}
+            scope={controller.mediaPreviewScope}
+            progress={controller.mediaPreviewProgress}
+            percent={controller.mediaPreviewPercent}
+            result={controller.mediaPreviewResult}
+            error={controller.mediaPreviewError}
+            isSubmitting={controller.isMediaPreviewActive}
+            onScopeChange={controller.setMediaPreviewScope}
+            onSubmit={controller.startThumbnailGeneration}
+            onCancel={controller.cancelThumbnailGeneration}
+            onHide={controller.closeThumbnailDialog}
           />
         </div>
 

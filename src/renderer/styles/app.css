@@ -431,7 +431,8 @@ select {
 }
 
 .auto-fix-dialog,
-.auto-crop-dialog {
+.auto-crop-dialog,
+.thumbnail-dialog {
   width: min(760px, calc(100vw - 32px));
 }
 
@@ -440,14 +441,18 @@ select {
 .auto-fix-failed-items,
 .auto-crop-dialog-content,
 .auto-crop-progress,
-.auto-crop-item-list {
+.auto-crop-item-list,
+.thumbnail-dialog-content,
+.thumbnail-progress,
+.thumbnail-failed-items {
   display: grid;
   gap: 0.85rem;
 }
 
 .dialog-actions,
 .auto-fix-progress-counts,
-.auto-crop-progress-counts {
+.auto-crop-progress-counts,
+.thumbnail-progress-counts {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -457,7 +462,8 @@ select {
 .auto-fix-summary-grid,
 .auto-fix-current-grid,
 .auto-crop-summary-grid,
-.auto-crop-current-grid {
+.auto-crop-current-grid,
+.thumbnail-summary-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.65rem;
@@ -468,7 +474,10 @@ select {
 .auto-fix-paths,
 .auto-crop-summary-grid > div,
 .auto-crop-current-grid > div,
-.auto-crop-paths {
+.auto-crop-paths,
+.thumbnail-summary-grid > div,
+.thumbnail-current-file,
+.thumbnail-scope-option {
   display: grid;
   gap: 0.25rem;
   min-width: 0;
@@ -483,7 +492,10 @@ select {
 .auto-fix-paths span,
 .auto-crop-summary-grid span,
 .auto-crop-current-grid span,
-.auto-crop-paths span {
+.auto-crop-paths span,
+.thumbnail-summary-grid span,
+.thumbnail-current-file span,
+.thumbnail-scope-option small {
   color: #64748b;
   font-size: 0.78rem;
   font-weight: 800;
@@ -492,7 +504,9 @@ select {
 .auto-fix-summary-grid strong,
 .auto-fix-current-grid strong,
 .auto-crop-summary-grid strong,
-.auto-crop-current-grid strong {
+.auto-crop-current-grid strong,
+.thumbnail-summary-grid strong,
+.thumbnail-current-file strong {
   min-width: 0;
   overflow: hidden;
   color: #172033;
@@ -512,20 +526,23 @@ select {
 }
 
 .auto-fix-progress p,
-.auto-crop-progress p {
+.auto-crop-progress p,
+.thumbnail-progress p {
   margin: 0;
   color: #475569;
 }
 
 .auto-fix-failed-items h3,
-.auto-crop-item-list h3 {
+.auto-crop-item-list h3,
+.thumbnail-failed-items h3 {
   margin: 0;
   color: #334155;
   font-size: 0.95rem;
 }
 
 .auto-fix-failed-items ul,
-.auto-crop-item-list ul {
+.auto-crop-item-list ul,
+.thumbnail-failed-items ul {
   display: grid;
   gap: 0.5rem;
   padding: 0;
@@ -534,7 +551,8 @@ select {
 }
 
 .auto-fix-failed-items li,
-.auto-crop-item-list li {
+.auto-crop-item-list li,
+.thumbnail-failed-items li {
   display: grid;
   gap: 0.2rem;
   padding: 0.6rem;
@@ -544,8 +562,35 @@ select {
 }
 
 .auto-fix-failed-items small,
-.auto-crop-item-list small {
+.auto-crop-item-list small,
+.thumbnail-failed-items small {
   color: #9a3412;
+}
+
+.thumbnail-summary-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.thumbnail-scope-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.thumbnail-scope-option {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  cursor: pointer;
+}
+
+.thumbnail-scope-option > span {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.thumbnail-scope-option strong {
+  color: #172033;
 }
 
 @media (max-width: 1120px) {
@@ -597,7 +642,9 @@ select {
   .auto-fix-summary-grid,
   .auto-fix-current-grid,
   .auto-crop-summary-grid,
-  .auto-crop-current-grid {
+  .auto-crop-current-grid,
+  .thumbnail-summary-grid,
+  .thumbnail-scope-options {
     grid-template-columns: 1fr;
   }
 }

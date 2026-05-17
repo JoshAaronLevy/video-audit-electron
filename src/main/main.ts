@@ -1,8 +1,14 @@
 import { app, BrowserWindow } from 'electron';
 import { join } from 'node:path';
 import { registerIpcHandlers } from './ipc/registerIpcHandlers';
+import {
+  registerMediaPreviewProtocolHandler,
+  registerMediaPreviewProtocolScheme
+} from './services/mediaPreviewProtocol';
 
 const isDev = Boolean(process.env.ELECTRON_RENDERER_URL);
+
+registerMediaPreviewProtocolScheme();
 
 function createMainWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -30,6 +36,7 @@ function createMainWindow(): void {
 }
 
 app.whenReady().then(() => {
+  registerMediaPreviewProtocolHandler();
   registerIpcHandlers();
   createMainWindow();
 

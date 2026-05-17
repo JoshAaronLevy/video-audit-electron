@@ -6,6 +6,11 @@ import type {
   MediaPreviewResult,
   MediaPreviewResultResponse,
   MediaPreviewStartResponse,
+  PreviewClipJobSnapshot,
+  PreviewClipRequest,
+  PreviewClipResult,
+  PreviewClipResultResponse,
+  PreviewClipStartResponse,
   PreviewFrameRequest,
   PreviewFrameResultResponse
 } from '../../shared/types/mediaPreview';
@@ -13,13 +18,22 @@ import type { JobRecord } from '../services/jobRegistry';
 import { JobRegistry } from '../services/jobRegistry';
 import {
   clearMediaPreviewCache,
+  generatePreviewClips,
   generatePreviewFrames,
   generateThumbnails,
-  validateMediaPreviewRequest
+  validateMediaPreviewRequest,
+  validatePreviewClipRequest
 } from '../services/mediaPreviewService';
 import { getSettings } from '../services/settingsService';
 
 const mediaPreviewJobs = new JobRegistry<MediaPreviewRequest, MediaPreviewJobSnapshot, MediaPreviewResult>();
+type PreviewClipJobRequest = PreviewClipRequest & {
+  frames: NonNullable<PreviewClipRequest['frames']>;
+  clipDurationSeconds: number;
+  width: number;
+};
+
+const previewClipJobs = new JobRegistry<PreviewClipJobRequest, PreviewClipJobSnapshot, PreviewClipResult>();
 
 export function registerMediaPreviewIpcHandlers(): void {
   ipcMain.handle(
@@ -137,6 +151,101 @@ export function registerMediaPreviewIpcHandlers(): void {
     }
   );
 
+  ipcMain.handle(
+    IPC_CHANNELS.mediaPreviewClipStart,
+    async (event, request: PreviewClipRequest): Promise<PreviewClipStartResponse> => {
+      const validation = await validatePreviewClipRequest(request);
+
+      if (!validation.ok) {
+        return {
+          status: 'invalid_request',
+          message: validation.error
+        };
+      }
+
+      const browserWindow = BrowserWindow.fromWebContents(event.sender);
+      const totalClips = validation.request.frames.length || null;
+      const job = previewClipJobs.create(validation.request, {
+        jobId: null,
+        status: 'starting',
+        phase: 'validating',
+        totalClips,
+        processedClips: 0,
+        generatedCount: 0,
+        cachedCount: 0,
+        failedCount: 0,
+        currentFile: validation.request.video.fileName ?? null,
+        currentTimestampLabel: null,
+        message: 'Starting preview clip generation.',
+        error: null
+      });
+
+      sendPreviewClipProgress(browserWindow, job.snapshot);
+      void runPreviewClipJob(job, browserWindow);
+
+      return {
+        jobId: job.id,
+        status: 'started',
+        message: 'Preview clip generation started.',
+        totalClips
+      };
+    }
+  );
+
+  ipcMain.handle(IPC_CHANNELS.mediaPreviewClipCancel, (_event, jobId: string): PreviewClipJobSnapshot => {
+    const job = previewClipJobs.get(jobId);
+
+    if (!job) {
+      return createMissingPreviewClipJobSnapshot(jobId);
+    }
+
+    if (
+      job.snapshot.status === 'complete' ||
+      job.snapshot.status === 'error' ||
+      job.snapshot.status === 'canceled'
+    ) {
+      return job.snapshot;
+    }
+
+    job.abortController.abort();
+    const snapshot = previewClipJobs.patchSnapshot(job, {
+      status: 'canceled',
+      phase: 'canceled',
+      currentFile: null,
+      currentTimestampLabel: null,
+      message: 'Preview clip generation canceled.'
+    });
+
+    sendPreviewClipProgress(BrowserWindow.fromWebContents(_event.sender), snapshot);
+    return snapshot;
+  });
+
+  ipcMain.handle(IPC_CHANNELS.mediaPreviewClipGetResult, (_event, jobId: string): PreviewClipResultResponse => {
+    const job = previewClipJobs.get(jobId);
+
+    if (!job) {
+      return {
+        jobId,
+        status: 'not_found',
+        message: 'Preview clip job not found.'
+      };
+    }
+
+    if (!job.result) {
+      return {
+        jobId,
+        status: 'not_ready',
+        message: 'Preview clip result is not ready.'
+      };
+    }
+
+    return {
+      jobId,
+      status: job.result.status,
+      result: job.result
+    };
+  });
+
   ipcMain.handle(IPC_CHANNELS.mediaPreviewClearCache, async (): Promise<{ status: string; message: string }> => {
     await clearMediaPreviewCache();
 
@@ -201,6 +310,64 @@ async function runMediaPreviewJob(
   }
 }
 
+async function runPreviewClipJob(
+  job: JobRecord<PreviewClipJobRequest, PreviewClipJobSnapshot, PreviewClipResult>,
+  browserWindow: BrowserWindow | null
+): Promise<void> {
+  try {
+    const settings = await getSettings();
+    const serviceResult = await generatePreviewClips({
+      ...job.request,
+      clipDurationSeconds: job.request.clipDurationSeconds ?? settings.previewClipDurationSecondsDefault,
+      width: job.request.width ?? settings.previewClipWidthDefault,
+      ffmpegPath: settings.ffmpegPathOverride,
+      signal: job.abortController.signal,
+      onProgress: (progress) =>
+        updatePreviewClipProgress(job, browserWindow, {
+          ...progress,
+          jobId: job.id,
+          status: 'running'
+        })
+    });
+    const result: PreviewClipResult = {
+      jobId: job.id,
+      status: 'complete',
+      message: 'Preview clip generation complete.',
+      ...serviceResult
+    };
+
+    previewClipJobs.setResult(job, result);
+    updatePreviewClipProgress(job, browserWindow, {
+      jobId: job.id,
+      status: 'complete',
+      phase: 'complete',
+      totalClips: result.summary.requested,
+      processedClips: result.summary.requested,
+      generatedCount: result.summary.generated,
+      cachedCount: result.summary.cached,
+      failedCount: result.summary.failed,
+      currentFile: null,
+      currentTimestampLabel: null,
+      message: 'Preview clip generation complete.',
+      result
+    });
+  } catch (error: unknown) {
+    const wasCanceled = job.abortController.signal.aborted || isAbortError(error);
+    const message = wasCanceled ? 'Preview clip generation canceled.' : 'Preview clip generation failed.';
+
+    updatePreviewClipProgress(job, browserWindow, {
+      ...job.snapshot,
+      jobId: job.id,
+      status: wasCanceled ? 'canceled' : 'error',
+      phase: wasCanceled ? 'canceled' : 'error',
+      currentFile: null,
+      currentTimestampLabel: null,
+      message,
+      error: error instanceof Error ? error.message : message
+    });
+  }
+}
+
 function updateMediaPreviewProgress(
   job: JobRecord<MediaPreviewRequest, MediaPreviewJobSnapshot, MediaPreviewResult>,
   browserWindow: BrowserWindow | null,
@@ -208,6 +375,15 @@ function updateMediaPreviewProgress(
 ): void {
   mediaPreviewJobs.patchSnapshot(job, progress);
   sendMediaPreviewProgress(browserWindow, job.snapshot);
+}
+
+function updatePreviewClipProgress(
+  job: JobRecord<PreviewClipJobRequest, PreviewClipJobSnapshot, PreviewClipResult>,
+  browserWindow: BrowserWindow | null,
+  progress: PreviewClipJobSnapshot
+): void {
+  previewClipJobs.patchSnapshot(job, progress);
+  sendPreviewClipProgress(browserWindow, job.snapshot);
 }
 
 function sendMediaPreviewProgress(
@@ -219,6 +395,17 @@ function sendMediaPreviewProgress(
   }
 
   browserWindow?.webContents.send(IPC_CHANNELS.mediaPreviewProgress, snapshot);
+}
+
+function sendPreviewClipProgress(
+  browserWindow: BrowserWindow | null,
+  snapshot: PreviewClipJobSnapshot
+): void {
+  if (browserWindow?.isDestroyed()) {
+    return;
+  }
+
+  browserWindow?.webContents.send(IPC_CHANNELS.mediaPreviewClipProgress, snapshot);
 }
 
 function createMissingMediaPreviewJobSnapshot(jobId: string): MediaPreviewJobSnapshot {
@@ -234,6 +421,23 @@ function createMissingMediaPreviewJobSnapshot(jobId: string): MediaPreviewJobSna
     currentFile: null,
     message: 'Media preview job not found.',
     error: 'Media preview job not found.'
+  };
+}
+
+function createMissingPreviewClipJobSnapshot(jobId: string): PreviewClipJobSnapshot {
+  return {
+    jobId,
+    status: 'error',
+    phase: 'error',
+    totalClips: null,
+    processedClips: 0,
+    generatedCount: 0,
+    cachedCount: 0,
+    failedCount: 0,
+    currentFile: null,
+    currentTimestampLabel: null,
+    message: 'Preview clip job not found.',
+    error: 'Preview clip job not found.'
   };
 }
 

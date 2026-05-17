@@ -10,14 +10,26 @@ import type {
   MediaPreviewRequest,
   MediaPreviewResult,
   MediaPreviewResultItem,
+  PreviewClipProgress,
+  PreviewClipRequest,
+  PreviewClipResult,
+  PreviewClipResultItem,
   PreviewFrameMode,
   PreviewFrameRequest
 } from '../../shared/types/mediaPreview';
-import type { VideoPreviewFrame, VideoPreviewFrameResult, VideoRow, VideoThumbnail } from '../../shared/types/video';
+import type {
+  VideoPreviewClip,
+  VideoPreviewFrame,
+  VideoPreviewFrameResult,
+  VideoRow,
+  VideoThumbnail
+} from '../../shared/types/video';
 import { getMediaPreviewCacheDir } from './appPaths';
 
 const POSTER_THUMBNAIL_WIDTH = 320;
 const PREVIEW_FRAME_WIDTH = 640;
+const DEFAULT_PREVIEW_CLIP_DURATION_SECONDS = 5;
+const DEFAULT_PREVIEW_CLIP_WIDTH = 640;
 
 interface ValidMediaPreviewRequest {
   videos: VideoRow[];
@@ -38,8 +50,16 @@ interface ValidPreviewVideo {
     videoHash: string;
     videoDir: string;
     thumbsDir: string;
+    clipsDir: string;
     manifestPath: string;
   };
+}
+
+interface ValidPreviewClipRequest {
+  video: VideoRow;
+  frames: VideoPreviewFrame[];
+  clipDurationSeconds: number;
+  width: number;
 }
 
 interface ThumbnailGenerationResult {
@@ -47,6 +67,15 @@ interface ThumbnailGenerationResult {
   generated: boolean;
   cached: boolean;
   failed: boolean;
+}
+
+interface PreviewClipTarget {
+  id: string;
+  frame: VideoPreviewFrame;
+  timestampSeconds: number;
+  timestampLabel: string;
+  thumbnailPath: string;
+  thumbnailUrl?: string;
 }
 
 export async function validateMediaPreviewRequest(
@@ -70,6 +99,34 @@ export async function validateMediaPreviewRequest(
     ok: true,
     request: {
       videos: dedupeVideos(request.videos)
+    }
+  };
+}
+
+export async function validatePreviewClipRequest(
+  request: Partial<PreviewClipRequest> | null | undefined
+): Promise<{ ok: true; request: ValidPreviewClipRequest } | { ok: false; error: string }> {
+  if (!request || typeof request !== 'object') {
+    return {
+      ok: false,
+      error: 'Preview clip request is required.'
+    };
+  }
+
+  if (!request.video || typeof request.video !== 'object') {
+    return {
+      ok: false,
+      error: 'Choose a video before generating preview clips.'
+    };
+  }
+
+  return {
+    ok: true,
+    request: {
+      video: request.video,
+      frames: normalizeRequestedPreviewFrames(request.frames),
+      clipDurationSeconds: normalizePreviewClipDurationSeconds(request.clipDurationSeconds),
+      width: normalizePreviewClipWidth(request.width)
     }
   };
 }
@@ -293,6 +350,270 @@ export async function generatePreviewFrames({
   };
 }
 
+export async function generatePreviewClips({
+  video,
+  frames,
+  clipDurationSeconds,
+  width,
+  ffmpegPath,
+  signal,
+  onProgress
+}: ValidPreviewClipRequest & {
+  ffmpegPath?: string | null;
+  signal?: AbortSignal;
+  onProgress?: (progress: Omit<PreviewClipProgress, 'jobId' | 'status'>) => void;
+}): Promise<Omit<PreviewClipResult, 'jobId' | 'status'>> {
+  assertNotCanceled(signal);
+  const previewCacheDir = getMediaPreviewCacheDir();
+  const source = await readPreviewVideo(video);
+  const binaryPath = ffmpegPath?.trim() || 'ffmpeg';
+  const targets = await buildPreviewClipTargets({
+    video,
+    source,
+    requestedFrames: frames,
+    ffmpegPath: binaryPath,
+    signal
+  });
+  const summary: PreviewClipResult['summary'] = {
+    requested: targets.length,
+    generated: 0,
+    cached: 0,
+    failed: 0
+  };
+  const outputFrames: VideoPreviewFrame[] = [];
+
+  await mkdir(source.cache.clipsDir, { recursive: true });
+  emitPreviewClipProgress(onProgress, {
+    phase: 'generating_preview_clips',
+    totalClips: targets.length,
+    processedClips: 0,
+    generatedCount: 0,
+    cachedCount: 0,
+    failedCount: 0,
+    currentFile: source.fileName,
+    currentTimestampLabel: null,
+    message: 'Generating preview clips.'
+  });
+
+  if (targets.length === 0) {
+    return {
+      message: 'No thumbnail timestamps are available for preview clips.',
+      previewCacheDir,
+      summary,
+      items: [
+        {
+          id: source.id,
+          fileName: source.fileName,
+          path: source.filePath,
+          absolutePath: source.filePath,
+          manifestPath: source.cache.manifestPath,
+          previewFrames: []
+        }
+      ]
+    };
+  }
+
+  for (let index = 0; index < targets.length; index += 1) {
+    assertNotCanceled(signal);
+    const target = targets[index];
+    const clipStartSeconds = getPreviewClipStartSeconds({
+      timestampSeconds: target.timestampSeconds,
+      durationSeconds: source.durationSeconds,
+      clipDurationSeconds
+    });
+    const clipFileName = buildPreviewClipFileName({
+      itemId: target.id,
+      timestampSeconds: target.timestampSeconds,
+      clipDurationSeconds,
+      width,
+      videoHash: source.cache.videoHash
+    });
+    const clipPath = join(source.cache.clipsDir, clipFileName);
+    const clipUrl = toMediaPreviewAssetUrl(clipPath);
+
+    emitPreviewClipProgress(onProgress, {
+      phase: 'generating_preview_clips',
+      totalClips: targets.length,
+      processedClips: index,
+      generatedCount: summary.generated,
+      cachedCount: summary.cached,
+      failedCount: summary.failed,
+      currentFile: source.fileName,
+      currentTimestampLabel: target.timestampLabel,
+      message: 'Generating preview clips.'
+    });
+
+    const existing = await isFile(clipPath);
+
+    if (existing) {
+      summary.cached += 1;
+      outputFrames.push({
+        ...target.frame,
+        previewClip: createPreviewClipMetadata({
+          cached: true,
+          generated: true,
+          clipPath,
+          clipUrl,
+          timestampSeconds: target.timestampSeconds,
+          startSeconds: clipStartSeconds,
+          durationSeconds: clipDurationSeconds,
+          width
+        })
+      });
+      await upsertManifestItem(source, {
+        id: target.id,
+        timestampSeconds: target.timestampSeconds,
+        timestampLabel: target.timestampLabel,
+        thumbnailPath: target.thumbnailPath,
+        thumbnailUrl: target.thumbnailUrl,
+        previewClipPath: clipPath,
+        previewClipUrl: clipUrl,
+        previewClipStatus: 'ready',
+        previewClipStartSeconds: clipStartSeconds,
+        previewClipDurationSeconds: clipDurationSeconds,
+        previewClipWidth: width,
+        previewClipError: null
+      });
+      emitPreviewClipProgress(onProgress, {
+        phase: 'generating_preview_clips',
+        totalClips: targets.length,
+        processedClips: index + 1,
+        generatedCount: summary.generated,
+        cachedCount: summary.cached,
+        failedCount: summary.failed,
+        currentFile: source.fileName,
+        currentTimestampLabel: target.timestampLabel,
+        message: 'Preview clip ready.'
+      });
+      continue;
+    }
+
+    const result = await runFfmpegPreviewClip({
+      inputPath: source.filePath,
+      outputPath: clipPath,
+      ffmpegPath: binaryPath,
+      startSeconds: clipStartSeconds,
+      durationSeconds: clipDurationSeconds,
+      width,
+      signal
+    });
+
+    if (result.canceled) {
+      await removePartialFile(clipPath);
+      throw createMediaPreviewCancelError();
+    }
+
+    if (!result.ok) {
+      await removePartialFile(clipPath);
+      summary.failed += 1;
+      outputFrames.push({
+        ...target.frame,
+        previewClip: createFailedPreviewClip({
+          timestampSeconds: target.timestampSeconds,
+          startSeconds: clipStartSeconds,
+          durationSeconds: clipDurationSeconds,
+          width,
+          error: result.error ?? 'Unable to generate preview clip.'
+        })
+      });
+      await upsertManifestItem(source, {
+        id: target.id,
+        timestampSeconds: target.timestampSeconds,
+        timestampLabel: target.timestampLabel,
+        thumbnailPath: target.thumbnailPath,
+        thumbnailUrl: target.thumbnailUrl,
+        previewClipStatus: 'failed',
+        previewClipStartSeconds: clipStartSeconds,
+        previewClipDurationSeconds: clipDurationSeconds,
+        previewClipWidth: width,
+        previewClipError: result.error ?? 'Unable to generate preview clip.'
+      });
+      emitPreviewClipProgress(onProgress, {
+        phase: 'generating_preview_clips',
+        totalClips: targets.length,
+        processedClips: index + 1,
+        generatedCount: summary.generated,
+        cachedCount: summary.cached,
+        failedCount: summary.failed,
+        currentFile: source.fileName,
+        currentTimestampLabel: target.timestampLabel,
+        message: 'Preview clip generation failed.'
+      });
+      continue;
+    }
+
+    summary.generated += 1;
+    outputFrames.push({
+      ...target.frame,
+      previewClip: createPreviewClipMetadata({
+        cached: false,
+        generated: true,
+        clipPath,
+        clipUrl,
+        timestampSeconds: target.timestampSeconds,
+        startSeconds: clipStartSeconds,
+        durationSeconds: clipDurationSeconds,
+        width
+      })
+    });
+
+    await upsertManifestItem(source, {
+      id: target.id,
+      timestampSeconds: target.timestampSeconds,
+      timestampLabel: target.timestampLabel,
+      thumbnailPath: target.thumbnailPath,
+      thumbnailUrl: target.thumbnailUrl,
+      previewClipPath: clipPath,
+      previewClipUrl: clipUrl,
+      previewClipStatus: 'ready',
+      previewClipStartSeconds: clipStartSeconds,
+      previewClipDurationSeconds: clipDurationSeconds,
+      previewClipWidth: width,
+      previewClipError: null
+    });
+
+    emitPreviewClipProgress(onProgress, {
+      phase: 'generating_preview_clips',
+      totalClips: targets.length,
+      processedClips: index + 1,
+      generatedCount: summary.generated,
+      cachedCount: summary.cached,
+      failedCount: summary.failed,
+      currentFile: source.fileName,
+      currentTimestampLabel: target.timestampLabel,
+      message: 'Preview clip ready.'
+    });
+  }
+
+  emitPreviewClipProgress(onProgress, {
+    phase: 'complete',
+    totalClips: targets.length,
+    processedClips: targets.length,
+    generatedCount: summary.generated,
+    cachedCount: summary.cached,
+    failedCount: summary.failed,
+    currentFile: source.fileName,
+    currentTimestampLabel: null,
+    message: 'Preview clip generation complete.'
+  });
+
+  return {
+    message: 'Preview clip generation complete.',
+    previewCacheDir,
+    summary,
+    items: [
+      {
+        id: source.id,
+        fileName: source.fileName,
+        path: source.filePath,
+        absolutePath: source.filePath,
+        manifestPath: source.cache.manifestPath,
+        previewFrames: outputFrames
+      }
+    ]
+  };
+}
+
 export async function clearMediaPreviewCache(): Promise<void> {
   const cacheDir = getMediaPreviewCacheDir();
   await rm(cacheDir, { recursive: true, force: true });
@@ -418,6 +739,126 @@ async function ensurePosterThumbnailForVideo({
   }
 }
 
+async function buildPreviewClipTargets({
+  video,
+  source,
+  requestedFrames,
+  ffmpegPath,
+  signal
+}: {
+  video: VideoRow;
+  source: ValidPreviewVideo;
+  requestedFrames: VideoPreviewFrame[];
+  ffmpegPath: string;
+  signal?: AbortSignal;
+}): Promise<PreviewClipTarget[]> {
+  const frameCandidates = requestedFrames.length > 0 ? requestedFrames : (video.previewFrames ?? []);
+  const targets = buildTargetsFromFrames(frameCandidates);
+
+  if (targets.length > 0) {
+    return targets;
+  }
+
+  const posterTarget = buildPosterPreviewClipTarget(video);
+
+  if (posterTarget) {
+    return [posterTarget];
+  }
+
+  const posterResult = await ensurePosterThumbnailForVideo({
+    video,
+    ffmpegPath,
+    signal
+  });
+  const thumbnail = posterResult.item.thumbnail;
+
+  if (!thumbnail.generated || !thumbnail.path) {
+    return [];
+  }
+
+  return [
+    createPreviewClipTarget({
+      id: 'poster',
+      frame: createPreviewFrame({
+        index: 0,
+        batchId: 'poster',
+        timestampSeconds: thumbnail.timestampSeconds ?? pickThumbnailTimestamp(source.durationSeconds),
+        thumbnail
+      }),
+      thumbnailPath: thumbnail.path,
+      thumbnailUrl: thumbnail.url
+    })
+  ];
+}
+
+function buildTargetsFromFrames(frames: VideoPreviewFrame[]): PreviewClipTarget[] {
+  const targets: PreviewClipTarget[] = [];
+  const seen = new Set<string>();
+
+  for (const frame of frames) {
+    if (!frame.thumbnail.generated || !frame.thumbnail.path) {
+      continue;
+    }
+
+    const id = getPreviewFrameManifestId(frame);
+    const target = createPreviewClipTarget({
+      id,
+      frame,
+      thumbnailPath: frame.thumbnail.path,
+      thumbnailUrl: frame.thumbnail.url
+    });
+    const dedupeKey = `${target.id}:${target.timestampSeconds}`;
+
+    if (!seen.has(dedupeKey)) {
+      seen.add(dedupeKey);
+      targets.push(target);
+    }
+  }
+
+  return targets;
+}
+
+function buildPosterPreviewClipTarget(video: VideoRow): PreviewClipTarget | null {
+  const thumbnail = video.thumbnail;
+
+  if (!thumbnail?.generated || !thumbnail.path) {
+    return null;
+  }
+
+  return createPreviewClipTarget({
+    id: 'poster',
+    frame: createPreviewFrame({
+      index: 0,
+      batchId: 'poster',
+      timestampSeconds: thumbnail.timestampSeconds ?? pickThumbnailTimestamp(video.durationSeconds),
+      thumbnail
+    }),
+    thumbnailPath: thumbnail.path,
+    thumbnailUrl: thumbnail.url
+  });
+}
+
+function createPreviewClipTarget({
+  id,
+  frame,
+  thumbnailPath,
+  thumbnailUrl
+}: {
+  id: string;
+  frame: VideoPreviewFrame;
+  thumbnailPath: string;
+  thumbnailUrl?: string;
+}): PreviewClipTarget {
+  return {
+    id,
+    frame,
+    timestampSeconds: frame.timestampSeconds,
+    timestampLabel: frame.timestampLabel || formatTimestampLabel(frame.timestampSeconds),
+    thumbnailPath,
+    thumbnailUrl
+  };
+}
+
 async function readPreviewVideo(video: VideoRow): Promise<ValidPreviewVideo> {
   const filePath = getVideoPath(video);
   const fileName = getOriginalFileName(video, filePath);
@@ -452,6 +893,7 @@ async function readPreviewVideo(video: VideoRow): Promise<ValidPreviewVideo> {
   });
   const videoDir = join(getMediaPreviewCacheDir(), 'videos', videoHash);
   const thumbsDir = join(videoDir, 'thumbnails');
+  const clipsDir = join(videoDir, 'clips');
   const manifestPath = join(videoDir, 'manifest.json');
 
   return {
@@ -469,6 +911,7 @@ async function readPreviewVideo(video: VideoRow): Promise<ValidPreviewVideo> {
       videoHash,
       videoDir,
       thumbsDir,
+      clipsDir,
       manifestPath
     }
   };
@@ -649,6 +1092,123 @@ function runFfmpegThumbnail({
   });
 }
 
+function runFfmpegPreviewClip({
+  inputPath,
+  outputPath,
+  ffmpegPath,
+  startSeconds,
+  durationSeconds,
+  width,
+  signal
+}: {
+  inputPath: string;
+  outputPath: string;
+  ffmpegPath: string;
+  startSeconds: number;
+  durationSeconds: number;
+  width: number;
+  signal?: AbortSignal;
+}): Promise<{ ok: boolean; canceled?: boolean; error?: string }> {
+  return new Promise((resolveResult) => {
+    if (signal?.aborted) {
+      resolveResult({
+        ok: false,
+        canceled: true,
+        error: 'Preview clip generation canceled.'
+      });
+      return;
+    }
+
+    const args = [
+      '-y',
+      '-ss',
+      String(startSeconds),
+      '-i',
+      inputPath,
+      '-t',
+      String(durationSeconds),
+      '-vf',
+      `scale=${width}:-2`,
+      '-an',
+      '-c:v',
+      'libx264',
+      '-preset',
+      'veryfast',
+      '-crf',
+      '24',
+      '-pix_fmt',
+      'yuv420p',
+      '-movflags',
+      '+faststart',
+      outputPath
+    ];
+    const child = spawn(ffmpegPath, args);
+    let stderr = '';
+    let didCancel = false;
+    let didSettle = false;
+    let forceKillTimeout: NodeJS.Timeout | null = null;
+
+    const settle = (result: { ok: boolean; canceled?: boolean; error?: string }): void => {
+      if (didSettle) {
+        return;
+      }
+
+      didSettle = true;
+
+      if (forceKillTimeout) {
+        clearTimeout(forceKillTimeout);
+      }
+
+      signal?.removeEventListener('abort', handleAbort);
+      resolveResult(result);
+    };
+
+    const handleAbort = (): void => {
+      didCancel = true;
+      child.kill('SIGTERM');
+      forceKillTimeout = setTimeout(() => {
+        if (!didSettle) {
+          child.kill('SIGKILL');
+        }
+      }, 5000);
+    };
+
+    signal?.addEventListener('abort', handleAbort, { once: true });
+
+    child.stderr.on('data', (data: Buffer) => {
+      stderr += data.toString();
+    });
+
+    child.on('error', (error) => {
+      settle({
+        ok: false,
+        error: error.message
+      });
+    });
+
+    child.on('close', (code) => {
+      if (didCancel || signal?.aborted) {
+        settle({
+          ok: false,
+          canceled: true,
+          error: 'Preview clip generation canceled.'
+        });
+        return;
+      }
+
+      if (code !== 0) {
+        settle({
+          ok: false,
+          error: getConciseFfmpegError(stderr, code)
+        });
+        return;
+      }
+
+      settle({ ok: true });
+    });
+  });
+}
+
 function createFailedThumbnailResult({
   video,
   fileName,
@@ -742,6 +1302,64 @@ function createFailedPreviewFrame({
   });
 }
 
+function createPreviewClipMetadata({
+  cached,
+  generated,
+  clipPath,
+  clipUrl,
+  timestampSeconds,
+  startSeconds,
+  durationSeconds,
+  width
+}: {
+  cached: boolean;
+  generated: boolean;
+  clipPath: string;
+  clipUrl: string;
+  timestampSeconds: number;
+  startSeconds: number;
+  durationSeconds: number;
+  width: number;
+}): VideoPreviewClip {
+  return {
+    cached,
+    generated,
+    fileName: basename(clipPath),
+    path: clipPath,
+    url: clipUrl,
+    status: 'ready',
+    timestampSeconds,
+    startSeconds,
+    durationSeconds,
+    width
+  };
+}
+
+function createFailedPreviewClip({
+  timestampSeconds,
+  startSeconds,
+  durationSeconds,
+  width,
+  error
+}: {
+  timestampSeconds: number;
+  startSeconds: number;
+  durationSeconds: number;
+  width: number;
+  error: string;
+}): VideoPreviewClip {
+  return {
+    generated: false,
+    cached: false,
+    status: 'failed',
+    timestampSeconds,
+    startSeconds,
+    durationSeconds,
+    width,
+    error
+  };
+}
+
 function buildPreviewFrameFileName({
   batchId,
   index,
@@ -759,6 +1377,27 @@ function buildPreviewFrameFileName({
     .slice(0, 12);
 
   return `${videoHash}-preview-${sanitizeCacheSegment(batchId)}-${String(index).padStart(3, '0')}-${frameHash}.jpg`;
+}
+
+function buildPreviewClipFileName({
+  itemId,
+  timestampSeconds,
+  clipDurationSeconds,
+  width,
+  videoHash
+}: {
+  itemId: string;
+  timestampSeconds: number;
+  clipDurationSeconds: number;
+  width: number;
+  videoHash: string;
+}): string {
+  const clipHash = createHash('sha1')
+    .update([videoHash, itemId, timestampSeconds, clipDurationSeconds, width].join(':'))
+    .digest('hex')
+    .slice(0, 12);
+
+  return `${videoHash}-clip-${sanitizeCacheSegment(itemId)}-${clipDurationSeconds}s-${width}w-${clipHash}.mp4`;
 }
 
 function buildVideoCacheHash({
@@ -879,6 +1518,60 @@ function normalizePreviewFrameMode(value: unknown): PreviewFrameMode {
   return value === 'fresh' ? 'fresh' : 'additional';
 }
 
+function normalizeRequestedPreviewFrames(value: unknown): VideoPreviewFrame[] {
+  return Array.isArray(value) ? value.filter(isPreviewFrameLike) : [];
+}
+
+function normalizePreviewClipDurationSeconds(value: unknown): number {
+  return Number(value) === 10 ? 10 : DEFAULT_PREVIEW_CLIP_DURATION_SECONDS;
+}
+
+function normalizePreviewClipWidth(value: unknown): number {
+  return Number(value) === 480 ? 480 : DEFAULT_PREVIEW_CLIP_WIDTH;
+}
+
+function getPreviewClipStartSeconds({
+  timestampSeconds,
+  durationSeconds,
+  clipDurationSeconds
+}: {
+  timestampSeconds: number;
+  durationSeconds: number | null;
+  clipDurationSeconds: number;
+}): number {
+  const timestamp = normalizeTimestamp(Math.max(0, Number(timestampSeconds) || 0));
+  const duration = Number(durationSeconds);
+
+  if (!Number.isFinite(duration) || duration <= 0) {
+    return timestamp;
+  }
+
+  return normalizeTimestamp(Math.max(0, Math.min(timestamp, duration - clipDurationSeconds)));
+}
+
+function getPreviewFrameManifestId(frame: VideoPreviewFrame): string {
+  if (frame.batchId === 'poster') {
+    return 'poster';
+  }
+
+  return `frame-${frame.batchId}-${String(frame.index).padStart(3, '0')}`;
+}
+
+function isPreviewFrameLike(value: unknown): value is VideoPreviewFrame {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Partial<VideoPreviewFrame>;
+
+  return (
+    typeof candidate.index === 'number' &&
+    typeof candidate.batchId === 'string' &&
+    typeof candidate.timestampSeconds === 'number' &&
+    Boolean(candidate.thumbnail)
+  );
+}
+
 function getFreshOffset({ count, seed }: { count: number; seed: number }): number {
   if (!Number.isFinite(seed) || count <= 0) {
     return 0;
@@ -926,6 +1619,13 @@ async function removePartialFile(filePath: string): Promise<void> {
 function emitProgress(
   onProgress: ((progress: Omit<MediaPreviewProgress, 'jobId' | 'status'>) => void) | undefined,
   progress: Omit<MediaPreviewProgress, 'jobId' | 'status'>
+): void {
+  onProgress?.(progress);
+}
+
+function emitPreviewClipProgress(
+  onProgress: ((progress: Omit<PreviewClipProgress, 'jobId' | 'status'>) => void) | undefined,
+  progress: Omit<PreviewClipProgress, 'jobId' | 'status'>
 ): void {
   onProgress?.(progress);
 }

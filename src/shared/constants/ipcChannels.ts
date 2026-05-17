@@ -30,5 +30,9 @@ export const IPC_CHANNELS = {
   mediaPreviewGetResult: 'media-preview:get-result',
   mediaPreviewProgress: 'media-preview:progress',
   mediaPreviewGenerateFrames: 'media-preview:generate-frames',
+  mediaPreviewClipStart: 'media-preview:clip:start',
+  mediaPreviewClipCancel: 'media-preview:clip:cancel',
+  mediaPreviewClipGetResult: 'media-preview:clip:get-result',
+  mediaPreviewClipProgress: 'media-preview:clip:progress',
   mediaPreviewClearCache: 'media-preview:clear-cache'
 } as const;

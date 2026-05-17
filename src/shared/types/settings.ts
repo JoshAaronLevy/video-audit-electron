@@ -10,6 +10,8 @@ export interface AppSettings {
   defaultAutoFixDestinationRoot: string | null;
   ffmpegPathOverride: string | null;
   ffprobePathOverride: string | null;
+  previewClipDurationSecondsDefault: 5 | 10;
+  previewClipWidthDefault: 480 | 640;
   latestSelectedFolder: string | null;
   lastAuditResultSummary: {
     jobId?: string;

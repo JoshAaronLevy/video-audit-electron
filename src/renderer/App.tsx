@@ -58,9 +58,13 @@ export function App(): ReactElement {
             isAutoFixActive={controller.isAutoFixActive}
             isAutoCropActive={controller.isAutoCropActive}
             isMediaPreviewActive={controller.isMediaPreviewActive}
+            isPreviewClipActive={controller.isPreviewClipActive}
             isStorageLoading={controller.isStorageLoading}
             storageMessage={controller.storageMessage}
             storageSavedAt={controller.storageSavedAt}
+            previewClipProgress={controller.previewClipProgress}
+            previewClipPercent={controller.previewClipPercent}
+            previewClipError={controller.previewClipError}
             canRefreshAudit={controller.canRefreshAudit}
             canAutoFixSelected={controller.canAutoFixSelected}
             canOpenCropOptions={controller.canOpenCropOptions}
@@ -75,6 +79,8 @@ export function App(): ReactElement {
             onOpenAutoFixDialog={controller.openAutoFixDialog}
             onOpenAutoCropDialog={controller.openAutoCropDialog}
             onOpenThumbnailDialog={controller.openThumbnailDialog}
+            onStartPreviewClipGeneration={controller.startPreviewClipGeneration}
+            onCancelPreviewClipGeneration={controller.cancelPreviewClipGeneration}
             onRevealPath={controller.revealPath}
           />
 

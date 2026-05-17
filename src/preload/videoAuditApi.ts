@@ -31,6 +31,10 @@ import type {
   MediaPreviewRequest,
   MediaPreviewResultResponse,
   MediaPreviewStartResponse,
+  PreviewClipJobSnapshot,
+  PreviewClipRequest,
+  PreviewClipResultResponse,
+  PreviewClipStartResponse,
   PreviewFrameRequest,
   PreviewFrameResultResponse
 } from '../shared/types/mediaPreview';
@@ -86,8 +90,12 @@ export interface VideoAuditApi {
     cancel: (jobId: string) => Promise<MediaPreviewJobSnapshot>;
     getResult: (jobId: string) => Promise<MediaPreviewResultResponse>;
     generateFrames: (request: PreviewFrameRequest) => Promise<PreviewFrameResultResponse>;
+    startClipGeneration: (request: PreviewClipRequest) => Promise<PreviewClipStartResponse>;
+    cancelClipGeneration: (jobId: string) => Promise<PreviewClipJobSnapshot>;
+    getClipResult: (jobId: string) => Promise<PreviewClipResultResponse>;
     clearCache: () => Promise<{ status: string; message: string }>;
     onProgress: (callback: (progress: MediaPreviewJobSnapshot) => void) => () => void;
+    onClipProgress: (callback: (progress: PreviewClipJobSnapshot) => void) => () => void;
   };
 }
 
@@ -195,6 +203,12 @@ export const videoAuditApi: VideoAuditApi = {
     getResult: (jobId: string) => ipcRenderer.invoke(IPC_CHANNELS.mediaPreviewGetResult, jobId),
     generateFrames: (request: PreviewFrameRequest) =>
       ipcRenderer.invoke(IPC_CHANNELS.mediaPreviewGenerateFrames, request),
+    startClipGeneration: (request: PreviewClipRequest) =>
+      ipcRenderer.invoke(IPC_CHANNELS.mediaPreviewClipStart, request),
+    cancelClipGeneration: (jobId: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.mediaPreviewClipCancel, jobId),
+    getClipResult: (jobId: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.mediaPreviewClipGetResult, jobId),
     clearCache: () => ipcRenderer.invoke(IPC_CHANNELS.mediaPreviewClearCache),
     onProgress: (callback: (progress: MediaPreviewJobSnapshot) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, progress: MediaPreviewJobSnapshot): void => {
@@ -205,6 +219,17 @@ export const videoAuditApi: VideoAuditApi = {
 
       return () => {
         ipcRenderer.removeListener(IPC_CHANNELS.mediaPreviewProgress, listener);
+      };
+    },
+    onClipProgress: (callback: (progress: PreviewClipJobSnapshot) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, progress: PreviewClipJobSnapshot): void => {
+        callback(progress);
+      };
+
+      ipcRenderer.on(IPC_CHANNELS.mediaPreviewClipProgress, listener);
+
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.mediaPreviewClipProgress, listener);
       };
     }
   }

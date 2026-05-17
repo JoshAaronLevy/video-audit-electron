@@ -7,6 +7,13 @@ import type {
   MediaPreviewResultResponse,
   MediaPreviewScope,
   MediaPreviewStartResponse,
+  PreviewClipJobSnapshot,
+  PreviewClipProgress,
+  PreviewClipRequest,
+  PreviewClipResult,
+  PreviewClipResultItem,
+  PreviewClipResultResponse,
+  PreviewClipStartResponse,
   PreviewFrameRequest as MediaPreviewFrameRequest,
   PreviewFrameResultResponse
 } from './mediaPreview';
@@ -35,3 +42,17 @@ export type PreviewFrameRequest = MediaPreviewFrameRequest;
 export type PreviewFrameResult = VideoPreviewFrameResult;
 
 export type PreviewFrameResponse = PreviewFrameResultResponse;
+
+export type ThumbnailPreviewClipRequest = PreviewClipRequest;
+
+export type ThumbnailPreviewClipProgress = PreviewClipProgress;
+
+export type ThumbnailPreviewClipJobSnapshot = PreviewClipJobSnapshot;
+
+export type ThumbnailPreviewClipStartResponse = PreviewClipStartResponse;
+
+export type ThumbnailPreviewClipResultItem = PreviewClipResultItem;
+
+export type ThumbnailPreviewClipResult = PreviewClipResult;
+
+export type ThumbnailPreviewClipResultResponse = PreviewClipResultResponse;

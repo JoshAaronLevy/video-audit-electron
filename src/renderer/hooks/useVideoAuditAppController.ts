@@ -18,10 +18,13 @@ import type {
   MediaPreviewJobSnapshot,
   MediaPreviewResult,
   MediaPreviewResultItem,
-  MediaPreviewScope
+  MediaPreviewScope,
+  PreviewClipJobSnapshot,
+  PreviewClipResult,
+  PreviewClipResultItem
 } from '../../shared/types/mediaPreview';
 import type { AppSettings, AppSettingsUpdate } from '../../shared/types/settings';
-import type { FfprobeResult, VideoRow } from '../../shared/types/video';
+import type { FfprobeResult, VideoPreviewFrame, VideoRow } from '../../shared/types/video';
 import {
   clearStoredAuditResult,
   loadStoredAuditResult,
@@ -39,6 +42,7 @@ type ActiveAction =
   | 'autoFix'
   | 'autoCrop'
   | 'mediaPreview'
+  | 'previewClip'
   | null;
 
 const DEFAULT_AUDIT_OPTIONS: AuditOptions = {
@@ -109,6 +113,11 @@ export interface VideoAuditAppController {
   mediaPreviewScope: MediaPreviewScope;
   isThumbnailDialogVisible: boolean;
   isMediaPreviewActive: boolean;
+  previewClipProgress: PreviewClipJobSnapshot | null;
+  previewClipPercent: number | null;
+  previewClipResult: PreviewClipResult | null;
+  previewClipError: string | null;
+  isPreviewClipActive: boolean;
   canGenerateThumbnails: boolean;
   chooseFolders: () => Promise<void>;
   chooseFiles: () => Promise<void>;
@@ -143,6 +152,8 @@ export interface VideoAuditAppController {
   setMediaPreviewScope: (scope: MediaPreviewScope) => void;
   startThumbnailGeneration: () => Promise<void>;
   cancelThumbnailGeneration: () => Promise<void>;
+  startPreviewClipGeneration: (video: VideoRow, frames: VideoPreviewFrame[]) => Promise<void>;
+  cancelPreviewClipGeneration: () => Promise<void>;
 }
 
 export function useVideoAuditAppController(): VideoAuditAppController {
@@ -190,6 +201,10 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const [mediaPreviewError, setMediaPreviewError] = useState<string | null>(null);
   const [mediaPreviewScope, setMediaPreviewScope] = useState<MediaPreviewScope>('all');
   const [isThumbnailDialogVisible, setIsThumbnailDialogVisible] = useState(false);
+  const [previewClipJobId, setPreviewClipJobId] = useState<string | null>(null);
+  const [previewClipProgress, setPreviewClipProgress] = useState<PreviewClipJobSnapshot | null>(null);
+  const [previewClipResult, setPreviewClipResult] = useState<PreviewClipResult | null>(null);
+  const [previewClipError, setPreviewClipError] = useState<string | null>(null);
   const pendingAuditRequestRef = useRef<AuditRequest | null>(null);
 
   const applyAuditResult = useCallback(
@@ -393,6 +408,10 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     activeAction === 'mediaPreview' ||
     mediaPreviewProgress?.status === 'starting' ||
     mediaPreviewProgress?.status === 'running';
+  const isPreviewClipActive =
+    activeAction === 'previewClip' ||
+    previewClipProgress?.status === 'starting' ||
+    previewClipProgress?.status === 'running';
   const auditPercent = getProgressPercent(auditProgress?.processedFiles, auditProgress?.totalFiles);
   const discoveryPercent = getProgressPercent(
     discoveryProgress?.processedFiles,
@@ -405,6 +424,10 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     mediaPreviewProgress?.processedVideos,
     mediaPreviewProgress?.totalVideos
   );
+  const previewClipPercent = getProgressPercent(
+    previewClipProgress?.processedClips,
+    previewClipProgress?.totalClips
+  );
   const discoveredPaths = discoveryProgress?.result?.files.map((file) => file.path) ?? [];
   const metadataItems = ffprobeProgress?.result?.items ?? [];
   const autoFixOutputDirectory = outputFolder ?? settings?.defaultAutoFixDestinationRoot ?? null;
@@ -416,6 +439,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isAutoFixActive &&
     !isAutoCropActive &&
     !isMediaPreviewActive &&
+    !isPreviewClipActive &&
     (selectedFolders.length > 0 || selectedFiles.length > 0) &&
     (auditOptions.includeLowResolutionAnalysis || auditOptions.includeBlackBorderAnalysis);
   const canRefreshAudit =
@@ -425,7 +449,8 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isFfprobeActive &&
     !isAutoFixActive &&
     !isAutoCropActive &&
-    !isMediaPreviewActive;
+    !isMediaPreviewActive &&
+    !isPreviewClipActive;
   const canAutoFixSelected =
     selectedVideos.length > 0 &&
     !isAuditActive &&
@@ -433,7 +458,8 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isFfprobeActive &&
     !isAutoFixActive &&
     !isAutoCropActive &&
-    !isMediaPreviewActive;
+    !isMediaPreviewActive &&
+    !isPreviewClipActive;
   const canOpenCropOptions =
     selectedVideos.length > 0 &&
     !isAuditActive &&
@@ -441,7 +467,8 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isFfprobeActive &&
     !isAutoFixActive &&
     !isAutoCropActive &&
-    !isMediaPreviewActive;
+    !isMediaPreviewActive &&
+    !isPreviewClipActive;
   const canGenerateThumbnails =
     visibleVideoRows.length > 0 &&
     !isAuditActive &&
@@ -449,7 +476,8 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isFfprobeActive &&
     !isAutoFixActive &&
     !isAutoCropActive &&
-    !isMediaPreviewActive;
+    !isMediaPreviewActive &&
+    !isPreviewClipActive;
 
   const persistSettings = useCallback(async (partialSettings: AppSettingsUpdate): Promise<AppSettings | null> => {
     setActiveAction('settings');
@@ -839,6 +867,26 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     [auditResult, persistCurrentResult]
   );
 
+  const applyPreviewClipResult = useCallback(
+    async (result: PreviewClipResult): Promise<void> => {
+      if (!auditResult) {
+        return;
+      }
+
+      const nextRows = mergePreviewClipItems(auditResult.videos, result.items);
+      const nextResult = {
+        ...auditResult,
+        videos: nextRows
+      };
+
+      setAuditResult(nextResult);
+      setVideoRows(nextRows);
+      setSelectedVideos((currentSelection) => mergePreviewClipItems(currentSelection, result.items));
+      await persistCurrentResult(nextResult);
+    },
+    [auditResult, persistCurrentResult]
+  );
+
   useEffect(() => {
     return window.videoAudit.mediaPreview.onProgress((progress) => {
       setMediaPreviewProgress(progress);
@@ -875,6 +923,43 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       }
     });
   }, [applyMediaPreviewResult]);
+
+  useEffect(() => {
+    return window.videoAudit.mediaPreview.onClipProgress((progress) => {
+      setPreviewClipProgress(progress);
+
+      if (progress.jobId) {
+        setPreviewClipJobId(progress.jobId);
+      }
+
+      if (progress.status === 'running' || progress.status === 'starting') {
+        setActiveAction('previewClip');
+      }
+
+      if (progress.status === 'complete' && progress.result) {
+        setActiveAction(null);
+        setPreviewClipResult(progress.result);
+        setPreviewClipError(null);
+        void applyPreviewClipResult(progress.result).then(() => {
+          setWorkflowMessage(
+            `Preview clip generation complete. ${progress.result?.summary.generated.toLocaleString() ?? '0'} generated, ${progress.result?.summary.cached.toLocaleString() ?? '0'} cached.`
+          );
+        });
+      }
+
+      if (progress.status === 'error') {
+        setActiveAction(null);
+        setPreviewClipError(progress.error ?? progress.message ?? 'Preview clip generation failed.');
+        setWorkflowMessage(progress.message ?? 'Preview clip generation failed.');
+      }
+
+      if (progress.status === 'canceled') {
+        setActiveAction(null);
+        setPreviewClipError(null);
+        setWorkflowMessage(progress.message ?? 'Preview clip generation canceled.');
+      }
+    });
+  }, [applyPreviewClipResult]);
 
   const removeSelectedVideos = useCallback(async (): Promise<void> => {
     if (selectedVideos.length === 0) {
@@ -940,6 +1025,10 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setMediaPreviewResult(null);
     setMediaPreviewError(null);
     setIsThumbnailDialogVisible(false);
+    setPreviewClipJobId(null);
+    setPreviewClipProgress(null);
+    setPreviewClipResult(null);
+    setPreviewClipError(null);
     setLastAuditRequest(null);
     pendingAuditRequestRef.current = null;
     setStorageSavedAt(null);
@@ -1296,6 +1385,70 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     }
   }, [mediaPreviewJobId]);
 
+  const startPreviewClipGeneration = useCallback(
+    async (video: VideoRow, frames: VideoPreviewFrame[]): Promise<void> => {
+      if (!video) {
+        setPreviewClipError('Choose a video before generating preview clips.');
+        return;
+      }
+
+      setPreviewClipError(null);
+      setPreviewClipResult(null);
+      setPreviewClipProgress({
+        jobId: null,
+        status: 'starting',
+        phase: 'validating',
+        totalClips: frames.length || null,
+        processedClips: 0,
+        generatedCount: 0,
+        cachedCount: 0,
+        failedCount: 0,
+        currentFile: video.fileName,
+        currentTimestampLabel: null,
+        message: 'Starting preview clip generation.',
+        error: null
+      });
+      setActiveAction('previewClip');
+
+      try {
+        const response = await window.videoAudit.mediaPreview.startClipGeneration({
+          video,
+          frames,
+          clipDurationSeconds: settings?.previewClipDurationSecondsDefault ?? 5,
+          width: settings?.previewClipWidthDefault ?? 640
+        });
+
+        if (response.status !== 'started' || !response.jobId) {
+          setActiveAction(null);
+          setPreviewClipError(response.message ?? 'Could not start preview clip generation.');
+          return;
+        }
+
+        setPreviewClipJobId(response.jobId);
+        setWorkflowMessage(response.message ?? 'Preview clip generation started.');
+      } catch (error: unknown) {
+        setActiveAction(null);
+        setPreviewClipError(getErrorMessage(error, 'Could not start preview clip generation.'));
+      }
+    },
+    [settings?.previewClipDurationSecondsDefault, settings?.previewClipWidthDefault]
+  );
+
+  const cancelPreviewClipGeneration = useCallback(async (): Promise<void> => {
+    if (!previewClipJobId) {
+      return;
+    }
+
+    try {
+      const progress = await window.videoAudit.mediaPreview.cancelClipGeneration(previewClipJobId);
+      setPreviewClipProgress(progress);
+      setWorkflowMessage(progress.message ?? 'Preview clip generation canceled.');
+      setActiveAction(null);
+    } catch (error: unknown) {
+      setPreviewClipError(getErrorMessage(error, 'Could not cancel preview clip generation.'));
+    }
+  }, [previewClipJobId]);
+
   return {
     appInfo,
     appInfoMessage,
@@ -1355,6 +1508,11 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     mediaPreviewScope,
     isThumbnailDialogVisible,
     isMediaPreviewActive,
+    previewClipProgress,
+    previewClipPercent,
+    previewClipResult,
+    previewClipError,
+    isPreviewClipActive,
     canGenerateThumbnails,
     chooseFolders,
     chooseFiles,
@@ -1388,7 +1546,9 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     closeThumbnailDialog,
     setMediaPreviewScope,
     startThumbnailGeneration,
-    cancelThumbnailGeneration
+    cancelThumbnailGeneration,
+    startPreviewClipGeneration,
+    cancelPreviewClipGeneration
   };
 }
 
@@ -1427,6 +1587,68 @@ function mergeMediaPreviewItems(rows: VideoRow[], items: MediaPreviewResultItem[
 
     return nextRow;
   });
+}
+
+function mergePreviewClipItems(rows: VideoRow[], items: PreviewClipResultItem[]): VideoRow[] {
+  if (items.length === 0) {
+    return rows;
+  }
+
+  const itemsByPath = new Map<string, PreviewClipResultItem>();
+
+  for (const item of items) {
+    const key = item.path ?? item.absolutePath;
+
+    if (key) {
+      itemsByPath.set(key, item);
+    }
+  }
+
+  return rows.map((row) => {
+    const item = itemsByPath.get(row.path);
+
+    if (!item) {
+      return row;
+    }
+
+    return {
+      ...row,
+      previewFrames: mergePreviewFrames(row.previewFrames ?? [], item.previewFrames),
+      previewFrameBatchId: row.previewFrameBatchId ?? item.previewFrames[0]?.batchId,
+      maxPreviewFrameCount: row.maxPreviewFrameCount ?? item.previewFrames.length
+    };
+  });
+}
+
+function mergePreviewFrames(
+  existingFrames: VideoPreviewFrame[],
+  incomingFrames: VideoPreviewFrame[]
+): VideoPreviewFrame[] {
+  if (existingFrames.length === 0) {
+    return incomingFrames;
+  }
+
+  const incomingByKey = new Map(incomingFrames.map((frame) => [getPreviewFrameKey(frame), frame]));
+  const mergedFrames = existingFrames.map((frame) => {
+    const incoming = incomingByKey.get(getPreviewFrameKey(frame));
+
+    if (!incoming) {
+      return frame;
+    }
+
+    incomingByKey.delete(getPreviewFrameKey(frame));
+    return {
+      ...frame,
+      thumbnail: incoming.thumbnail ?? frame.thumbnail,
+      previewClip: incoming.previewClip ?? frame.previewClip
+    };
+  });
+
+  return [...mergedFrames, ...incomingByKey.values()];
+}
+
+function getPreviewFrameKey(frame: VideoPreviewFrame): string {
+  return `${frame.batchId}:${frame.index}:${frame.timestampSeconds}`;
 }
 
 function settingsToAuditOptions(settings: AppSettings): AuditOptions {

@@ -13,6 +13,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   defaultAutoFixDestinationRoot: null,
   ffmpegPathOverride: null,
   ffprobePathOverride: null,
+  previewClipDurationSecondsDefault: 5,
+  previewClipWidthDefault: 640,
   latestSelectedFolder: null,
   lastAuditResultSummary: null
 };
@@ -76,6 +78,10 @@ function normalizeSettings(value: unknown): AppSettings {
     defaultAutoFixDestinationRoot: normalizeNullableString(candidate.defaultAutoFixDestinationRoot),
     ffmpegPathOverride: normalizeNullableString(candidate.ffmpegPathOverride),
     ffprobePathOverride: normalizeNullableString(candidate.ffprobePathOverride),
+    previewClipDurationSecondsDefault: normalizePreviewClipDurationSeconds(
+      candidate.previewClipDurationSecondsDefault
+    ),
+    previewClipWidthDefault: normalizePreviewClipWidth(candidate.previewClipWidthDefault),
     latestSelectedFolder: normalizeNullableString(candidate.latestSelectedFolder),
     lastAuditResultSummary: normalizeLastAuditResultSummary(candidate.lastAuditResultSummary)
   };
@@ -95,6 +101,14 @@ function normalizeNullableString(value: unknown): string | null {
 
 function normalizeBoolean(value: unknown, fallback: boolean): boolean {
   return typeof value === 'boolean' ? value : fallback;
+}
+
+function normalizePreviewClipDurationSeconds(value: unknown): AppSettings['previewClipDurationSecondsDefault'] {
+  return Number(value) === 10 ? 10 : DEFAULT_APP_SETTINGS.previewClipDurationSecondsDefault;
+}
+
+function normalizePreviewClipWidth(value: unknown): AppSettings['previewClipWidthDefault'] {
+  return Number(value) === 480 ? 480 : DEFAULT_APP_SETTINGS.previewClipWidthDefault;
 }
 
 function normalizeLastAuditResultSummary(value: unknown): AppSettings['lastAuditResultSummary'] {

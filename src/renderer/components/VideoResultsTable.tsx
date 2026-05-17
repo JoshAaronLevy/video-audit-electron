@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react';
+import { useMemo, useState, type ReactElement } from 'react';
 import { Button } from 'primereact/button';
 import { Checkbox } from 'primereact/checkbox';
 import { Column } from 'primereact/column';
@@ -7,7 +7,9 @@ import { InputText } from 'primereact/inputtext';
 import { Message } from 'primereact/message';
 import { Tag } from 'primereact/tag';
 import type { AuditError, AuditSummary } from '../../shared/types/audit';
-import type { VideoAdjustments, VideoRow } from '../../shared/types/video';
+import type { PreviewClipJobSnapshot } from '../../shared/types/mediaPreview';
+import type { VideoAdjustments, VideoPreviewFrame, VideoRow } from '../../shared/types/video';
+import { VideoDetailsDialog } from './VideoDetailsDialog';
 
 interface VideoResultsTableProps {
   rows: VideoRow[];
@@ -22,9 +24,13 @@ interface VideoResultsTableProps {
   isAutoFixActive: boolean;
   isAutoCropActive: boolean;
   isMediaPreviewActive: boolean;
+  isPreviewClipActive: boolean;
   isStorageLoading: boolean;
   storageMessage: string | null;
   storageSavedAt: string | null;
+  previewClipProgress: PreviewClipJobSnapshot | null;
+  previewClipPercent: number | null;
+  previewClipError: string | null;
   canRefreshAudit: boolean;
   canAutoFixSelected: boolean;
   canOpenCropOptions: boolean;
@@ -39,6 +45,8 @@ interface VideoResultsTableProps {
   onOpenAutoFixDialog: () => void;
   onOpenAutoCropDialog: () => void;
   onOpenThumbnailDialog: () => void;
+  onStartPreviewClipGeneration: (video: VideoRow, frames: VideoPreviewFrame[]) => void;
+  onCancelPreviewClipGeneration: () => void;
   onRevealPath: (path: string) => void;
 }
 
@@ -72,9 +80,13 @@ export function VideoResultsTable({
   isAutoFixActive,
   isAutoCropActive,
   isMediaPreviewActive,
+  isPreviewClipActive,
   isStorageLoading,
   storageMessage,
   storageSavedAt,
+  previewClipProgress,
+  previewClipPercent,
+  previewClipError,
   canRefreshAudit,
   canAutoFixSelected,
   canOpenCropOptions,
@@ -89,8 +101,18 @@ export function VideoResultsTable({
   onOpenAutoFixDialog,
   onOpenAutoCropDialog,
   onOpenThumbnailDialog,
+  onStartPreviewClipGeneration,
+  onCancelPreviewClipGeneration,
   onRevealPath
 }: VideoResultsTableProps): ReactElement {
+  const [detailPath, setDetailPath] = useState<string | null>(null);
+  const detailVideo = useMemo(() => {
+    if (!detailPath) {
+      return null;
+    }
+
+    return (allRows ?? rows).find((row) => row.path === detailPath) ?? null;
+  }, [allRows, detailPath, rows]);
   const tableHeader = (
     <div className="table-header">
       <div className="table-title-group">
@@ -244,12 +266,25 @@ export function VideoResultsTable({
         <Column field="reasons" header="Issues" body={issuesTemplate} style={{ width: '16%' }} />
         <Column
           header="Actions"
-          body={(row: VideoRow) => actionsTemplate(row, onRevealPath)}
-          style={{ width: '7rem' }}
+          body={(row: VideoRow) => actionsTemplate(row, setDetailPath, onRevealPath)}
+          style={{ width: '7.5rem' }}
         />
       </DataTable>
 
       {auditErrors.length > 0 ? <AuditErrorList errors={auditErrors} /> : null}
+
+      <VideoDetailsDialog
+        visible={Boolean(detailVideo)}
+        video={detailVideo}
+        previewClipProgress={previewClipProgress}
+        previewClipPercent={previewClipPercent}
+        previewClipError={previewClipError}
+        isPreviewClipActive={isPreviewClipActive}
+        onGeneratePreviewClips={onStartPreviewClipGeneration}
+        onCancelPreviewClips={onCancelPreviewClipGeneration}
+        onRevealPath={onRevealPath}
+        onHide={() => setDetailPath(null)}
+      />
     </section>
   );
 }
@@ -433,16 +468,30 @@ function issuesTemplate(row: VideoRow): string {
   return row.reasons || 'Review needed';
 }
 
-function actionsTemplate(row: VideoRow, onRevealPath: (path: string) => void): ReactElement {
+function actionsTemplate(
+  row: VideoRow,
+  onOpenDetails: (path: string) => void,
+  onRevealPath: (path: string) => void
+): ReactElement {
   return (
-    <Button
-      aria-label={`Reveal ${row.fileName} in Finder`}
-      icon="pi pi-external-link"
-      severity="secondary"
-      text
-      rounded
-      onClick={() => onRevealPath(row.path)}
-    />
+    <div className="row-action-buttons">
+      <Button
+        aria-label={`Open details for ${row.fileName}`}
+        icon="pi pi-search"
+        severity="secondary"
+        text
+        rounded
+        onClick={() => onOpenDetails(row.path)}
+      />
+      <Button
+        aria-label={`Reveal ${row.fileName} in Finder`}
+        icon="pi pi-external-link"
+        severity="secondary"
+        text
+        rounded
+        onClick={() => onRevealPath(row.path)}
+      />
+    </div>
   );
 }
 

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-05-17
+
+### Added
+
+- Added preview clip generation through the Electron media-preview service, using ffmpeg to create cached muted MP4 clips from thumbnail timestamps.
+- Added preview clip IPC start, progress, cancel, and result retrieval through the typed preload API.
+- Added manifest metadata for preview clip path, URL, status, start time, duration, width, and per-clip errors under the existing media-preview cache.
+- Added preview clip duration and width defaults to app settings.
+- Added a video details modal with a thumbnail carousel, safe preview clip playback, preview clip generation status, cancellation, and persisted clip metadata.
+
 ## [0.12.0] - 2026-05-17
 
 ### Added

@@ -4,6 +4,7 @@ import { Card } from 'primereact/card';
 import { Divider } from 'primereact/divider';
 import { InputText } from 'primereact/inputtext';
 import { Message } from 'primereact/message';
+import { SelectButton } from 'primereact/selectbutton';
 import type { AppInfo } from '../../shared/types/app';
 import type { AppSettings } from '../../shared/types/settings';
 
@@ -55,6 +56,33 @@ export function SettingsPanel({
             disabled={activeAction === 'settings'}
             onSave={(value) => onUpdateSettingsField('ffprobePathOverride', value)}
           />
+          <ChoiceSetting
+            label="Preview clip duration"
+            value={settings.previewClipDurationSecondsDefault}
+            options={[
+              { label: '5s', value: 5 },
+              { label: '10s', value: 10 }
+            ]}
+            disabled={activeAction === 'settings'}
+            onChange={(value) =>
+              onUpdateSettingsField(
+                'previewClipDurationSecondsDefault',
+                value as AppSettings['previewClipDurationSecondsDefault']
+              )
+            }
+          />
+          <ChoiceSetting
+            label="Preview clip width"
+            value={settings.previewClipWidthDefault}
+            options={[
+              { label: '480px', value: 480 },
+              { label: '640px', value: 640 }
+            ]}
+            disabled={activeAction === 'settings'}
+            onChange={(value) =>
+              onUpdateSettingsField('previewClipWidthDefault', value as AppSettings['previewClipWidthDefault'])
+            }
+          />
 
           {settingsMessage ? <Message severity="info" text={settingsMessage} /> : null}
 
@@ -63,6 +91,10 @@ export function SettingsPanel({
             <InfoRow label="Recent files" value={String(settings.recentFiles.length)} />
             <InfoRow label="Latest folder" value={settings.latestSelectedFolder ?? 'None'} />
             <InfoRow label="Default output" value={settings.defaultOutputDirectory ?? 'None'} />
+            <InfoRow
+              label="Preview clips"
+              value={`${settings.previewClipDurationSecondsDefault}s at ${settings.previewClipWidthDefault}px`}
+            />
           </div>
 
           <Button
@@ -92,6 +124,36 @@ export function SettingsPanel({
         </dl>
       )}
     </Card>
+  );
+}
+
+function ChoiceSetting<Value extends string | number>({
+  label,
+  value,
+  options,
+  disabled,
+  onChange
+}: {
+  label: string;
+  value: Value;
+  options: { label: string; value: Value }[];
+  disabled: boolean;
+  onChange: (value: Value) => void;
+}): ReactElement {
+  const inputId = `setting-${label.toLowerCase().replaceAll(' ', '-')}`;
+
+  return (
+    <div className="choice-setting">
+      <label id={inputId}>{label}</label>
+      <SelectButton
+        aria-labelledby={inputId}
+        value={value}
+        options={options}
+        disabled={disabled}
+        allowEmpty={false}
+        onChange={(event) => onChange(event.value as Value)}
+      />
+    </div>
   );
 }
 

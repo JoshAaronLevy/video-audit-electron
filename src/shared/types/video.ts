@@ -88,12 +88,29 @@ export interface VideoThumbnail {
   error?: string;
 }
 
+export type VideoPreviewClipStatus = 'not-generated' | 'generating' | 'ready' | 'failed';
+
+export interface VideoPreviewClip {
+  generated: boolean;
+  cached?: boolean;
+  fileName?: string;
+  url?: string;
+  path?: string;
+  status?: VideoPreviewClipStatus;
+  timestampSeconds?: number;
+  startSeconds?: number;
+  durationSeconds?: number;
+  width?: number;
+  error?: string;
+}
+
 export interface VideoPreviewFrame {
   index: number;
   timestampSeconds: number;
   timestampLabel: string;
   batchId: string;
   thumbnail: VideoThumbnail;
+  previewClip?: VideoPreviewClip;
 }
 
 export interface VideoPreviewFrameResult {

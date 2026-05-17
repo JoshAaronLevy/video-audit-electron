@@ -8,7 +8,9 @@ import { Message } from 'primereact/message';
 import { Tag } from 'primereact/tag';
 import type { AuditError, AuditSummary } from '../../shared/types/audit';
 import type { PreviewClipJobSnapshot } from '../../shared/types/mediaPreview';
+import type { PremiereRequestResponse, PremiereStatusResponse } from '../../shared/types/premiere';
 import type { VideoAdjustments, VideoPreviewFrame, VideoRow } from '../../shared/types/video';
+import { PremiereStatusBanner } from './PremiereStatusBanner';
 import { VideoDetailsDialog } from './VideoDetailsDialog';
 
 interface VideoResultsTableProps {
@@ -31,10 +33,17 @@ interface VideoResultsTableProps {
   previewClipProgress: PreviewClipJobSnapshot | null;
   previewClipPercent: number | null;
   previewClipError: string | null;
+  premiereStatus: PremiereStatusResponse | null;
+  premiereStatusError: string | null;
+  isPremiereStatusLoading: boolean;
+  isPremiereImportSubmitting: boolean;
+  premiereImportResult: PremiereRequestResponse | null;
+  premiereImportError: string | null;
   canRefreshAudit: boolean;
   canAutoFixSelected: boolean;
   canOpenCropOptions: boolean;
   canGenerateThumbnails: boolean;
+  canEditSelectedInPremiere: boolean;
   onSelectedVideosChange: (videos: VideoRow[]) => void;
   onGlobalFilterChange: (value: string) => void;
   onShowThumbnailsChange: (value: boolean) => void;
@@ -47,6 +56,8 @@ interface VideoResultsTableProps {
   onOpenThumbnailDialog: () => void;
   onStartPreviewClipGeneration: (video: VideoRow, frames: VideoPreviewFrame[]) => void;
   onCancelPreviewClipGeneration: () => void;
+  onRefreshPremiereStatus: () => void;
+  onEditSelectedInPremiere: () => void;
   onRevealPath: (path: string) => void;
 }
 
@@ -87,10 +98,17 @@ export function VideoResultsTable({
   previewClipProgress,
   previewClipPercent,
   previewClipError,
+  premiereStatus,
+  premiereStatusError,
+  isPremiereStatusLoading,
+  isPremiereImportSubmitting,
+  premiereImportResult,
+  premiereImportError,
   canRefreshAudit,
   canAutoFixSelected,
   canOpenCropOptions,
   canGenerateThumbnails,
+  canEditSelectedInPremiere,
   onSelectedVideosChange,
   onGlobalFilterChange,
   onShowThumbnailsChange,
@@ -103,6 +121,8 @@ export function VideoResultsTable({
   onOpenThumbnailDialog,
   onStartPreviewClipGeneration,
   onCancelPreviewClipGeneration,
+  onRefreshPremiereStatus,
+  onEditSelectedInPremiere,
   onRevealPath
 }: VideoResultsTableProps): ReactElement {
   const [detailPath, setDetailPath] = useState<string | null>(null);
@@ -214,7 +234,14 @@ export function VideoResultsTable({
           disabled={!canGenerateThumbnails}
           onClick={onOpenThumbnailDialog}
         />
-        <Button label="Edit in Premiere" icon="pi pi-send" severity="success" disabled />
+        <Button
+          label={selectedVideos.length > 0 ? `Edit in Premiere (${selectedVideos.length})` : 'Edit in Premiere'}
+          icon="pi pi-send"
+          severity="success"
+          loading={isPremiereImportSubmitting}
+          disabled={!canEditSelectedInPremiere}
+          onClick={onEditSelectedInPremiere}
+        />
       </div>
     </div>
   );
@@ -222,6 +249,19 @@ export function VideoResultsTable({
   return (
     <section className="results-panel" aria-label="Loaded videos">
       {storageMessage ? <Message severity="info" text={storageMessage} /> : null}
+      <PremiereStatusBanner
+        isLoading={isPremiereStatusLoading}
+        status={premiereStatus}
+        error={premiereStatusError}
+        onRefresh={onRefreshPremiereStatus}
+      />
+      {premiereImportError ? <Message severity="error" text={premiereImportError} /> : null}
+      {premiereImportResult?.status === 'queued' ? (
+        <Message
+          severity="success"
+          text={`Premiere import request queued${premiereImportResult.requestId ? ` (${premiereImportResult.requestId})` : ''}.`}
+        />
+      ) : null}
 
       <DataTable
         value={isStorageLoading ? [] : rows}

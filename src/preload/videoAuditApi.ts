@@ -38,6 +38,11 @@ import type {
   PreviewFrameRequest,
   PreviewFrameResultResponse
 } from '../shared/types/mediaPreview';
+import type {
+  PremiereImportRequest,
+  PremiereRequestResponse,
+  PremiereStatusResponse
+} from '../shared/types/premiere';
 import type { AppSettings, AppSettingsUpdate } from '../shared/types/settings';
 
 export interface VideoAuditApi {
@@ -96,6 +101,10 @@ export interface VideoAuditApi {
     clearCache: () => Promise<{ status: string; message: string }>;
     onProgress: (callback: (progress: MediaPreviewJobSnapshot) => void) => () => void;
     onClipProgress: (callback: (progress: PreviewClipJobSnapshot) => void) => () => void;
+  };
+  premiere: {
+    getStatus: () => Promise<PremiereStatusResponse>;
+    createImportRequest: (request: PremiereImportRequest) => Promise<PremiereRequestResponse>;
   };
 }
 
@@ -232,5 +241,10 @@ export const videoAuditApi: VideoAuditApi = {
         ipcRenderer.removeListener(IPC_CHANNELS.mediaPreviewClipProgress, listener);
       };
     }
+  },
+  premiere: {
+    getStatus: () => ipcRenderer.invoke(IPC_CHANNELS.premiereGetStatus),
+    createImportRequest: (request: PremiereImportRequest) =>
+      ipcRenderer.invoke(IPC_CHANNELS.premiereCreateImportRequest, request)
   }
 };

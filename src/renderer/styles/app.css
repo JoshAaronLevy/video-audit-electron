@@ -280,6 +280,34 @@ select {
   background: #ffffff;
 }
 
+.premiere-status-banner .p-message {
+  margin: 0;
+}
+
+.premiere-status-content {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.premiere-status-content > div {
+  display: grid;
+  gap: 0.18rem;
+  min-width: min(100%, 360px);
+}
+
+.premiere-status-content strong {
+  color: #172033;
+}
+
+.premiere-status-content span {
+  color: #475569;
+  line-height: 1.35;
+}
+
 .table-header {
   display: grid;
   gap: 0.85rem;

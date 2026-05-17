@@ -65,10 +65,17 @@ export function App(): ReactElement {
             previewClipProgress={controller.previewClipProgress}
             previewClipPercent={controller.previewClipPercent}
             previewClipError={controller.previewClipError}
+            premiereStatus={controller.premiereStatus}
+            premiereStatusError={controller.premiereStatusError}
+            isPremiereStatusLoading={controller.isPremiereStatusLoading}
+            isPremiereImportSubmitting={controller.isPremiereImportSubmitting}
+            premiereImportResult={controller.premiereImportResult}
+            premiereImportError={controller.premiereImportError}
             canRefreshAudit={controller.canRefreshAudit}
             canAutoFixSelected={controller.canAutoFixSelected}
             canOpenCropOptions={controller.canOpenCropOptions}
             canGenerateThumbnails={controller.canGenerateThumbnails}
+            canEditSelectedInPremiere={controller.canEditSelectedInPremiere}
             onSelectedVideosChange={controller.setSelectedVideos}
             onGlobalFilterChange={controller.setGlobalFilter}
             onShowThumbnailsChange={controller.setShowThumbnails}
@@ -81,6 +88,8 @@ export function App(): ReactElement {
             onOpenThumbnailDialog={controller.openThumbnailDialog}
             onStartPreviewClipGeneration={controller.startPreviewClipGeneration}
             onCancelPreviewClipGeneration={controller.cancelPreviewClipGeneration}
+            onRefreshPremiereStatus={controller.refreshPremiereStatus}
+            onEditSelectedInPremiere={controller.editSelectedInPremiere}
             onRevealPath={controller.revealPath}
           />
 

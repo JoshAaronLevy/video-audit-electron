@@ -23,6 +23,11 @@ import type {
   PreviewClipResult,
   PreviewClipResultItem
 } from '../../shared/types/mediaPreview';
+import type {
+  PremiereRequestResponse,
+  PremiereRequestVideo,
+  PremiereStatusResponse
+} from '../../shared/types/premiere';
 import type { AppSettings, AppSettingsUpdate } from '../../shared/types/settings';
 import type { FfprobeResult, VideoPreviewFrame, VideoRow } from '../../shared/types/video';
 import {
@@ -43,6 +48,8 @@ type ActiveAction =
   | 'autoCrop'
   | 'mediaPreview'
   | 'previewClip'
+  | 'premiereStatus'
+  | 'premiereImport'
   | null;
 
 const DEFAULT_AUDIT_OPTIONS: AuditOptions = {
@@ -118,6 +125,13 @@ export interface VideoAuditAppController {
   previewClipResult: PreviewClipResult | null;
   previewClipError: string | null;
   isPreviewClipActive: boolean;
+  premiereStatus: PremiereStatusResponse | null;
+  premiereStatusError: string | null;
+  isPremiereStatusLoading: boolean;
+  isPremiereImportSubmitting: boolean;
+  premiereImportResult: PremiereRequestResponse | null;
+  premiereImportError: string | null;
+  canEditSelectedInPremiere: boolean;
   canGenerateThumbnails: boolean;
   chooseFolders: () => Promise<void>;
   chooseFiles: () => Promise<void>;
@@ -154,6 +168,8 @@ export interface VideoAuditAppController {
   cancelThumbnailGeneration: () => Promise<void>;
   startPreviewClipGeneration: (video: VideoRow, frames: VideoPreviewFrame[]) => Promise<void>;
   cancelPreviewClipGeneration: () => Promise<void>;
+  refreshPremiereStatus: () => Promise<void>;
+  editSelectedInPremiere: () => Promise<void>;
 }
 
 export function useVideoAuditAppController(): VideoAuditAppController {
@@ -205,6 +221,12 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const [previewClipProgress, setPreviewClipProgress] = useState<PreviewClipJobSnapshot | null>(null);
   const [previewClipResult, setPreviewClipResult] = useState<PreviewClipResult | null>(null);
   const [previewClipError, setPreviewClipError] = useState<string | null>(null);
+  const [premiereStatus, setPremiereStatus] = useState<PremiereStatusResponse | null>(null);
+  const [premiereStatusError, setPremiereStatusError] = useState<string | null>(null);
+  const [isPremiereStatusLoading, setIsPremiereStatusLoading] = useState(false);
+  const [isPremiereImportSubmitting, setIsPremiereImportSubmitting] = useState(false);
+  const [premiereImportResult, setPremiereImportResult] = useState<PremiereRequestResponse | null>(null);
+  const [premiereImportError, setPremiereImportError] = useState<string | null>(null);
   const pendingAuditRequestRef = useRef<AuditRequest | null>(null);
 
   const applyAuditResult = useCallback(
@@ -267,6 +289,32 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       isMounted = false;
     };
   }, []);
+
+  const refreshPremiereStatus = useCallback(async (): Promise<void> => {
+    setIsPremiereStatusLoading(true);
+    setPremiereStatusError(null);
+
+    try {
+      const status = await window.videoAudit.premiere.getStatus();
+      setPremiereStatus(status);
+    } catch (error: unknown) {
+      setPremiereStatusError(getErrorMessage(error, 'Unable to check Premiere bridge status.'));
+      setPremiereStatus({
+        status: 'error',
+        message: getErrorMessage(error, 'Unable to check Premiere bridge status.'),
+        bridge: {
+          connected: false,
+          reason: 'status_check_failed'
+        }
+      });
+    } finally {
+      setIsPremiereStatusLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshPremiereStatus();
+  }, [refreshPremiereStatus]);
 
   useEffect(() => {
     let isMounted = true;
@@ -412,6 +460,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     activeAction === 'previewClip' ||
     previewClipProgress?.status === 'starting' ||
     previewClipProgress?.status === 'running';
+  const isPremiereImportActive = activeAction === 'premiereImport' || isPremiereImportSubmitting;
   const auditPercent = getProgressPercent(auditProgress?.processedFiles, auditProgress?.totalFiles);
   const discoveryPercent = getProgressPercent(
     discoveryProgress?.processedFiles,
@@ -440,6 +489,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isAutoCropActive &&
     !isMediaPreviewActive &&
     !isPreviewClipActive &&
+    !isPremiereImportActive &&
     (selectedFolders.length > 0 || selectedFiles.length > 0) &&
     (auditOptions.includeLowResolutionAnalysis || auditOptions.includeBlackBorderAnalysis);
   const canRefreshAudit =
@@ -450,7 +500,8 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isAutoFixActive &&
     !isAutoCropActive &&
     !isMediaPreviewActive &&
-    !isPreviewClipActive;
+    !isPreviewClipActive &&
+    !isPremiereImportActive;
   const canAutoFixSelected =
     selectedVideos.length > 0 &&
     !isAuditActive &&
@@ -459,7 +510,8 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isAutoFixActive &&
     !isAutoCropActive &&
     !isMediaPreviewActive &&
-    !isPreviewClipActive;
+    !isPreviewClipActive &&
+    !isPremiereImportActive;
   const canOpenCropOptions =
     selectedVideos.length > 0 &&
     !isAuditActive &&
@@ -468,7 +520,8 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isAutoFixActive &&
     !isAutoCropActive &&
     !isMediaPreviewActive &&
-    !isPreviewClipActive;
+    !isPreviewClipActive &&
+    !isPremiereImportActive;
   const canGenerateThumbnails =
     visibleVideoRows.length > 0 &&
     !isAuditActive &&
@@ -477,7 +530,19 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isAutoFixActive &&
     !isAutoCropActive &&
     !isMediaPreviewActive &&
-    !isPreviewClipActive;
+    !isPreviewClipActive &&
+    !isPremiereImportActive;
+  const canEditSelectedInPremiere =
+    selectedVideos.length > 0 &&
+    premiereStatus?.status === 'ready' &&
+    !isAuditActive &&
+    !isDiscoveryActive &&
+    !isFfprobeActive &&
+    !isAutoFixActive &&
+    !isAutoCropActive &&
+    !isMediaPreviewActive &&
+    !isPreviewClipActive &&
+    !isPremiereImportActive;
 
   const persistSettings = useCallback(async (partialSettings: AppSettingsUpdate): Promise<AppSettings | null> => {
     setActiveAction('settings');
@@ -1029,6 +1094,9 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setPreviewClipProgress(null);
     setPreviewClipResult(null);
     setPreviewClipError(null);
+    setPremiereImportResult(null);
+    setPremiereImportError(null);
+    setIsPremiereImportSubmitting(false);
     setLastAuditRequest(null);
     pendingAuditRequestRef.current = null;
     setStorageSavedAt(null);
@@ -1449,6 +1517,56 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     }
   }, [previewClipJobId]);
 
+  const editSelectedInPremiere = useCallback(async (): Promise<void> => {
+    if (selectedVideos.length === 0) {
+      setPremiereImportError('Select at least one video to import into Premiere.');
+      return;
+    }
+
+    if (premiereStatus?.status !== 'ready') {
+      setPremiereImportError('Premiere bridge must be ready before importing videos.');
+      await refreshPremiereStatus();
+      return;
+    }
+
+    setActiveAction('premiereImport');
+    setIsPremiereImportSubmitting(true);
+    setPremiereImportResult(null);
+    setPremiereImportError(null);
+
+    try {
+      const response = await window.videoAudit.premiere.createImportRequest({
+        videos: selectedVideos.map(toPremiereRequestVideo)
+      });
+
+      if (response.premiereStatus) {
+        setPremiereStatus(response.premiereStatus);
+      }
+
+      if (response.status !== 'queued' || !response.requestId) {
+        throw new Error(response.message ?? 'Unable to import selected videos into Premiere.');
+      }
+
+      setPremiereImportResult(response);
+      const importedCount = selectedVideos.length;
+      const hiddenCount = await hideVideoPathsFromTable(selectedVideos.map((video) => video.path));
+      const hiddenText =
+        hiddenCount > 0 ? ` ${hiddenCount.toLocaleString()} video(s) were removed from the table.` : '';
+
+      setWorkflowMessage(
+        `Premiere import requested for ${importedCount.toLocaleString()} video(s).${hiddenText}`
+      );
+      await refreshPremiereStatus();
+    } catch (error: unknown) {
+      const message = getErrorMessage(error, 'Unable to import selected videos into Premiere.');
+      setPremiereImportError(message);
+      setWorkflowMessage(message);
+    } finally {
+      setIsPremiereImportSubmitting(false);
+      setActiveAction(null);
+    }
+  }, [hideVideoPathsFromTable, premiereStatus?.status, refreshPremiereStatus, selectedVideos]);
+
   return {
     appInfo,
     appInfoMessage,
@@ -1513,6 +1631,13 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     previewClipResult,
     previewClipError,
     isPreviewClipActive,
+    premiereStatus,
+    premiereStatusError,
+    isPremiereStatusLoading,
+    isPremiereImportSubmitting,
+    premiereImportResult,
+    premiereImportError,
+    canEditSelectedInPremiere,
     canGenerateThumbnails,
     chooseFolders,
     chooseFiles,
@@ -1548,7 +1673,9 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     startThumbnailGeneration,
     cancelThumbnailGeneration,
     startPreviewClipGeneration,
-    cancelPreviewClipGeneration
+    cancelPreviewClipGeneration,
+    refreshPremiereStatus,
+    editSelectedInPremiere
   };
 }
 
@@ -1649,6 +1776,20 @@ function mergePreviewFrames(
 
 function getPreviewFrameKey(frame: VideoPreviewFrame): string {
   return `${frame.batchId}:${frame.index}:${frame.timestampSeconds}`;
+}
+
+function toPremiereRequestVideo(row: VideoRow): PremiereRequestVideo {
+  return {
+    id: row.id ?? row.path,
+    fileName: row.fileName,
+    absolutePath: row.path,
+    directory: row.directory,
+    durationSeconds: row.durationSeconds,
+    width: row.width,
+    height: row.height,
+    displayAspectRatio: row.displayAspectRatio || null,
+    frameRate: row.frameRate
+  };
 }
 
 function settingsToAuditOptions(settings: AppSettings): AuditOptions {

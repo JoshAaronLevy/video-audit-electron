@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-05-17
+
+### Added
+
+- Added an Electron main-process Premiere bridge service for status checks, bridge directory setup, heartbeat validation, and import request creation.
+- Added Premiere IPC and preload APIs for bridge status and selected-video import requests.
+- Added a renderer Premiere status banner with retry support and clear readiness messages.
+- Added the selected-row Edit in Premiere action, including request feedback and successful-row removal from the results table.
+
 ## [0.13.0] - 2026-05-17
 
 ### Added

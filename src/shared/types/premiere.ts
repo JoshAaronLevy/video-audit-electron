@@ -6,6 +6,8 @@ export interface PremierePreset {
   resolution: string;
   presetFileName?: string;
   available?: boolean;
+  deprecated?: boolean;
+  message?: string;
   unavailableReason?: string;
   unavailableMessage?: string;
 }
@@ -22,6 +24,7 @@ export interface PremiereStatusResponse {
     connected: boolean;
     status?: string | null;
     reason?: string;
+    ageMs?: number | null;
     updatedAt?: string | null;
     activeProjectName?: string | null;
     activeProjectPath?: string | null;
@@ -42,6 +45,7 @@ export interface PremiereRequestVideo {
   height: number | null;
   displayAspectRatio: string | null;
   frameRate: number | null;
+  originalAbsolutePath?: string;
 }
 
 export interface PremiereExportRequest {
@@ -56,8 +60,11 @@ export interface PremiereImportRequest {
 export interface PremiereRequestResponse {
   status: string;
   requestId?: string;
+  requestType?: string;
+  requestPath?: string;
   message?: string;
   premiereStatus?: PremiereStatusResponse;
+  details?: unknown;
 }
 
 export interface PremiereBridgeRequestFile {

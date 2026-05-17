@@ -12,6 +12,7 @@ import type {
   FfprobeMetadataRequest
 } from '../../shared/types/audit';
 import type { PathSelectionResult } from '../../shared/types/dialog';
+import type { AutoFixJobSnapshot, AutoFixResult } from '../../shared/types/autoFix';
 import type { AppSettings, AppSettingsUpdate } from '../../shared/types/settings';
 import type { FfprobeResult, VideoRow } from '../../shared/types/video';
 import {
@@ -28,6 +29,7 @@ type ActiveAction =
   | 'reveal'
   | 'discovery'
   | 'ffprobe'
+  | 'autoFix'
   | null;
 
 const DEFAULT_AUDIT_OPTIONS: AuditOptions = {
@@ -75,6 +77,14 @@ export interface VideoAuditAppController {
   metadataItems: FfprobeResult[];
   ffprobeProgress: FfprobeMetadataJobSnapshot | null;
   ffprobePercent: number | null;
+  autoFixProgress: AutoFixJobSnapshot | null;
+  autoFixPercent: number | null;
+  autoFixResult: AutoFixResult | null;
+  autoFixError: string | null;
+  isAutoFixDialogVisible: boolean;
+  isAutoFixActive: boolean;
+  canAutoFixSelected: boolean;
+  autoFixOutputDirectory: string | null;
   chooseFolders: () => Promise<void>;
   chooseFiles: () => Promise<void>;
   chooseOutputFolder: () => Promise<void>;
@@ -95,6 +105,10 @@ export interface VideoAuditAppController {
   cancelDiscovery: () => Promise<void>;
   startFfprobe: () => Promise<void>;
   cancelFfprobe: () => Promise<void>;
+  openAutoFixDialog: () => void;
+  closeAutoFixDialog: () => void;
+  startAutoFix: () => Promise<void>;
+  cancelAutoFix: () => Promise<void>;
 }
 
 export function useVideoAuditAppController(): VideoAuditAppController {
@@ -126,6 +140,11 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const [discoveryProgress, setDiscoveryProgress] = useState<FileDiscoveryJobSnapshot | null>(null);
   const [ffprobeJobId, setFfprobeJobId] = useState<string | null>(null);
   const [ffprobeProgress, setFfprobeProgress] = useState<FfprobeMetadataJobSnapshot | null>(null);
+  const [autoFixJobId, setAutoFixJobId] = useState<string | null>(null);
+  const [autoFixProgress, setAutoFixProgress] = useState<AutoFixJobSnapshot | null>(null);
+  const [autoFixResult, setAutoFixResult] = useState<AutoFixResult | null>(null);
+  const [autoFixError, setAutoFixError] = useState<string | null>(null);
+  const [isAutoFixDialogVisible, setIsAutoFixDialogVisible] = useState(false);
   const pendingAuditRequestRef = useRef<AuditRequest | null>(null);
 
   const applyAuditResult = useCallback(
@@ -317,21 +336,35 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     activeAction === 'ffprobe' ||
     ffprobeProgress?.status === 'starting' ||
     ffprobeProgress?.status === 'running';
+  const isAutoFixActive =
+    activeAction === 'autoFix' ||
+    autoFixProgress?.status === 'starting' ||
+    autoFixProgress?.status === 'running';
   const auditPercent = getProgressPercent(auditProgress?.processedFiles, auditProgress?.totalFiles);
   const discoveryPercent = getProgressPercent(
     discoveryProgress?.processedFiles,
     discoveryProgress?.totalFiles
   );
   const ffprobePercent = getProgressPercent(ffprobeProgress?.processedFiles, ffprobeProgress?.totalFiles);
+  const autoFixPercent = getProgressPercent(autoFixProgress?.processedVideos, autoFixProgress?.totalVideos);
   const discoveredPaths = discoveryProgress?.result?.files.map((file) => file.path) ?? [];
   const metadataItems = ffprobeProgress?.result?.items ?? [];
+  const autoFixOutputDirectory = outputFolder ?? settings?.defaultAutoFixDestinationRoot ?? null;
   const canRunAudit =
     !isAuditActive &&
     !isDiscoveryActive &&
     !isFfprobeActive &&
+    !isAutoFixActive &&
     (selectedFolders.length > 0 || selectedFiles.length > 0) &&
     (auditOptions.includeLowResolutionAnalysis || auditOptions.includeBlackBorderAnalysis);
-  const canRefreshAudit = Boolean(lastAuditRequest) && !isAuditActive && !isDiscoveryActive && !isFfprobeActive;
+  const canRefreshAudit =
+    Boolean(lastAuditRequest) && !isAuditActive && !isDiscoveryActive && !isFfprobeActive && !isAutoFixActive;
+  const canAutoFixSelected =
+    selectedVideos.length > 0 &&
+    !isAuditActive &&
+    !isDiscoveryActive &&
+    !isFfprobeActive &&
+    !isAutoFixActive;
 
   const persistSettings = useCallback(async (partialSettings: AppSettingsUpdate): Promise<AppSettings | null> => {
     setActiveAction('settings');
@@ -581,25 +614,96 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     [lastAuditRequest, showThumbnailsState]
   );
 
+  const hideVideoPathsFromTable = useCallback(
+    async (paths: string[]): Promise<number> => {
+      if (!auditResult || paths.length === 0) {
+        return 0;
+      }
+
+      const pathSet = new Set(paths);
+      let hiddenCount = 0;
+      const nextRows = auditResult.videos.map((row) => {
+        if (!pathSet.has(row.path) || row.visible === false) {
+          return row;
+        }
+
+        hiddenCount += 1;
+        return {
+          ...row,
+          visible: false
+        };
+      });
+
+      if (hiddenCount === 0) {
+        return 0;
+      }
+
+      const nextResult = {
+        ...auditResult,
+        videos: nextRows
+      };
+
+      setAuditResult(nextResult);
+      setVideoRows(nextRows);
+      setSelectedVideos((currentSelection) =>
+        currentSelection.filter((video) => !pathSet.has(video.path))
+      );
+      await persistCurrentResult(nextResult);
+
+      return hiddenCount;
+    },
+    [auditResult, persistCurrentResult]
+  );
+
+  useEffect(() => {
+    return window.videoAudit.autoFix.onProgress((progress) => {
+      setAutoFixProgress(progress);
+
+      if (progress.jobId) {
+        setAutoFixJobId(progress.jobId);
+      }
+
+      if (progress.status === 'running' || progress.status === 'starting') {
+        setActiveAction('autoFix');
+      }
+
+      if (progress.status === 'complete' && progress.result) {
+        setActiveAction(null);
+        setAutoFixResult(progress.result);
+        setAutoFixError(null);
+
+        const succeededPaths = progress.result.items
+          .filter((item) => item.status === 'success' && item.sourcePath)
+          .map((item) => item.sourcePath as string);
+
+        void hideVideoPathsFromTable(succeededPaths).then((hiddenCount) => {
+          const removedText =
+            hiddenCount > 0 ? ` ${hiddenCount.toLocaleString()} video(s) were removed from the table.` : '';
+          setWorkflowMessage(`Auto-Fix complete.${removedText}`);
+        });
+      }
+
+      if (progress.status === 'error') {
+        setActiveAction(null);
+        setAutoFixError(progress.error ?? progress.message ?? 'Auto-Fix failed.');
+        setWorkflowMessage(progress.message ?? 'Auto-Fix failed.');
+      }
+
+      if (progress.status === 'canceled') {
+        setActiveAction(null);
+        setAutoFixError(null);
+        setWorkflowMessage(progress.message ?? 'Auto-Fix canceled.');
+      }
+    });
+  }, [hideVideoPathsFromTable]);
+
   const removeSelectedVideos = useCallback(async (): Promise<void> => {
-    if (!auditResult || selectedVideos.length === 0) {
+    if (selectedVideos.length === 0) {
       return;
     }
 
-    const selectedPaths = new Set(selectedVideos.map((video) => video.path));
-    const nextRows = auditResult.videos.map((row) =>
-      selectedPaths.has(row.path) ? { ...row, visible: false } : row
-    );
-    const nextResult = {
-      ...auditResult,
-      videos: nextRows
-    };
-
-    setAuditResult(nextResult);
-    setVideoRows(nextRows);
-    setSelectedVideos([]);
-    await persistCurrentResult(nextResult);
-  }, [auditResult, persistCurrentResult, selectedVideos]);
+    await hideVideoPathsFromTable(selectedVideos.map((video) => video.path));
+  }, [hideVideoPathsFromTable, selectedVideos]);
 
   const restoreRemovedVideos = useCallback(async (): Promise<void> => {
     if (!auditResult) {
@@ -642,6 +746,11 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setSelectedFiles([]);
     setDiscoveryProgress(null);
     setFfprobeProgress(null);
+    setAutoFixJobId(null);
+    setAutoFixProgress(null);
+    setAutoFixResult(null);
+    setAutoFixError(null);
+    setIsAutoFixDialogVisible(false);
     setLastAuditRequest(null);
     pendingAuditRequestRef.current = null;
     setStorageSavedAt(null);
@@ -746,6 +855,91 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     }
   }, [ffprobeJobId]);
 
+  const openAutoFixDialog = useCallback((): void => {
+    setAutoFixError(null);
+    setAutoFixResult(null);
+    setAutoFixProgress(null);
+    setIsAutoFixDialogVisible(true);
+
+    if (!autoFixOutputDirectory) {
+      setAutoFixError('Choose an output folder before running Auto-Fix.');
+    }
+  }, [autoFixOutputDirectory]);
+
+  const closeAutoFixDialog = useCallback((): void => {
+    if (isAutoFixActive) {
+      return;
+    }
+
+    setIsAutoFixDialogVisible(false);
+    setAutoFixError(null);
+  }, [isAutoFixActive]);
+
+  const startAutoFix = useCallback(async (): Promise<void> => {
+    if (selectedVideos.length === 0) {
+      setAutoFixError('Select at least one video before running Auto-Fix.');
+      return;
+    }
+
+    if (!autoFixOutputDirectory) {
+      setAutoFixError('Choose an output folder before running Auto-Fix.');
+      return;
+    }
+
+    setAutoFixError(null);
+    setAutoFixResult(null);
+    setAutoFixProgress({
+      jobId: null,
+      status: 'starting',
+      phase: 'validating',
+      totalVideos: selectedVideos.length,
+      processedVideos: 0,
+      currentFile: null,
+      currentProfile: null,
+      currentAction: null,
+      message: 'Starting Auto-Fix.',
+      succeeded: 0,
+      failed: 0,
+      outputDirectory: autoFixOutputDirectory,
+      error: null
+    });
+    setActiveAction('autoFix');
+
+    try {
+      const response = await window.videoAudit.autoFix.start({
+        videos: selectedVideos,
+        outputDirectory: autoFixOutputDirectory
+      });
+
+      if (response.status !== 'started' || !response.jobId) {
+        setActiveAction(null);
+        setAutoFixError(response.message ?? 'Could not start Auto-Fix.');
+        return;
+      }
+
+      setAutoFixJobId(response.jobId);
+      setWorkflowMessage(response.message ?? 'Auto-Fix started.');
+    } catch (error: unknown) {
+      setActiveAction(null);
+      setAutoFixError(getErrorMessage(error, 'Could not start Auto-Fix.'));
+    }
+  }, [autoFixOutputDirectory, selectedVideos]);
+
+  const cancelAutoFix = useCallback(async (): Promise<void> => {
+    if (!autoFixJobId) {
+      return;
+    }
+
+    try {
+      const progress = await window.videoAudit.autoFix.cancel(autoFixJobId);
+      setAutoFixProgress(progress);
+      setWorkflowMessage(progress.message ?? 'Auto-Fix canceled.');
+      setActiveAction(null);
+    } catch (error: unknown) {
+      setAutoFixError(getErrorMessage(error, 'Could not cancel Auto-Fix.'));
+    }
+  }, [autoFixJobId]);
+
   return {
     appInfo,
     appInfoMessage,
@@ -782,6 +976,14 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     metadataItems,
     ffprobeProgress,
     ffprobePercent,
+    autoFixProgress,
+    autoFixPercent,
+    autoFixResult,
+    autoFixError,
+    isAutoFixDialogVisible,
+    isAutoFixActive,
+    canAutoFixSelected,
+    autoFixOutputDirectory,
     chooseFolders,
     chooseFiles,
     chooseOutputFolder,
@@ -801,7 +1003,11 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     startDiscovery,
     cancelDiscovery,
     startFfprobe,
-    cancelFfprobe
+    cancelFfprobe,
+    openAutoFixDialog,
+    closeAutoFixDialog,
+    startAutoFix,
+    cancelAutoFix
   };
 }
 

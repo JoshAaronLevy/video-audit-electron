@@ -11,7 +11,7 @@ export interface AutoFixRequest {
 
 export interface AutoFixProgress {
   jobId: string | null;
-  status: Exclude<JobStatus, 'canceled'>;
+  status: JobStatus;
   phase: string | null;
   totalVideos: number | null;
   processedVideos: number;
@@ -24,17 +24,22 @@ export interface AutoFixProgress {
   outputDirectory: string | null;
 }
 
+export interface AutoFixJobSnapshot extends AutoFixProgress {
+  result?: AutoFixResult;
+  error?: string | null;
+}
+
 export interface AutoFixStartResponse {
   jobId?: string;
+  status: 'started' | 'invalid_request' | 'error' | string;
   message?: string;
-  outputDirectory?: string;
-  status?: string;
+  outputDirectory?: string | null;
   totalVideos?: number;
 }
 
 export interface AutoFixResultItem {
   id?: string | null;
-  sourcePath: string;
+  sourcePath?: string | null;
   outputPath?: string | null;
   fileName: string;
   outputFileName?: string | null;
@@ -42,15 +47,26 @@ export interface AutoFixResultItem {
   profileId?: AutoFixProfileId | null;
   profileLabel?: string | null;
   cropped?: boolean;
-  action?: AutoFixAction;
+  action?: AutoFixAction | null;
+  crop?: {
+    width: number;
+    height: number;
+    x: number;
+    y: number;
+  } | null;
+  filter?: string | null;
   sourceSizeBytes?: number | null;
   outputSizeBytes?: number | null;
+  outputExtensionConverted?: boolean;
+  startedAt?: string;
+  completedAt?: string | null;
   error?: string | null;
 }
 
 export interface AutoFixResult {
   jobId: string;
-  status: 'complete' | 'error';
+  status: 'complete' | 'error' | 'canceled';
+  message?: string;
   outputDirectory: string;
   summary: {
     requested: number;
@@ -62,4 +78,11 @@ export interface AutoFixResult {
     normalizedOnlyCount: number;
   };
   items: AutoFixResultItem[];
+}
+
+export interface AutoFixResultResponse {
+  jobId?: string;
+  status: AutoFixResult['status'] | 'not_found' | 'not_ready' | 'error' | string;
+  message?: string;
+  result?: AutoFixResult;
 }

@@ -19,10 +19,12 @@ interface VideoResultsTableProps {
   auditErrors: AuditError[];
   removedVideoCount: number;
   isAuditActive: boolean;
+  isAutoFixActive: boolean;
   isStorageLoading: boolean;
   storageMessage: string | null;
   storageSavedAt: string | null;
   canRefreshAudit: boolean;
+  canAutoFixSelected: boolean;
   onSelectedVideosChange: (videos: VideoRow[]) => void;
   onGlobalFilterChange: (value: string) => void;
   onShowThumbnailsChange: (value: boolean) => void;
@@ -30,6 +32,7 @@ interface VideoResultsTableProps {
   onClearData: () => void;
   onRemoveSelectedVideos: () => void;
   onRestoreRemovedVideos: () => void;
+  onOpenAutoFixDialog: () => void;
   onRevealPath: (path: string) => void;
 }
 
@@ -60,10 +63,12 @@ export function VideoResultsTable({
   auditErrors,
   removedVideoCount,
   isAuditActive,
+  isAutoFixActive,
   isStorageLoading,
   storageMessage,
   storageSavedAt,
   canRefreshAudit,
+  canAutoFixSelected,
   onSelectedVideosChange,
   onGlobalFilterChange,
   onShowThumbnailsChange,
@@ -71,6 +76,7 @@ export function VideoResultsTable({
   onClearData,
   onRemoveSelectedVideos,
   onRestoreRemovedVideos,
+  onOpenAutoFixDialog,
   onRevealPath
 }: VideoResultsTableProps): ReactElement {
   const tableHeader = (
@@ -150,7 +156,14 @@ export function VideoResultsTable({
           disabled={removedVideoCount === 0 || isAuditActive}
           onClick={onRestoreRemovedVideos}
         />
-        <Button label="Auto-Fix" icon="pi pi-wrench" severity="help" disabled />
+        <Button
+          label={selectedVideos.length > 0 ? `Auto-Fix (${selectedVideos.length})` : 'Auto-Fix'}
+          icon="pi pi-wrench"
+          severity="help"
+          loading={isAutoFixActive}
+          disabled={!canAutoFixSelected}
+          onClick={onOpenAutoFixDialog}
+        />
         <Button label="Crop Options" icon="pi pi-crop" severity="help" disabled />
         <Button label="Thumbnails" icon="pi pi-images" severity="info" disabled />
         <Button label="Edit in Premiere" icon="pi pi-send" severity="success" disabled />

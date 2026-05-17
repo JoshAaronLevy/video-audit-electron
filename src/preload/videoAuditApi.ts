@@ -13,6 +13,12 @@ import type {
   FfprobeMetadataRequest,
   FfprobeMetadataStartResponse
 } from '../shared/types/audit';
+import type {
+  AutoFixJobSnapshot,
+  AutoFixRequest,
+  AutoFixResultResponse,
+  AutoFixStartResponse
+} from '../shared/types/autoFix';
 import type { PathSelectionResult, RevealPathResult } from '../shared/types/dialog';
 import type { AppSettings, AppSettingsUpdate } from '../shared/types/settings';
 
@@ -48,6 +54,12 @@ export interface VideoAuditApi {
     start: (request: FfprobeMetadataRequest) => Promise<FfprobeMetadataStartResponse>;
     cancel: (jobId: string) => Promise<FfprobeMetadataJobSnapshot>;
     onProgress: (callback: (progress: FfprobeMetadataJobSnapshot) => void) => () => void;
+  };
+  autoFix: {
+    start: (request: AutoFixRequest) => Promise<AutoFixStartResponse>;
+    cancel: (jobId: string) => Promise<AutoFixJobSnapshot>;
+    getResult: (jobId: string) => Promise<AutoFixResultResponse>;
+    onProgress: (callback: (progress: AutoFixJobSnapshot) => void) => () => void;
   };
 }
 
@@ -113,6 +125,22 @@ export const videoAuditApi: VideoAuditApi = {
 
       return () => {
         ipcRenderer.removeListener(IPC_CHANNELS.ffprobeProgress, listener);
+      };
+    }
+  },
+  autoFix: {
+    start: (request: AutoFixRequest) => ipcRenderer.invoke(IPC_CHANNELS.autoFixStart, request),
+    cancel: (jobId: string) => ipcRenderer.invoke(IPC_CHANNELS.autoFixCancel, jobId),
+    getResult: (jobId: string) => ipcRenderer.invoke(IPC_CHANNELS.autoFixGetResult, jobId),
+    onProgress: (callback: (progress: AutoFixJobSnapshot) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, progress: AutoFixJobSnapshot): void => {
+        callback(progress);
+      };
+
+      ipcRenderer.on(IPC_CHANNELS.autoFixProgress, listener);
+
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.autoFixProgress, listener);
       };
     }
   }

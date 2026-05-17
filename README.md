@@ -68,6 +68,8 @@ The current app includes:
 - optional black-border analysis using ffmpeg cropdetect
 - black-border classifications, confidence, visible-area crop data, and recommended-fix eligibility stored on audit rows
 - crop-review result display in the audit table for auto, review, clean, uncertain, errored, and not-scanned black-border states
+- Electron-native Auto-Fix workflow for selected rows using ffmpeg normalization
+- cancellable Auto-Fix progress, per-file result reporting, safe output filename generation, and output-folder reveal support
 - cancellable audit progress, result retrieval, flagged rows, and per-file errors through IPC
 - Electron-native renderer controller for source selection, audit lifecycle, and result-state management
 - persisted audit results in renderer IndexedDB with refresh and clear-data controls

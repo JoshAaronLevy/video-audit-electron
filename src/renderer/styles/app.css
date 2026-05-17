@@ -430,6 +430,103 @@ select {
   line-height: 1.5;
 }
 
+.auto-fix-dialog {
+  width: min(760px, calc(100vw - 32px));
+}
+
+.auto-fix-dialog-content,
+.auto-fix-progress,
+.auto-fix-failed-items {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.dialog-actions,
+.auto-fix-progress-counts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
+.auto-fix-summary-grid,
+.auto-fix-current-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.auto-fix-summary-grid > div,
+.auto-fix-current-grid > div,
+.auto-fix-paths {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.75rem;
+  background: #f8fafc;
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+}
+
+.auto-fix-summary-grid span,
+.auto-fix-current-grid span,
+.auto-fix-paths span {
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.auto-fix-summary-grid strong,
+.auto-fix-current-grid strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #172033;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.auto-fix-paths code {
+  min-width: 0;
+  overflow: hidden;
+  color: #172033;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.auto-fix-progress p {
+  margin: 0;
+  color: #475569;
+}
+
+.auto-fix-failed-items h3 {
+  margin: 0;
+  color: #334155;
+  font-size: 0.95rem;
+}
+
+.auto-fix-failed-items ul {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.auto-fix-failed-items li {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.6rem;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+}
+
+.auto-fix-failed-items small {
+  color: #9a3412;
+}
+
 @media (max-width: 1120px) {
   .workspace-layout {
     grid-template-columns: 1fr;
@@ -474,5 +571,10 @@ select {
   .info-row {
     grid-template-columns: 1fr;
     gap: 0.2rem;
+  }
+
+  .auto-fix-summary-grid,
+  .auto-fix-current-grid {
+    grid-template-columns: 1fr;
   }
 }

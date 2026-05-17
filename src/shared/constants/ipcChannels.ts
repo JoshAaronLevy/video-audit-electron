@@ -16,5 +16,9 @@ export const IPC_CHANNELS = {
   auditProgress: 'audit:progress',
   ffprobeStart: 'ffprobe:start',
   ffprobeCancel: 'ffprobe:cancel',
-  ffprobeProgress: 'ffprobe:progress'
+  ffprobeProgress: 'ffprobe:progress',
+  autoFixStart: 'auto-fix:start',
+  autoFixCancel: 'auto-fix:cancel',
+  autoFixGetResult: 'auto-fix:get-result',
+  autoFixProgress: 'auto-fix:progress'
 } as const;

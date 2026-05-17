@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 import { AppHeader } from './components/AppHeader';
 import { AuditProgressPanel } from './components/AuditProgressPanel';
+import { AutoFixDialog } from './components/AutoFixDialog';
 import { SettingsPanel } from './components/SettingsPanel';
 import { SourceSelectionPanel } from './components/SourceSelectionPanel';
 import { UtilityPanel } from './components/UtilityPanel';
@@ -52,10 +53,12 @@ export function App(): ReactElement {
             auditErrors={controller.auditErrors}
             removedVideoCount={controller.removedVideoCount}
             isAuditActive={controller.isAuditActive}
+            isAutoFixActive={controller.isAutoFixActive}
             isStorageLoading={controller.isStorageLoading}
             storageMessage={controller.storageMessage}
             storageSavedAt={controller.storageSavedAt}
             canRefreshAudit={controller.canRefreshAudit}
+            canAutoFixSelected={controller.canAutoFixSelected}
             onSelectedVideosChange={controller.setSelectedVideos}
             onGlobalFilterChange={controller.setGlobalFilter}
             onShowThumbnailsChange={controller.setShowThumbnails}
@@ -63,7 +66,23 @@ export function App(): ReactElement {
             onClearData={controller.clearAuditData}
             onRemoveSelectedVideos={controller.removeSelectedVideos}
             onRestoreRemovedVideos={controller.restoreRemovedVideos}
+            onOpenAutoFixDialog={controller.openAutoFixDialog}
             onRevealPath={controller.revealPath}
+          />
+
+          <AutoFixDialog
+            visible={controller.isAutoFixDialogVisible}
+            selectedCount={controller.selectedVideos.length}
+            outputDirectory={controller.autoFixOutputDirectory}
+            progress={controller.autoFixProgress}
+            percent={controller.autoFixPercent}
+            result={controller.autoFixResult}
+            error={controller.autoFixError}
+            isSubmitting={controller.isAutoFixActive}
+            onSubmit={controller.startAutoFix}
+            onCancel={controller.cancelAutoFix}
+            onHide={controller.closeAutoFixDialog}
+            onRevealOutputDirectory={controller.revealPath}
           />
         </div>
 

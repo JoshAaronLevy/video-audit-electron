@@ -20,5 +20,9 @@ export const IPC_CHANNELS = {
   autoFixStart: 'auto-fix:start',
   autoFixCancel: 'auto-fix:cancel',
   autoFixGetResult: 'auto-fix:get-result',
-  autoFixProgress: 'auto-fix:progress'
+  autoFixProgress: 'auto-fix:progress',
+  autoCropStart: 'auto-crop:start',
+  autoCropCancel: 'auto-crop:cancel',
+  autoCropGetResult: 'auto-crop:get-result',
+  autoCropProgress: 'auto-crop:progress'
 } as const;

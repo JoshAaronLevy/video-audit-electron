@@ -11,6 +11,7 @@ import type {
   FfprobeMetadataJobSnapshot,
   FfprobeMetadataRequest
 } from '../../shared/types/audit';
+import type { AutoCropJobSnapshot, AutoCropResult } from '../../shared/types/autoCrop';
 import type { PathSelectionResult } from '../../shared/types/dialog';
 import type { AutoFixJobSnapshot, AutoFixResult } from '../../shared/types/autoFix';
 import type { AppSettings, AppSettingsUpdate } from '../../shared/types/settings';
@@ -30,6 +31,7 @@ type ActiveAction =
   | 'discovery'
   | 'ffprobe'
   | 'autoFix'
+  | 'autoCrop'
   | null;
 
 const DEFAULT_AUDIT_OPTIONS: AuditOptions = {
@@ -85,6 +87,14 @@ export interface VideoAuditAppController {
   isAutoFixActive: boolean;
   canAutoFixSelected: boolean;
   autoFixOutputDirectory: string | null;
+  autoCropProgress: AutoCropJobSnapshot | null;
+  autoCropPercent: number | null;
+  autoCropResult: AutoCropResult | null;
+  autoCropError: string | null;
+  isAutoCropDialogVisible: boolean;
+  isAutoCropActive: boolean;
+  canOpenCropOptions: boolean;
+  autoCropOutputRootDir: string | null;
   chooseFolders: () => Promise<void>;
   chooseFiles: () => Promise<void>;
   chooseOutputFolder: () => Promise<void>;
@@ -109,6 +119,10 @@ export interface VideoAuditAppController {
   closeAutoFixDialog: () => void;
   startAutoFix: () => Promise<void>;
   cancelAutoFix: () => Promise<void>;
+  openAutoCropDialog: () => void;
+  closeAutoCropDialog: () => void;
+  startAutoCrop: () => Promise<void>;
+  cancelAutoCrop: () => Promise<void>;
 }
 
 export function useVideoAuditAppController(): VideoAuditAppController {
@@ -145,6 +159,11 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const [autoFixResult, setAutoFixResult] = useState<AutoFixResult | null>(null);
   const [autoFixError, setAutoFixError] = useState<string | null>(null);
   const [isAutoFixDialogVisible, setIsAutoFixDialogVisible] = useState(false);
+  const [autoCropJobId, setAutoCropJobId] = useState<string | null>(null);
+  const [autoCropProgress, setAutoCropProgress] = useState<AutoCropJobSnapshot | null>(null);
+  const [autoCropResult, setAutoCropResult] = useState<AutoCropResult | null>(null);
+  const [autoCropError, setAutoCropError] = useState<string | null>(null);
+  const [isAutoCropDialogVisible, setIsAutoCropDialogVisible] = useState(false);
   const pendingAuditRequestRef = useRef<AuditRequest | null>(null);
 
   const applyAuditResult = useCallback(
@@ -340,6 +359,10 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     activeAction === 'autoFix' ||
     autoFixProgress?.status === 'starting' ||
     autoFixProgress?.status === 'running';
+  const isAutoCropActive =
+    activeAction === 'autoCrop' ||
+    autoCropProgress?.status === 'starting' ||
+    autoCropProgress?.status === 'running';
   const auditPercent = getProgressPercent(auditProgress?.processedFiles, auditProgress?.totalFiles);
   const discoveryPercent = getProgressPercent(
     discoveryProgress?.processedFiles,
@@ -347,24 +370,40 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   );
   const ffprobePercent = getProgressPercent(ffprobeProgress?.processedFiles, ffprobeProgress?.totalFiles);
   const autoFixPercent = getProgressPercent(autoFixProgress?.processedVideos, autoFixProgress?.totalVideos);
+  const autoCropPercent = getProgressPercent(autoCropProgress?.processedFiles, autoCropProgress?.totalFiles);
   const discoveredPaths = discoveryProgress?.result?.files.map((file) => file.path) ?? [];
   const metadataItems = ffprobeProgress?.result?.items ?? [];
   const autoFixOutputDirectory = outputFolder ?? settings?.defaultAutoFixDestinationRoot ?? null;
+  const autoCropOutputRootDir = outputFolder ?? settings?.defaultOutputDirectory ?? null;
   const canRunAudit =
     !isAuditActive &&
     !isDiscoveryActive &&
     !isFfprobeActive &&
     !isAutoFixActive &&
+    !isAutoCropActive &&
     (selectedFolders.length > 0 || selectedFiles.length > 0) &&
     (auditOptions.includeLowResolutionAnalysis || auditOptions.includeBlackBorderAnalysis);
   const canRefreshAudit =
-    Boolean(lastAuditRequest) && !isAuditActive && !isDiscoveryActive && !isFfprobeActive && !isAutoFixActive;
+    Boolean(lastAuditRequest) &&
+    !isAuditActive &&
+    !isDiscoveryActive &&
+    !isFfprobeActive &&
+    !isAutoFixActive &&
+    !isAutoCropActive;
   const canAutoFixSelected =
     selectedVideos.length > 0 &&
     !isAuditActive &&
     !isDiscoveryActive &&
     !isFfprobeActive &&
-    !isAutoFixActive;
+    !isAutoFixActive &&
+    !isAutoCropActive;
+  const canOpenCropOptions =
+    selectedVideos.length > 0 &&
+    !isAuditActive &&
+    !isDiscoveryActive &&
+    !isFfprobeActive &&
+    !isAutoFixActive &&
+    !isAutoCropActive;
 
   const persistSettings = useCallback(async (partialSettings: AppSettingsUpdate): Promise<AppSettings | null> => {
     setActiveAction('settings');
@@ -697,6 +736,43 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     });
   }, [hideVideoPathsFromTable]);
 
+  useEffect(() => {
+    return window.videoAudit.autoCrop.onProgress((progress) => {
+      setAutoCropProgress(progress);
+
+      if (progress.jobId) {
+        setAutoCropJobId(progress.jobId);
+      }
+
+      if (progress.status === 'running' || progress.status === 'starting') {
+        setActiveAction('autoCrop');
+      }
+
+      if (progress.status === 'complete' && progress.result) {
+        setActiveAction(null);
+        setAutoCropResult(progress.result);
+        setAutoCropError(null);
+        const croppedCount = progress.result.summary.succeeded;
+        const croppedLabel = croppedCount === 1 ? 'cropped copy' : 'cropped copies';
+        setWorkflowMessage(
+          `Auto-Crop complete. ${croppedCount.toLocaleString()} ${croppedLabel} created.`
+        );
+      }
+
+      if (progress.status === 'error') {
+        setActiveAction(null);
+        setAutoCropError(progress.error ?? progress.message ?? 'Auto-Crop failed.');
+        setWorkflowMessage(progress.message ?? 'Auto-Crop failed.');
+      }
+
+      if (progress.status === 'canceled') {
+        setActiveAction(null);
+        setAutoCropError(null);
+        setWorkflowMessage(progress.message ?? 'Auto-Crop canceled.');
+      }
+    });
+  }, []);
+
   const removeSelectedVideos = useCallback(async (): Promise<void> => {
     if (selectedVideos.length === 0) {
       return;
@@ -751,6 +827,11 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setAutoFixResult(null);
     setAutoFixError(null);
     setIsAutoFixDialogVisible(false);
+    setAutoCropJobId(null);
+    setAutoCropProgress(null);
+    setAutoCropResult(null);
+    setAutoCropError(null);
+    setIsAutoCropDialogVisible(false);
     setLastAuditRequest(null);
     pendingAuditRequestRef.current = null;
     setStorageSavedAt(null);
@@ -940,6 +1021,91 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     }
   }, [autoFixJobId]);
 
+  const openAutoCropDialog = useCallback((): void => {
+    setAutoCropError(null);
+    setAutoCropResult(null);
+    setAutoCropProgress(null);
+    setIsAutoCropDialogVisible(true);
+
+    if (!autoCropOutputRootDir) {
+      setAutoCropError('Choose an output folder before running Auto-Crop.');
+    }
+  }, [autoCropOutputRootDir]);
+
+  const closeAutoCropDialog = useCallback((): void => {
+    if (isAutoCropActive) {
+      return;
+    }
+
+    setIsAutoCropDialogVisible(false);
+    setAutoCropError(null);
+  }, [isAutoCropActive]);
+
+  const startAutoCrop = useCallback(async (): Promise<void> => {
+    if (selectedVideos.length === 0) {
+      setAutoCropError('Select at least one video before running Auto-Crop.');
+      return;
+    }
+
+    if (!autoCropOutputRootDir) {
+      setAutoCropError('Choose an output folder before running Auto-Crop.');
+      return;
+    }
+
+    setAutoCropError(null);
+    setAutoCropResult(null);
+    setAutoCropProgress({
+      jobId: null,
+      status: 'starting',
+      phase: 'validating',
+      outputRootDir: autoCropOutputRootDir,
+      outputDir: null,
+      totalFiles: selectedVideos.length,
+      processedFiles: 0,
+      succeededCount: 0,
+      skippedCount: 0,
+      errorCount: 0,
+      currentFile: null,
+      message: 'Starting Auto-Crop.',
+      error: null
+    });
+    setActiveAction('autoCrop');
+
+    try {
+      const response = await window.videoAudit.autoCrop.start({
+        videos: selectedVideos,
+        outputRootDir: autoCropOutputRootDir
+      });
+
+      if (response.status !== 'started' || !response.jobId) {
+        setActiveAction(null);
+        setAutoCropError(response.message ?? 'Could not start Auto-Crop.');
+        return;
+      }
+
+      setAutoCropJobId(response.jobId);
+      setWorkflowMessage(response.message ?? 'Auto-Crop started.');
+    } catch (error: unknown) {
+      setActiveAction(null);
+      setAutoCropError(getErrorMessage(error, 'Could not start Auto-Crop.'));
+    }
+  }, [autoCropOutputRootDir, selectedVideos]);
+
+  const cancelAutoCrop = useCallback(async (): Promise<void> => {
+    if (!autoCropJobId) {
+      return;
+    }
+
+    try {
+      const progress = await window.videoAudit.autoCrop.cancel(autoCropJobId);
+      setAutoCropProgress(progress);
+      setWorkflowMessage(progress.message ?? 'Auto-Crop canceled.');
+      setActiveAction(null);
+    } catch (error: unknown) {
+      setAutoCropError(getErrorMessage(error, 'Could not cancel Auto-Crop.'));
+    }
+  }, [autoCropJobId]);
+
   return {
     appInfo,
     appInfoMessage,
@@ -984,6 +1150,14 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     isAutoFixActive,
     canAutoFixSelected,
     autoFixOutputDirectory,
+    autoCropProgress,
+    autoCropPercent,
+    autoCropResult,
+    autoCropError,
+    isAutoCropDialogVisible,
+    isAutoCropActive,
+    canOpenCropOptions,
+    autoCropOutputRootDir,
     chooseFolders,
     chooseFiles,
     chooseOutputFolder,
@@ -1007,7 +1181,11 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     openAutoFixDialog,
     closeAutoFixDialog,
     startAutoFix,
-    cancelAutoFix
+    cancelAutoFix,
+    openAutoCropDialog,
+    closeAutoCropDialog,
+    startAutoCrop,
+    cancelAutoCrop
   };
 }
 

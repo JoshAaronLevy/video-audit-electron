@@ -2,6 +2,7 @@ import { app, ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants/ipcChannels';
 import type { AppInfo } from '../../shared/types/app';
 import { registerAuditIpcHandlers } from './auditIpc';
+import { registerAutoCropIpcHandlers } from './autoCropIpc';
 import { registerAutoFixIpcHandlers } from './autoFixIpc';
 import { registerDialogIpcHandlers } from './dialogIpc';
 import { registerSettingsIpcHandlers } from './settingsIpc';
@@ -17,6 +18,7 @@ export function registerIpcHandlers(): void {
   }));
 
   registerAuditIpcHandlers();
+  registerAutoCropIpcHandlers();
   registerAutoFixIpcHandlers();
   registerDialogIpcHandlers();
   registerSettingsIpcHandlers();

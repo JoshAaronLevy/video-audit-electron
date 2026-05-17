@@ -14,6 +14,12 @@ import type {
   FfprobeMetadataStartResponse
 } from '../shared/types/audit';
 import type {
+  AutoCropJobSnapshot,
+  AutoCropRequest,
+  AutoCropResultResponse,
+  AutoCropStartResponse
+} from '../shared/types/autoCrop';
+import type {
   AutoFixJobSnapshot,
   AutoFixRequest,
   AutoFixResultResponse,
@@ -60,6 +66,12 @@ export interface VideoAuditApi {
     cancel: (jobId: string) => Promise<AutoFixJobSnapshot>;
     getResult: (jobId: string) => Promise<AutoFixResultResponse>;
     onProgress: (callback: (progress: AutoFixJobSnapshot) => void) => () => void;
+  };
+  autoCrop: {
+    start: (request: AutoCropRequest) => Promise<AutoCropStartResponse>;
+    cancel: (jobId: string) => Promise<AutoCropJobSnapshot>;
+    getResult: (jobId: string) => Promise<AutoCropResultResponse>;
+    onProgress: (callback: (progress: AutoCropJobSnapshot) => void) => () => void;
   };
 }
 
@@ -141,6 +153,22 @@ export const videoAuditApi: VideoAuditApi = {
 
       return () => {
         ipcRenderer.removeListener(IPC_CHANNELS.autoFixProgress, listener);
+      };
+    }
+  },
+  autoCrop: {
+    start: (request: AutoCropRequest) => ipcRenderer.invoke(IPC_CHANNELS.autoCropStart, request),
+    cancel: (jobId: string) => ipcRenderer.invoke(IPC_CHANNELS.autoCropCancel, jobId),
+    getResult: (jobId: string) => ipcRenderer.invoke(IPC_CHANNELS.autoCropGetResult, jobId),
+    onProgress: (callback: (progress: AutoCropJobSnapshot) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, progress: AutoCropJobSnapshot): void => {
+        callback(progress);
+      };
+
+      ipcRenderer.on(IPC_CHANNELS.autoCropProgress, listener);
+
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.autoCropProgress, listener);
       };
     }
   }

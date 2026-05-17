@@ -21,12 +21,18 @@ export interface AutoCropProgress {
   message: string | null;
 }
 
+export interface AutoCropJobSnapshot extends AutoCropProgress {
+  result?: AutoCropResult;
+  error?: string | null;
+}
+
 export interface AutoCropStartResponse {
   jobId?: string;
+  status: 'started' | 'invalid_request' | 'error' | string;
   message?: string;
   outputDir?: string;
   outputRootDir?: string;
-  status?: string;
+  totalFiles?: number;
 }
 
 export interface AutoCropResultItem {
@@ -39,14 +45,18 @@ export interface AutoCropResultItem {
     width: number;
     height: number;
   };
+  ffmpegFilter?: string | null;
   sourceSizeBytes?: number | null;
   outputSizeBytes?: number | null;
+  startedAt?: string;
+  completedAt?: string | null;
   error?: string | null;
 }
 
 export interface AutoCropResult {
   jobId: string;
   status: 'complete' | 'error' | 'canceled';
+  message?: string;
   summary: {
     requested: number;
     eligible: number;
@@ -59,4 +69,11 @@ export interface AutoCropResult {
   outputDir: string;
   manifestPath?: string;
   items: AutoCropResultItem[];
+}
+
+export interface AutoCropResultResponse {
+  jobId?: string;
+  status: AutoCropResult['status'] | 'not_found' | 'not_ready' | 'error' | string;
+  message?: string;
+  result?: AutoCropResult;
 }

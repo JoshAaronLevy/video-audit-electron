@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-05-17
+
+### Added
+
+- Added an Electron main-process Auto-Crop service that uses ffmpeg crop/scale output for eligible high-confidence black-border rows.
+- Added Auto-Crop IPC start, progress, cancel, and result retrieval through the typed preload API.
+- Added safe Auto-Crop output handling with output-folder creation, source overwrite prevention, conflict run folders, in-progress/final manifest writing, per-item statuses, and skipped-row reasons.
+- Added a renderer Crop Options workflow with selected-row eligibility summary, progress, cancellation, result summary, manifest path display, and output-folder reveal support.
+
 ## [0.10.0] - 2026-05-17
 
 ### Added

@@ -20,11 +20,13 @@ interface VideoResultsTableProps {
   removedVideoCount: number;
   isAuditActive: boolean;
   isAutoFixActive: boolean;
+  isAutoCropActive: boolean;
   isStorageLoading: boolean;
   storageMessage: string | null;
   storageSavedAt: string | null;
   canRefreshAudit: boolean;
   canAutoFixSelected: boolean;
+  canOpenCropOptions: boolean;
   onSelectedVideosChange: (videos: VideoRow[]) => void;
   onGlobalFilterChange: (value: string) => void;
   onShowThumbnailsChange: (value: boolean) => void;
@@ -33,6 +35,7 @@ interface VideoResultsTableProps {
   onRemoveSelectedVideos: () => void;
   onRestoreRemovedVideos: () => void;
   onOpenAutoFixDialog: () => void;
+  onOpenAutoCropDialog: () => void;
   onRevealPath: (path: string) => void;
 }
 
@@ -64,11 +67,13 @@ export function VideoResultsTable({
   removedVideoCount,
   isAuditActive,
   isAutoFixActive,
+  isAutoCropActive,
   isStorageLoading,
   storageMessage,
   storageSavedAt,
   canRefreshAudit,
   canAutoFixSelected,
+  canOpenCropOptions,
   onSelectedVideosChange,
   onGlobalFilterChange,
   onShowThumbnailsChange,
@@ -77,6 +82,7 @@ export function VideoResultsTable({
   onRemoveSelectedVideos,
   onRestoreRemovedVideos,
   onOpenAutoFixDialog,
+  onOpenAutoCropDialog,
   onRevealPath
 }: VideoResultsTableProps): ReactElement {
   const tableHeader = (
@@ -164,7 +170,14 @@ export function VideoResultsTable({
           disabled={!canAutoFixSelected}
           onClick={onOpenAutoFixDialog}
         />
-        <Button label="Crop Options" icon="pi pi-crop" severity="help" disabled />
+        <Button
+          label={selectedVideos.length > 0 ? `Crop Options (${selectedVideos.length})` : 'Crop Options'}
+          icon="pi pi-crop"
+          severity="help"
+          loading={isAutoCropActive}
+          disabled={!canOpenCropOptions}
+          onClick={onOpenAutoCropDialog}
+        />
         <Button label="Thumbnails" icon="pi pi-images" severity="info" disabled />
         <Button label="Edit in Premiere" icon="pi pi-send" severity="success" disabled />
       </div>

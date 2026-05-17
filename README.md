@@ -55,3 +55,5 @@ The current app includes:
 - native output-folder selection through Electron dialogs
 - selected path validation in the main process
 - reveal selected paths in Finder
+- shared TypeScript contracts for audits, videos, jobs, settings, adjustments, thumbnails, migration, and Premiere bridge work
+- shared video-extension and Premiere bridge constants

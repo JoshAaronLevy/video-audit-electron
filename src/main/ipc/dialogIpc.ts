@@ -2,7 +2,7 @@ import { BrowserWindow, dialog, ipcMain, shell, type OpenDialogOptions, type Ope
 import { stat } from 'node:fs/promises';
 import { isAbsolute } from 'node:path';
 import { IPC_CHANNELS } from '../../shared/constants/ipcChannels';
-import { SUPPORTED_VIDEO_EXTENSIONS } from '../../shared/constants/videoExtensions';
+import { SUPPORTED_VIDEO_EXTENSION_NAMES } from '../../shared/constants/videoExtensions';
 import type {
   PathKind,
   PathSelectionResult,
@@ -31,7 +31,7 @@ export function registerDialogIpcHandlers(): void {
         filters: [
           {
             name: 'Video Files',
-            extensions: [...SUPPORTED_VIDEO_EXTENSIONS]
+            extensions: [...SUPPORTED_VIDEO_EXTENSION_NAMES]
           },
           {
             name: 'All Files',

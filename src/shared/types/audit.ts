@@ -66,3 +66,56 @@ export interface AuditResult {
   videos: VideoRow[];
   errors: AuditError[];
 }
+
+export interface FileDiscoveryRequest {
+  folderPaths: string[];
+  filePaths: string[];
+  includeSubfolders: boolean;
+}
+
+export type FileDiscoveryPhase = 'validating' | 'walking' | 'complete' | 'error' | 'canceled';
+
+export interface DiscoveredVideoFile {
+  path: string;
+  directory: string;
+  fileName: string;
+  extension: string;
+  fileType: string;
+  sizeBytes: number | null;
+  modifiedAt: string | null;
+}
+
+export interface FileDiscoveryProgress {
+  jobId: string | null;
+  status: JobStatus;
+  phase: FileDiscoveryPhase;
+  totalFiles: number | null;
+  processedFiles: number;
+  skippedFiles: number;
+  foundCount: number;
+  currentPath: string | null;
+  message: string | null;
+}
+
+export interface FileDiscoveryResult {
+  jobId: string;
+  status: Extract<JobStatus, 'complete'>;
+  summary: {
+    folderCount: number;
+    selectedFileCount: number;
+    foundCount: number;
+    skippedFiles: number;
+  };
+  files: DiscoveredVideoFile[];
+}
+
+export interface FileDiscoveryStartResponse {
+  jobId?: string;
+  status: 'started' | 'invalid_request' | 'error' | string;
+  message?: string;
+}
+
+export interface FileDiscoveryJobSnapshot extends FileDiscoveryProgress {
+  result?: FileDiscoveryResult;
+  error?: string | null;
+}

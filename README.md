@@ -59,3 +59,5 @@ The current app includes:
 - shared video-extension and Premiere bridge constants
 - JSON-backed local app settings stored under Electron's user data directory
 - settings preload APIs for reading, updating, and resetting local settings
+- discovery-only video scanning for selected folders and files
+- cancellable file discovery progress reported through Electron IPC

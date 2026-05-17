@@ -1,6 +1,11 @@
 import { ipcRenderer } from 'electron';
 import { IPC_CHANNELS } from '../shared/constants/ipcChannels';
 import type { AppInfo } from '../shared/types/app';
+import type {
+  FileDiscoveryJobSnapshot,
+  FileDiscoveryRequest,
+  FileDiscoveryStartResponse
+} from '../shared/types/audit';
 import type { PathSelectionResult, RevealPathResult } from '../shared/types/dialog';
 import type { AppSettings, AppSettingsUpdate } from '../shared/types/settings';
 
@@ -21,6 +26,11 @@ export interface VideoAuditApi {
     update: (partialSettings: AppSettingsUpdate) => Promise<AppSettings>;
     reset: () => Promise<AppSettings>;
   };
+  discovery: {
+    start: (request: FileDiscoveryRequest) => Promise<FileDiscoveryStartResponse>;
+    cancel: (jobId: string) => Promise<FileDiscoveryJobSnapshot>;
+    onProgress: (callback: (progress: FileDiscoveryJobSnapshot) => void) => () => void;
+  };
 }
 
 export const videoAuditApi: VideoAuditApi = {
@@ -40,5 +50,21 @@ export const videoAuditApi: VideoAuditApi = {
     update: (partialSettings: AppSettingsUpdate) =>
       ipcRenderer.invoke(IPC_CHANNELS.settingsUpdate, partialSettings),
     reset: () => ipcRenderer.invoke(IPC_CHANNELS.settingsReset)
+  },
+  discovery: {
+    start: (request: FileDiscoveryRequest) =>
+      ipcRenderer.invoke(IPC_CHANNELS.auditDiscoveryStart, request),
+    cancel: (jobId: string) => ipcRenderer.invoke(IPC_CHANNELS.auditDiscoveryCancel, jobId),
+    onProgress: (callback: (progress: FileDiscoveryJobSnapshot) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, progress: FileDiscoveryJobSnapshot): void => {
+        callback(progress);
+      };
+
+      ipcRenderer.on(IPC_CHANNELS.auditDiscoveryProgress, listener);
+
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.auditDiscoveryProgress, listener);
+      };
+    }
   }
 };

@@ -144,6 +144,16 @@ select {
   border-radius: 8px;
 }
 
+.discovery-panel {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 1rem;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+}
+
 .path-section-header {
   display: flex;
   align-items: center;
@@ -193,6 +203,44 @@ select {
   margin: 0;
   color: #64748b;
   line-height: 1.5;
+}
+
+.path-hint {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: #475569;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.metric {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.75rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.metric span {
+  color: #64748b;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.metric strong {
+  color: #172033;
+  font-size: 1.15rem;
 }
 
 .settings-panel {
@@ -269,6 +317,10 @@ select {
 
   .button-row .p-button {
     width: 100%;
+  }
+
+  .metric-grid {
+    grid-template-columns: 1fr;
   }
 
   .text-setting-row {

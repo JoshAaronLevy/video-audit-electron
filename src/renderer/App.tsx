@@ -5,12 +5,14 @@ import { Checkbox } from 'primereact/checkbox';
 import { Divider } from 'primereact/divider';
 import { InputText } from 'primereact/inputtext';
 import { Message } from 'primereact/message';
+import { ProgressBar } from 'primereact/progressbar';
 import { Tag } from 'primereact/tag';
 import type { AppInfo } from '../shared/types/app';
+import type { FileDiscoveryJobSnapshot, FileDiscoveryRequest } from '../shared/types/audit';
 import type { PathSelectionResult } from '../shared/types/dialog';
 import type { AppSettings, AppSettingsUpdate } from '../shared/types/settings';
 
-type DialogAction = 'folders' | 'files' | 'output' | 'reveal' | 'settings';
+type DialogAction = 'folders' | 'files' | 'output' | 'reveal' | 'settings' | 'discovery';
 
 export function App(): ReactElement {
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
@@ -21,6 +23,9 @@ export function App(): ReactElement {
   const [outputFolder, setOutputFolder] = useState<string | null>(null);
   const [selectionMessage, setSelectionMessage] = useState<string | null>(null);
   const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
+  const [discoveryMessage, setDiscoveryMessage] = useState<string | null>(null);
+  const [discoveryJobId, setDiscoveryJobId] = useState<string | null>(null);
+  const [discoveryProgress, setDiscoveryProgress] = useState<FileDiscoveryJobSnapshot | null>(null);
   const [activeAction, setActiveAction] = useState<DialogAction | null>(null);
 
   useEffect(() => {
@@ -64,6 +69,26 @@ export function App(): ReactElement {
     return () => {
       isMounted = false;
     };
+  }, []);
+
+  useEffect(() => {
+    return window.videoAudit.discovery.onProgress((progress) => {
+      setDiscoveryProgress(progress);
+
+      if (progress.jobId) {
+        setDiscoveryJobId(progress.jobId);
+      }
+
+      if (progress.status === 'complete') {
+        setActiveAction(null);
+        setDiscoveryMessage(progress.message ?? 'File discovery complete.');
+      }
+
+      if (progress.status === 'error' || progress.status === 'canceled') {
+        setActiveAction(null);
+        setDiscoveryMessage(progress.message ?? 'File discovery stopped.');
+      }
+    });
   }, []);
 
   const handleSelectionResult = (
@@ -183,6 +208,65 @@ export function App(): ReactElement {
     }
   };
 
+  const startDiscovery = async (): Promise<void> => {
+    const request: FileDiscoveryRequest = {
+      folderPaths: selectedFolders,
+      filePaths: selectedFiles,
+      includeSubfolders: settings?.includeSubfoldersDefault ?? true
+    };
+
+    setDiscoveryMessage(null);
+    setDiscoveryProgress(null);
+
+    if (request.folderPaths.length === 0 && request.filePaths.length === 0) {
+      setDiscoveryMessage('Choose at least one folder or video file before scanning.');
+      return;
+    }
+
+    setActiveAction('discovery');
+
+    try {
+      const response = await window.videoAudit.discovery.start(request);
+
+      if (response.status !== 'started' || !response.jobId) {
+        setActiveAction(null);
+        setDiscoveryMessage(response.message ?? 'Could not start file discovery.');
+        return;
+      }
+
+      setDiscoveryJobId(response.jobId);
+      setDiscoveryMessage(response.message ?? 'File discovery started.');
+    } catch (error: unknown) {
+      setActiveAction(null);
+      setDiscoveryMessage(error instanceof Error ? error.message : 'Could not start file discovery.');
+    }
+  };
+
+  const cancelDiscovery = async (): Promise<void> => {
+    if (!discoveryJobId) {
+      return;
+    }
+
+    try {
+      const progress = await window.videoAudit.discovery.cancel(discoveryJobId);
+      setDiscoveryProgress(progress);
+      setDiscoveryMessage(progress.message ?? 'File discovery canceled.');
+      setActiveAction(null);
+    } catch (error: unknown) {
+      setDiscoveryMessage(error instanceof Error ? error.message : 'Could not cancel file discovery.');
+    }
+  };
+
+  const discoveredPaths = discoveryProgress?.result?.files.map((file) => file.path) ?? [];
+  const isDiscoveryActive =
+    activeAction === 'discovery' ||
+    discoveryProgress?.status === 'starting' ||
+    discoveryProgress?.status === 'running';
+  const discoveryProgressValue =
+    discoveryProgress?.totalFiles && discoveryProgress.totalFiles > 0
+      ? Math.min(100, Math.round((discoveryProgress.processedFiles / discoveryProgress.totalFiles) * 100))
+      : null;
+
   return (
     <main className="app-shell">
       <section className="hero-band">
@@ -227,7 +311,62 @@ export function App(): ReactElement {
               />
             </div>
 
+            <BooleanSetting
+              label="Include subfolders"
+              checked={settings?.includeSubfoldersDefault ?? true}
+              disabled={activeAction === 'settings' || isDiscoveryActive}
+              onChange={(checked) => updateSettingsField('includeSubfoldersDefault', checked)}
+            />
+
+            <div className="button-row">
+              <Button
+                label="Scan Files"
+                icon="pi pi-search"
+                severity="success"
+                loading={activeAction === 'discovery'}
+                disabled={isDiscoveryActive || (selectedFolders.length === 0 && selectedFiles.length === 0)}
+                onClick={startDiscovery}
+              />
+              <Button
+                label="Cancel Scan"
+                icon="pi pi-times"
+                severity="danger"
+                outlined
+                disabled={!isDiscoveryActive}
+                onClick={cancelDiscovery}
+              />
+            </div>
+
             {selectionMessage ? <Message severity="warn" text={selectionMessage} /> : null}
+            {discoveryMessage ? <Message severity="info" text={discoveryMessage} /> : null}
+
+            {discoveryProgress ? (
+              <section className="discovery-panel" aria-label="File discovery progress">
+                <div className="path-section-header">
+                  <h2>Discovery</h2>
+                  <Tag
+                    value={discoveryProgress.status}
+                    severity={getDiscoverySeverity(discoveryProgress.status)}
+                  />
+                </div>
+                <ProgressBar
+                  mode={discoveryProgressValue === null && isDiscoveryActive ? 'indeterminate' : 'determinate'}
+                  value={discoveryProgressValue ?? 0}
+                  showValue={discoveryProgressValue !== null}
+                />
+                <div className="metric-grid">
+                  <Metric label="Found" value={String(discoveryProgress.foundCount)} />
+                  <Metric label="Skipped" value={String(discoveryProgress.skippedFiles)} />
+                  <Metric label="Processed" value={String(discoveryProgress.processedFiles)} />
+                </div>
+                <p className="empty-copy">{discoveryProgress.message}</p>
+                {discoveryProgress.currentPath ? (
+                  <p className="path-hint" title={discoveryProgress.currentPath}>
+                    {discoveryProgress.currentPath}
+                  </p>
+                ) : null}
+              </section>
+            ) : null}
 
             <div className="path-grid">
               <SelectedPathList
@@ -248,6 +387,13 @@ export function App(): ReactElement {
                 title="Output Folder"
                 emptyLabel="No output folder selected"
                 paths={outputFolder ? [outputFolder] : []}
+                onReveal={revealPath}
+                revealDisabled={activeAction === 'reveal'}
+              />
+              <SelectedPathList
+                title="Discovered Videos"
+                emptyLabel="No videos discovered yet"
+                paths={discoveredPaths}
                 onReveal={revealPath}
                 revealDisabled={activeAction === 'reveal'}
               />
@@ -278,7 +424,7 @@ export function App(): ReactElement {
                 <BooleanSetting
                   label="Include subfolders"
                   checked={settings.includeSubfoldersDefault}
-                  disabled={activeAction === 'settings'}
+                  disabled={activeAction === 'settings' || isDiscoveryActive}
                   onChange={(checked) => updateSettingsField('includeSubfoldersDefault', checked)}
                 />
                 <BooleanSetting
@@ -354,6 +500,15 @@ function InfoRow({ label, value }: { label: string; value: string }): ReactEleme
   );
 }
 
+function Metric({ label, value }: { label: string; value: string }): ReactElement {
+  return (
+    <div className="metric">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
 function BooleanSetting({
   label,
   checked,
@@ -424,6 +579,24 @@ function TextSetting({
 
 function mergeRecentPaths(nextPaths: string[], currentPaths: string[]): string[] {
   return [...new Set([...nextPaths, ...currentPaths])].slice(0, 10);
+}
+
+function getDiscoverySeverity(
+  status: FileDiscoveryJobSnapshot['status']
+): 'success' | 'secondary' | 'info' | 'warning' | 'danger' | 'contrast' {
+  if (status === 'complete') {
+    return 'success';
+  }
+
+  if (status === 'error' || status === 'canceled') {
+    return 'danger';
+  }
+
+  if (status === 'running' || status === 'starting') {
+    return 'info';
+  }
+
+  return 'secondary';
 }
 
 function SelectedPathList({

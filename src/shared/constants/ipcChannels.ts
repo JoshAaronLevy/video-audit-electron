@@ -6,5 +6,8 @@ export const IPC_CHANNELS = {
   shellRevealPath: 'shell:reveal-path',
   settingsGet: 'settings:get',
   settingsUpdate: 'settings:update',
-  settingsReset: 'settings:reset'
+  settingsReset: 'settings:reset',
+  auditDiscoveryStart: 'audit:discovery:start',
+  auditDiscoveryCancel: 'audit:discovery:cancel',
+  auditDiscoveryProgress: 'audit:discovery:progress'
 } as const;

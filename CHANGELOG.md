@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-05-17
+
+### Added
+
+- Added main-process video file discovery for selected folders and selected files.
+- Added recursive scanning with an include-subfolders setting and cancellation support.
+- Added legacy-inspired skip behavior for symlinks, macOS metadata files, and known system/project folders.
+- Added discovery IPC progress events exposed through the typed preload API.
+- Added a renderer discovery flow with scan/cancel controls, progress metrics, and discovered video path results.
+
 ## [0.4.0] - 2026-05-17
 
 ### Added

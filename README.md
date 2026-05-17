@@ -46,6 +46,31 @@ npm run build:mac
 
 The local app is written under `release/mac-arm64/Video Audit.app` on Apple Silicon Macs. This build is intentionally unsigned and unnotarized; it is for local private use only.
 
+## App Icon
+
+The source app icon lives at `assets/icon-source.png`.
+
+Generated app icon files live at:
+
+```txt
+assets/icon.png
+assets/icon.icns
+```
+
+Regenerate the icon files from the source image with:
+
+```sh
+npm run icons
+```
+
+The icon generation command may create a temporary `assets/icon.iconset/` folder. That folder is ignored by git.
+
+macOS may cache Dock icons. If a rebuilt icon does not appear immediately, quit and reopen the app, remove and re-add it to the Dock, rebuild the app, or run:
+
+```sh
+killall Dock
+```
+
 ## Standalone Boundaries
 
 - Filesystem access, ffprobe/ffmpeg execution, job orchestration, settings, and

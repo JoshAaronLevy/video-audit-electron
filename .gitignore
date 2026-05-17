@@ -4,6 +4,7 @@ dist-electron/
 out/
 release/
 out/
+assets/icon.iconset/
 .DS_Store
 .env
 .env.local

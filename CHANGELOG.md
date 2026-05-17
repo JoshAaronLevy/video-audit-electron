@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.3] - 2026-05-17
+
+### Changed
+
+- Integrated the root app icon assets into development windows, packaged resources, and macOS Dock icon handling.
+- Documented icon asset locations, regeneration, and macOS Dock icon cache behavior.
+
 ## [0.17.2] - 2026-05-17
 
 ### Changed

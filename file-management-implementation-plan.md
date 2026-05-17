@@ -2,7 +2,7 @@
 
 ## Project Context
 
-This plan starts after the Electron conversion plan is complete.
+We just finished implementing the initial Electron conversion plan, which focused on auditing local videos, generating thumbnails/previews, running ffprobe/ffmpeg workflows, persisting local app state, etc. (from `electron-conversion-plan.md`).
 
 At this point, the app is a standalone private macOS Electron app. It can audit local videos, generate thumbnails/preview clips, run ffprobe/ffmpeg workflows, auto-fix/auto-crop selected videos, and persist local app state.
 
@@ -1134,86 +1134,3 @@ Polish:
 * User always understands what will happen before files move.
 * Failed operations are recoverable or at least clearly explainable.
 * The app is safer than juggling Finder manually.
-
-----
-
-## Suggested Intelligence Levels
-
-```txt
-Stage 1 — High
-Stage 2 — High
-Stage 3 — Medium
-Stage 4 — Extra High
-Stage 5 — Extra High
-Stage 6 — High
-Stage 7 — Extra High
-Stage 8 — Extra High
-Stage 9 — Extra High
-Stage 10 — Extra High
-Stage 11 — Medium
-Stage 12 — Medium
-Stage 13 — High
-```
-
-```txt
-Stage 1   - Safe file operation types and foundations — High
-Stage 2   - File operation log and history service — High
-Stage 3   - Reveal in Finder and safe path validation — Medium
-Stage 4   - Trash plan and Move to Trash execution — Extra High
-Stage 5   - Move file plan and execution — Extra High
-Stage 6   - Archive originals workflow — High
-Stage 7   - Replacement plan foundation — Extra High
-Stage 8   - Post-conversion completion dialog — Extra High
-Stage 9   - Replacement execution service — Extra High
-Stage 10  - Manual replacement review workspace — Extra High
-Stage 11  - Operation history UI — Medium
-Stage 12  - File management settings — Medium
-Stage 13  - File management polish and safety review — High
-```
-
-# Context & Problem
-
-This is the standalone `video-audit-electron` app after completion of the initial Electron conversion plan.
-
-Use:
-
-- `.codex-instructions.md`
-- `CONTRIBUTING.md`
-- `electron-conversion-plan.md`
-- `file-management-implementation-plan.md`
-
-# Task
-
-Please implement Stage X of `file-management-implementation-plan.md`.
-
-# Critical Requirements
-
-- Follow the file-management safety principles.
-- Do not permanently delete files.
-- Do not use `rm -rf`.
-- Do not delete directories.
-- Do not overwrite files by default.
-- Do not expose arbitrary filesystem APIs to the renderer.
-- Keep filesystem mutations in the Electron main process.
-- Keep the renderer limited to typed preload APIs.
-- Do not write tests unless explicitly requested.
-
-# Changelog, Versioning, and Commit
-
-After implementation:
-
-- Update `CHANGELOG.md`.
-- Bump `package.json` version according to SemVer.
-- Ensure `package.json` version matches the latest changelog entry.
-- Stage all changes.
-- Commit with a clear contextual commit message.
-
-# Output
-
-After making changes, summarize:
-
-1. Files created/changed
-2. Commands run
-3. Any assumptions made
-4. Manual verification steps
-5. Any follow-up notes before the next stage

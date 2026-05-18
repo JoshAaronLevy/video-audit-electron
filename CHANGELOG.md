@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.4] - 2026-05-17
+
+### Changed
+
+- Documented the current renderer layout constraints and Stage 2 targets for the results-first UI redesign.
+- Added safer table and workspace containment so the current results table does not compete with the side rail on laptop-width windows.
+
 ## [0.17.3] - 2026-05-17
 
 ### Changed

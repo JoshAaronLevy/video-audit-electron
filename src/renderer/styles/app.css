@@ -348,6 +348,20 @@ select {
 .table-toolbar,
 .table-actions {
   justify-content: flex-start;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.table-toolbar .p-button,
+.table-actions .p-button {
+  max-width: 100%;
+}
+
+.table-toolbar .p-button-label,
+.table-actions .p-button-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .table-search {
@@ -359,8 +373,21 @@ select {
 }
 
 .video-table .p-datatable-wrapper {
+  max-width: 100%;
+  overflow-x: auto;
   border: 1px solid #dbe3ee;
   border-radius: 8px;
+}
+
+.video-table .p-datatable-header,
+.video-table .p-paginator {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.video-table .p-paginator {
+  flex-wrap: wrap;
 }
 
 .video-table .p-datatable-thead > tr > th,
@@ -906,7 +933,7 @@ select {
   gap: 0.2rem;
 }
 
-@media (max-width: 1120px) {
+@media (max-width: 1700px) {
   .workspace-layout {
     grid-template-columns: 1fr;
   }

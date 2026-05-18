@@ -1,6 +1,6 @@
 {
   "name": "video-audit-electron",
-  "version": "0.17.3",
+  "version": "0.17.4",
   "description": "Private macOS Electron version of Video Audit.",
   "private": true,
   "author": "Josh Levy",

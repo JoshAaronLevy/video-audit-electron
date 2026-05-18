@@ -66,6 +66,10 @@ export interface FolderTreeScanProgress {
   error?: string | null;
 }
 
+export interface FolderTreeScanJobSnapshot extends FolderTreeScanProgress {
+  result?: FolderTreeScanResult;
+}
+
 export interface FolderTreeScanSummary {
   foldersScanned: number;
   foldersSkipped: number;
@@ -88,6 +92,7 @@ export interface FolderTreeScanResult {
 export interface ChooseFolderTreeRootResult {
   canceled: boolean;
   path: string | null;
+  message?: string;
 }
 
 export interface ScanFolderTreeRequest {
@@ -110,7 +115,7 @@ export interface ScanFolderTreeResultResponse {
 export interface CancelFolderTreeScanResponse {
   scanId: string;
   ok: boolean;
-  progress?: FolderTreeScanProgress;
+  progress?: FolderTreeScanJobSnapshot;
   message?: string;
 }
 

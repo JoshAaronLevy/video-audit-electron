@@ -7,6 +7,7 @@ import { registerAutoCropIpcHandlers } from './autoCropIpc';
 import { registerAutoFixIpcHandlers } from './autoFixIpc';
 import { registerDialogIpcHandlers } from './dialogIpc';
 import { registerFileOperationIpcHandlers } from './fileOperationIpc';
+import { registerFolderTreeIpcHandlers } from './folderTreeIpc';
 import { registerMediaPreviewIpcHandlers } from './mediaPreviewIpc';
 import { registerMigrationIpcHandlers } from './migrationIpc';
 import { registerOperationHistoryIpcHandlers } from './operationHistoryIpc';
@@ -43,6 +44,7 @@ export function registerIpcHandlers(): void {
   registerAutoFixIpcHandlers();
   registerDialogIpcHandlers();
   registerFileOperationIpcHandlers();
+  registerFolderTreeIpcHandlers();
   registerMediaPreviewIpcHandlers();
   registerMigrationIpcHandlers();
   registerOperationHistoryIpcHandlers();

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.44.0] - 2026-05-18
+
+### Added
+
+- Added typed folder-tree IPC and preload APIs for choosing a root folder, starting eager scans, receiving progress, canceling scans, and reading completed scan results.
+
 ## [0.43.0] - 2026-05-18
 
 ### Added

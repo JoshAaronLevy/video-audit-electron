@@ -47,6 +47,13 @@ import type {
   RevealKnownPathResponse
 } from '../shared/types/fileOperations';
 import type {
+  CancelFolderTreeScanResponse,
+  ChooseFolderTreeRootResult,
+  FolderTreeScanJobSnapshot,
+  ScanFolderTreeResultResponse,
+  ScanFolderTreeStartResponse
+} from '../shared/types/folderTree';
+import type {
   MediaPreviewJobSnapshot,
   MediaPreviewRequest,
   MediaPreviewResultResponse,
@@ -112,6 +119,13 @@ export interface VideoAuditApi {
     executeMovePlan: (request: ExecuteMoveOperationPlanRequest) => Promise<ExecuteMoveOperationPlanResponse>;
     createArchivePlan: (request: CreateArchiveOperationPlanRequest) => Promise<CreateArchiveOperationPlanResponse>;
     executeArchivePlan: (request: ExecuteArchiveOperationPlanRequest) => Promise<ExecuteArchiveOperationPlanResponse>;
+  };
+  folderTree: {
+    chooseRootFolder: () => Promise<ChooseFolderTreeRootResult>;
+    scanRoot: (rootPath: string) => Promise<ScanFolderTreeStartResponse>;
+    cancelScan: (scanId: string) => Promise<CancelFolderTreeScanResponse>;
+    getResult: (scanId: string) => Promise<ScanFolderTreeResultResponse>;
+    onScanProgress: (callback: (progress: FolderTreeScanJobSnapshot) => void) => () => void;
   };
   settings: {
     get: () => Promise<AppSettings>;
@@ -225,6 +239,23 @@ export const videoAuditApi: VideoAuditApi = {
       ipcRenderer.invoke(IPC_CHANNELS.fileOperationCreateArchivePlan, request),
     executeArchivePlan: (request: ExecuteArchiveOperationPlanRequest) =>
       ipcRenderer.invoke(IPC_CHANNELS.fileOperationExecuteArchivePlan, request)
+  },
+  folderTree: {
+    chooseRootFolder: () => ipcRenderer.invoke(IPC_CHANNELS.folderTreeChooseRootFolder),
+    scanRoot: (rootPath: string) => ipcRenderer.invoke(IPC_CHANNELS.folderTreeScanRoot, rootPath),
+    cancelScan: (scanId: string) => ipcRenderer.invoke(IPC_CHANNELS.folderTreeCancelScan, scanId),
+    getResult: (scanId: string) => ipcRenderer.invoke(IPC_CHANNELS.folderTreeGetResult, scanId),
+    onScanProgress: (callback: (progress: FolderTreeScanJobSnapshot) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, progress: FolderTreeScanJobSnapshot): void => {
+        callback(progress);
+      };
+
+      ipcRenderer.on(IPC_CHANNELS.folderTreeProgress, listener);
+
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.folderTreeProgress, listener);
+      };
+    }
   },
   settings: {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.settingsGet),

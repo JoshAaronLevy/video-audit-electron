@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-05-17
+
+### Changed
+
+- Redesigned the results table with denser rows, sticky headers, compact metadata cells, clearer thumbnail placeholders, issue badges, and improved empty states.
+- Constrained table scrolling and pagination behavior so the results surface stays stable beside the contextual action bar.
+
 ## [0.21.0] - 2026-05-17
 
 ### Added

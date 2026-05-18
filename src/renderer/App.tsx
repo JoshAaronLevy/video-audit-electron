@@ -100,6 +100,8 @@ export function App(): ReactElement {
             allRows={controller.videoRows}
             selectedVideos={controller.selectedVideos}
             globalFilter={controller.globalFilter}
+            resultsViewFilter={controller.resultsViewFilter}
+            hasSources={hasSources}
             showThumbnails={controller.showThumbnails}
             auditSummary={controller.auditSummary}
             auditErrors={controller.auditErrors}

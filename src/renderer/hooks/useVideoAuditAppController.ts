@@ -75,6 +75,7 @@ export interface VideoAuditAppController {
   appInfoMessage: string | null;
   settings: AppSettings | null;
   settingsMessage: string | null;
+  settingsOpenRequestCount: number;
   toolDiagnostics: ToolDiagnosticsResult | null;
   toolDiagnosticsError: string | null;
   isToolDiagnosticsLoading: boolean;
@@ -212,6 +213,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const [appInfoMessage, setAppInfoMessage] = useState<string | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
+  const [settingsOpenRequestCount, setSettingsOpenRequestCount] = useState(0);
   const [toolDiagnostics, setToolDiagnostics] = useState<ToolDiagnosticsResult | null>(null);
   const [toolDiagnosticsError, setToolDiagnosticsError] = useState<string | null>(null);
   const [isToolDiagnosticsLoading, setIsToolDiagnosticsLoading] = useState(false);
@@ -1922,7 +1924,8 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       }
 
       if (command === 'open-settings') {
-        setSettingsMessage('Settings are open in the App panel.');
+        setSettingsOpenRequestCount((count) => count + 1);
+        setSettingsMessage(null);
       }
     },
     [cancelActiveWork, chooseFiles, chooseFolders, refreshAudit]
@@ -2004,6 +2007,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     appInfoMessage,
     settings,
     settingsMessage,
+    settingsOpenRequestCount,
     toolDiagnostics,
     toolDiagnosticsError,
     isToolDiagnosticsLoading,

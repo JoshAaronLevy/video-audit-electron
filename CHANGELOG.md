@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-05-17
+
+### Added
+
+- Added a results-first app shell with a compact source bar, status strip, dedicated results toolbar, and contextual selected-row action bar.
+- Added modal entry points for source setup, utilities, and settings so secondary controls no longer occupy a permanent right-side rail.
+
+### Changed
+
+- Moved table search, thumbnail visibility, refresh, and clear-data controls into a dedicated results toolbar.
+- Moved selected-row workflow actions out of the table header and into the contextual action bar.
+
 ## [0.17.4] - 2026-05-17
 
 ### Changed

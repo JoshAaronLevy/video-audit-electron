@@ -1,16 +1,13 @@
 import { useMemo, useState, type ReactElement } from 'react';
 import { Button } from 'primereact/button';
-import { Checkbox } from 'primereact/checkbox';
 import { Column } from 'primereact/column';
 import { DataTable } from 'primereact/datatable';
-import { InputText } from 'primereact/inputtext';
 import { Message } from 'primereact/message';
 import { Tag } from 'primereact/tag';
 import type { AuditError, AuditSummary } from '../../shared/types/audit';
 import type { PreviewClipJobSnapshot } from '../../shared/types/mediaPreview';
-import type { PremiereRequestResponse, PremiereStatusResponse } from '../../shared/types/premiere';
+import type { PremiereRequestResponse } from '../../shared/types/premiere';
 import type { VideoAdjustments, VideoPreviewFrame, VideoRow } from '../../shared/types/video';
-import { PremiereStatusBanner } from './PremiereStatusBanner';
 import { VideoDetailsDialog } from './VideoDetailsDialog';
 
 interface VideoResultsTableProps {
@@ -22,45 +19,18 @@ interface VideoResultsTableProps {
   auditSummary: AuditSummary | null;
   auditErrors: AuditError[];
   removedVideoCount: number;
-  isAuditActive: boolean;
-  isAutoFixActive: boolean;
-  isAutoCropActive: boolean;
-  isMediaPreviewActive: boolean;
   isPreviewClipActive: boolean;
-  isMigrationActive: boolean;
   isStorageLoading: boolean;
   storageMessage: string | null;
   storageSavedAt: string | null;
   previewClipProgress: PreviewClipJobSnapshot | null;
   previewClipPercent: number | null;
   previewClipError: string | null;
-  premiereStatus: PremiereStatusResponse | null;
-  premiereStatusError: string | null;
-  isPremiereStatusLoading: boolean;
-  isPremiereImportSubmitting: boolean;
   premiereImportResult: PremiereRequestResponse | null;
   premiereImportError: string | null;
-  canRefreshAudit: boolean;
-  canAutoFixSelected: boolean;
-  canOpenCropOptions: boolean;
-  canGenerateThumbnails: boolean;
-  canStartMigration: boolean;
-  canEditSelectedInPremiere: boolean;
   onSelectedVideosChange: (videos: VideoRow[]) => void;
-  onGlobalFilterChange: (value: string) => void;
-  onShowThumbnailsChange: (value: boolean) => void;
-  onRefreshAudit: () => void;
-  onClearData: () => void;
-  onRemoveSelectedVideos: () => void;
-  onRestoreRemovedVideos: () => void;
-  onOpenAutoFixDialog: () => void;
-  onOpenAutoCropDialog: () => void;
-  onOpenThumbnailDialog: () => void;
-  onOpenMigrationDialog: () => void;
   onStartPreviewClipGeneration: (video: VideoRow, frames: VideoPreviewFrame[]) => void;
   onCancelPreviewClipGeneration: () => void;
-  onRefreshPremiereStatus: () => void;
-  onEditSelectedInPremiere: () => void;
   onRevealPath: (path: string) => void;
 }
 
@@ -90,45 +60,18 @@ export function VideoResultsTable({
   auditSummary,
   auditErrors,
   removedVideoCount,
-  isAuditActive,
-  isAutoFixActive,
-  isAutoCropActive,
-  isMediaPreviewActive,
   isPreviewClipActive,
-  isMigrationActive,
   isStorageLoading,
   storageMessage,
   storageSavedAt,
   previewClipProgress,
   previewClipPercent,
   previewClipError,
-  premiereStatus,
-  premiereStatusError,
-  isPremiereStatusLoading,
-  isPremiereImportSubmitting,
   premiereImportResult,
   premiereImportError,
-  canRefreshAudit,
-  canAutoFixSelected,
-  canOpenCropOptions,
-  canGenerateThumbnails,
-  canStartMigration,
-  canEditSelectedInPremiere,
   onSelectedVideosChange,
-  onGlobalFilterChange,
-  onShowThumbnailsChange,
-  onRefreshAudit,
-  onClearData,
-  onRemoveSelectedVideos,
-  onRestoreRemovedVideos,
-  onOpenAutoFixDialog,
-  onOpenAutoCropDialog,
-  onOpenThumbnailDialog,
-  onOpenMigrationDialog,
   onStartPreviewClipGeneration,
   onCancelPreviewClipGeneration,
-  onRefreshPremiereStatus,
-  onEditSelectedInPremiere,
   onRevealPath
 }: VideoResultsTableProps): ReactElement {
   const [detailPath, setDetailPath] = useState<string | null>(null);
@@ -145,117 +88,17 @@ export function VideoResultsTable({
         <div className="section-heading">
           <div>
             <p className="eyebrow">Results</p>
-            <h2>
-              {rows.length.toLocaleString()} Videos
-              {selectedVideos.length > 0
-                ? ` - ${selectedVideos.length.toLocaleString()} Selected (${formatSelectedSize(selectedVideos)})`
-                : ''}
-              {removedVideoCount > 0 ? ` - ${removedVideoCount.toLocaleString()} Removed` : ''}
-            </h2>
+            <h2>{rows.length.toLocaleString()} Videos</h2>
           </div>
           <Tag value={auditSummary ? `${auditSummary.scannedVideos.toLocaleString()} scanned` : 'No audit'} />
         </div>
         <div className="table-summary">
           <span>Flagged: {auditSummary?.flaggedCount.toLocaleString() ?? '0'}</span>
           <span>Errors: {auditSummary?.errorCount.toLocaleString() ?? '0'}</span>
+          <span>Selected: {selectedVideos.length.toLocaleString()}</span>
+          {removedVideoCount > 0 ? <span>Removed: {removedVideoCount.toLocaleString()}</span> : null}
           <span>{storageSavedAt ? `Saved ${formatDateTime(storageSavedAt)}` : 'Unsaved'}</span>
         </div>
-      </div>
-
-      <div className="table-toolbar">
-        <span className="p-input-icon-left table-search">
-          <i className="pi pi-search" />
-          <InputText
-            value={globalFilter}
-            placeholder="Search videos"
-            disabled={isAuditActive || isStorageLoading}
-            onChange={(event) => onGlobalFilterChange(event.target.value)}
-          />
-        </span>
-        <label className="inline-toggle" htmlFor="show-thumbnails">
-          <Checkbox
-            inputId="show-thumbnails"
-            checked={showThumbnails}
-            disabled={isStorageLoading}
-            onChange={(event) => onShowThumbnailsChange(Boolean(event.checked))}
-          />
-          <span>Thumbnails</span>
-        </label>
-        <Button
-          label="Refresh"
-          icon="pi pi-refresh"
-          severity="info"
-          outlined
-          disabled={!canRefreshAudit || isAuditActive}
-          onClick={onRefreshAudit}
-        />
-        <Button
-          label="Clear Data"
-          icon="pi pi-trash"
-          severity="danger"
-          outlined
-          disabled={isAuditActive || isStorageLoading || (!allRows && !storageSavedAt)}
-          onClick={onClearData}
-        />
-      </div>
-
-      <div className="table-actions">
-        <Button
-          label={selectedVideos.length > 0 ? `Remove (${selectedVideos.length})` : 'Remove'}
-          icon="pi pi-eye-slash"
-          severity="secondary"
-          outlined
-          disabled={selectedVideos.length === 0 || isAuditActive}
-          onClick={onRemoveSelectedVideos}
-        />
-        <Button
-          label="Restore Removed"
-          icon="pi pi-undo"
-          severity="secondary"
-          outlined
-          disabled={removedVideoCount === 0 || isAuditActive}
-          onClick={onRestoreRemovedVideos}
-        />
-        <Button
-          label={selectedVideos.length > 0 ? `Auto-Fix (${selectedVideos.length})` : 'Auto-Fix'}
-          icon="pi pi-wrench"
-          severity="help"
-          loading={isAutoFixActive}
-          disabled={!canAutoFixSelected}
-          onClick={onOpenAutoFixDialog}
-        />
-        <Button
-          label={selectedVideos.length > 0 ? `Crop Options (${selectedVideos.length})` : 'Crop Options'}
-          icon="pi pi-crop"
-          severity="help"
-          loading={isAutoCropActive}
-          disabled={!canOpenCropOptions}
-          onClick={onOpenAutoCropDialog}
-        />
-        <Button
-          label={selectedVideos.length > 0 ? `Generate Thumbnails (${selectedVideos.length})` : 'Generate Thumbnails'}
-          icon="pi pi-images"
-          severity="info"
-          loading={isMediaPreviewActive}
-          disabled={!canGenerateThumbnails}
-          onClick={onOpenThumbnailDialog}
-        />
-        <Button
-          label="Migrate New Edits"
-          icon="pi pi-folder-open"
-          severity="info"
-          loading={isMigrationActive}
-          disabled={!canStartMigration}
-          onClick={onOpenMigrationDialog}
-        />
-        <Button
-          label={selectedVideos.length > 0 ? `Edit in Premiere (${selectedVideos.length})` : 'Edit in Premiere'}
-          icon="pi pi-send"
-          severity="success"
-          loading={isPremiereImportSubmitting}
-          disabled={!canEditSelectedInPremiere}
-          onClick={onEditSelectedInPremiere}
-        />
       </div>
     </div>
   );
@@ -270,17 +113,13 @@ export function VideoResultsTable({
         />
       ) : null}
       {isStorageLoading ? <Message severity="info" text="Loading saved audit data..." /> : null}
-      <PremiereStatusBanner
-        isLoading={isPremiereStatusLoading}
-        status={premiereStatus}
-        error={premiereStatusError}
-        onRefresh={onRefreshPremiereStatus}
-      />
       {premiereImportError ? <Message severity="error" text={premiereImportError} /> : null}
       {premiereImportResult?.status === 'queued' ? (
         <Message
           severity="success"
-          text={`Premiere import request queued${premiereImportResult.requestId ? ` (${premiereImportResult.requestId})` : ''}.`}
+          text={`Premiere import request queued${
+            premiereImportResult.requestId ? ` (${premiereImportResult.requestId})` : ''
+          }.`}
         />
       ) : null}
 
@@ -573,16 +412,6 @@ function AuditErrorList({ errors }: { errors: AuditError[] }): ReactElement {
       </ul>
     </section>
   );
-}
-
-function formatSelectedSize(rows: VideoRow[]): string {
-  const sizeMB = rows.reduce((total, row) => total + (row.sizeMB ?? 0), 0);
-
-  if (sizeMB >= 1024) {
-    return `${(sizeMB / 1024).toFixed(2)} GB`;
-  }
-
-  return `${sizeMB.toFixed(1)} MB`;
 }
 
 function formatDateTime(value: string): string {

@@ -68,6 +68,16 @@ export function FolderTreeSelectorDialog({
     !isScanning &&
     !isConfirming;
 
+  const clearScannedTreeState = useCallback((): void => {
+    activeScanIdRef.current = null;
+    setScanId(null);
+    setScanProgress(null);
+    setScanResult(null);
+    setSelectionKeys({});
+    setMissingSelectedPaths([]);
+    setError(null);
+  }, []);
+
   const loadScanResult = useCallback(async (completedScanId: string): Promise<void> => {
     try {
       const response = await window.videoAudit.folderTree.getResult(completedScanId);
@@ -249,8 +259,9 @@ export function FolderTreeSelectorDialog({
       await cancelActiveScan();
     }
 
+    clearScannedTreeState();
     onHide();
-  }, [cancelActiveScan, onHide]);
+  }, [cancelActiveScan, clearScannedTreeState, onHide]);
 
   const handleConfirm = useCallback(async (): Promise<void> => {
     if (!rootPath || !canConfirm) {
@@ -266,13 +277,14 @@ export function FolderTreeSelectorDialog({
         selectedFolderPaths: selectedSummary.dedupedFolderPaths,
         summary: selectedSummary
       });
+      clearScannedTreeState();
       onHide();
     } catch (caughtError: unknown) {
       setError(getErrorMessage(caughtError, 'Could not apply selected folders.'));
     } finally {
       setIsConfirming(false);
     }
-  }, [canConfirm, onConfirm, onHide, rootPath, selectedSummary]);
+  }, [canConfirm, clearScannedTreeState, onConfirm, onHide, rootPath, selectedSummary]);
 
   const footer = (
     <DialogFooter

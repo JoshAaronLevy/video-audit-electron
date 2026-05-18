@@ -135,4 +135,4 @@ export interface FolderTreeSelectionKey {
   partialChecked?: boolean;
 }
 
-export type FolderTreeSelectionKeys = Record<string, FolderTreeSelectionKey>;
+export type FolderTreeSelectionKeys = Record<string, FolderTreeSelectionKey | boolean>;

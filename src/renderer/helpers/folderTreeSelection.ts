@@ -154,8 +154,8 @@ export function getCheckedFolderTreeKeys(selectionKeys: FolderTreeSelectionKeys)
     .map(([key]) => key);
 }
 
-function isCheckedSelectionKey(value: FolderTreeSelectionKey | undefined): boolean {
-  return Boolean(value && value.checked === true);
+function isCheckedSelectionKey(value: FolderTreeSelectionKey | boolean | undefined): boolean {
+  return value === true || Boolean(value && typeof value === 'object' && value.checked === true);
 }
 
 function visitFolderTree(node: FolderTreeNode, visit: (node: FolderTreeNode) => void): void {

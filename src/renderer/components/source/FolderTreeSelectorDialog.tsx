@@ -67,7 +67,7 @@ export function FolderTreeSelectorDialog({
     () => getFolderTreeSelectionSummary(selectionKeys, root),
     [root, selectionKeys]
   );
-  const isScanning = Boolean(scanId);
+  const isScanning = Boolean(scanId) && !scanResult;
   const isBusy = isChoosingRoot || isStartingScan || isScanning || isCancelingScan || isConfirming;
   const friendlyError = error ? getFolderTreeErrorMessage(error) : null;
   const displayRootPath = rootPath
@@ -98,12 +98,16 @@ export function FolderTreeSelectorDialog({
       const response = await window.videoAudit.folderTree.getResult(completedScanId);
 
       if (response.status === 'complete' && response.result) {
+        activeScanIdRef.current = null;
+        setScanId(null);
         setScanResult(response.result);
         setError(null);
         return;
       }
 
       if (response.status === 'error' || response.status === 'canceled') {
+        activeScanIdRef.current = null;
+        setScanId(null);
         setError(response.message ?? 'Folder tree scan did not complete.');
       }
     } catch (caughtError: unknown) {

@@ -19,7 +19,9 @@ interface DiagnosticsDialogProps {
   activeAction: string | null;
   premiereStatus: PremiereStatusResponse | null;
   premiereStatusError: string | null;
+  premiereLaunchMessage: string | null;
   isPremiereStatusLoading: boolean;
+  isPremiereBridgeAppsLaunching: boolean;
   toolDiagnostics: ToolDiagnosticsResult | null;
   toolDiagnosticsError: string | null;
   isToolDiagnosticsLoading: boolean;
@@ -27,6 +29,7 @@ interface DiagnosticsDialogProps {
   storageSavedAt: string | null;
   onHide: () => void;
   onRefreshPremiereStatus: () => void;
+  onOpenPremiereBridgeApps: () => void;
   onRunToolDiagnostics: () => void;
 }
 
@@ -39,7 +42,9 @@ export function DiagnosticsDialog({
   activeAction,
   premiereStatus,
   premiereStatusError,
+  premiereLaunchMessage,
   isPremiereStatusLoading,
+  isPremiereBridgeAppsLaunching,
   toolDiagnostics,
   toolDiagnosticsError,
   isToolDiagnosticsLoading,
@@ -47,6 +52,7 @@ export function DiagnosticsDialog({
   storageSavedAt,
   onHide,
   onRefreshPremiereStatus,
+  onOpenPremiereBridgeApps,
   onRunToolDiagnostics
 }: DiagnosticsDialogProps): ReactElement {
   const ffmpeg = toolDiagnostics?.tools.find((tool) => tool.name === 'ffmpeg') ?? null;
@@ -70,6 +76,7 @@ export function DiagnosticsDialog({
     >
       <div className="diagnostics-content">
         {lastError ? <Message severity="error" text={lastError} /> : null}
+        {premiereLaunchMessage ? <Message severity="info" text={premiereLaunchMessage} /> : null}
         {settingsMessage ? <Message severity="info" text={settingsMessage} /> : null}
 
         <section className="diagnostics-card" aria-labelledby="diagnostics-runtime-heading">
@@ -97,6 +104,15 @@ export function DiagnosticsDialog({
             </div>
             <div className="diagnostics-actions">
               <StatusTag value={getPremiereLabel(premiereStatus, premiereStatusError)} tone={getPremiereTone(premiereStatus, premiereStatusError)} />
+              <Button
+                label="Open Apps"
+                icon="pi pi-external-link"
+                severity="secondary"
+                outlined
+                loading={isPremiereBridgeAppsLaunching}
+                disabled={isPremiereBridgeAppsLaunching}
+                onClick={onOpenPremiereBridgeApps}
+              />
               <Button
                 aria-label="Refresh Premiere status"
                 icon="pi pi-refresh"

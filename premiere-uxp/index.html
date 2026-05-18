@@ -1,0 +1,43 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Collie Video Bridge</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="panel">
+      <header class="panel-header">
+        <p class="eyebrow">Collie Video</p>
+        <h2>Premiere Bridge</h2>
+      </header>
+
+      <section class="status-card" aria-live="polite">
+        <div class="status-row">
+          <span class="status-label">Bridge</span>
+          <span id="bridgeStatus" class="status-value">Not connected</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Project</span>
+          <span id="projectStatus" class="status-value">Checking...</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Heartbeat</span>
+          <span id="heartbeatStatus" class="status-value">Not sent</span>
+        </div>
+      </section>
+
+      <section class="activity-card">
+        <p id="lastActivity">Select the Collie Video bridge folder.</p>
+        <div class="button-row">
+          <sp-button id="selectBridgeFolder">Select bridge folder</sp-button>
+        </div>
+        <div class="button-row">
+          <sp-button id="processNow">Process now</sp-button>
+        </div>
+      </section>
+    </main>
+
+    <script src="index.js"></script>
+  </body>
+</html>

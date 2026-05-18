@@ -120,7 +120,7 @@ The current app includes:
 - safe file-management workflows for revealing known paths, moving selected videos to Trash, moving selected videos to chosen folders, archiving originals, reviewing post-conversion source/output pairs, and replacing originals with converted outputs after confirmation
 - file-management operation history with itemized results, partial-failure diagnostics, and reveal-in-Finder actions
 - file-management settings for safe conflict handling, typed confirmation thresholds, post-conversion prompting, and operation-history preview
-- Premiere bridge status checks and selected-video import request creation
+- Premiere bridge status checks, selected-video import request creation, and Adobe app launch helpers
 - native app menu shortcuts, persisted window state, completion notifications, and ffmpeg/ffprobe diagnostics
 
 ## File Management Safety
@@ -137,3 +137,10 @@ process, returns folder-only nodes with supported-video counts and sizes, and
 lets the renderer expand/select already-loaded folders without additional
 filesystem calls. The scanned tree is not cached; saved source selections can be
 restored, and the root can be rescanned manually.
+
+## Premiere Bridge
+
+Premiere bridge setup is documented in `docs/premiere-bridge.md`. The Collie
+Video bridge uses the local app data path
+`~/Library/Application Support/CollieVideo/premiere-bridge` and the UXP plugin
+in `premiere-uxp/`.

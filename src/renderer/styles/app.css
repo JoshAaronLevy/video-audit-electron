@@ -363,6 +363,7 @@ select {
 
 .status-strip-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.45rem;
   justify-content: flex-end;
   min-width: 0;
@@ -2682,6 +2683,7 @@ select {
   .source-config-recent-list .p-button,
   .folder-tree-root-actions .p-button,
   .settings-hero-actions .p-button,
+  .status-strip-actions .p-button,
   .results-toolbar-secondary .p-button,
   .selection-action-buttons .p-button,
   .diagnostics-actions .p-button,

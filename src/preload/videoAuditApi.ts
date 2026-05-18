@@ -66,6 +66,7 @@ import type {
   PreviewFrameResultResponse
 } from '../shared/types/mediaPreview';
 import type {
+  PremiereBridgeAppsLaunchResponse,
   PremiereImportRequest,
   PremiereRequestResponse,
   PremiereStatusResponse
@@ -192,6 +193,7 @@ export interface VideoAuditApi {
   };
   premiere: {
     getStatus: () => Promise<PremiereStatusResponse>;
+    openBridgeApps: () => Promise<PremiereBridgeAppsLaunchResponse>;
     createImportRequest: (request: PremiereImportRequest) => Promise<PremiereRequestResponse>;
   };
 }
@@ -427,6 +429,7 @@ export const videoAuditApi: VideoAuditApi = {
   },
   premiere: {
     getStatus: () => ipcRenderer.invoke(IPC_CHANNELS.premiereGetStatus),
+    openBridgeApps: () => ipcRenderer.invoke(IPC_CHANNELS.premiereOpenBridgeApps),
     createImportRequest: (request: PremiereImportRequest) =>
       ipcRenderer.invoke(IPC_CHANNELS.premiereCreateImportRequest, request)
   }

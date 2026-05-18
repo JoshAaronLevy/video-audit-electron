@@ -64,5 +64,6 @@ export const IPC_CHANNELS = {
   replacementExecuteGetResult: 'replacement:execute:get-result',
   replacementExecuteProgress: 'replacement:execute:progress',
   premiereGetStatus: 'premiere:get-status',
+  premiereOpenBridgeApps: 'premiere:open-bridge-apps',
   premiereCreateImportRequest: 'premiere:create-import-request'
 } as const;

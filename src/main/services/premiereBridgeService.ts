@@ -14,6 +14,8 @@ import {
   PREMIERE_REQUEST_TYPES
 } from '../../shared/constants/premiereBridge';
 import type {
+  PremiereBridgeAppsLaunchResponse,
+  PremiereBridgeAppLaunchResult,
   PremiereBridgeRequestFile,
   PremiereImportRequest,
   PremiereRequestResponse,
@@ -175,6 +177,49 @@ export async function createPremiereImportRequest(
   };
 }
 
+export async function openPremiereBridgeApps(): Promise<PremiereBridgeAppsLaunchResponse> {
+  const paths = await ensurePremiereBridgeDirectories();
+
+  if (process.platform !== 'darwin') {
+    return {
+      status: 'unsupported',
+      message: 'Opening Adobe apps from Collie Video is currently supported on macOS only.',
+      bridgeDir: paths.bridgeDir,
+      apps: [
+        {
+          app: 'premiere',
+          label: 'Adobe Premiere Pro',
+          status: 'unsupported'
+        },
+        {
+          app: 'uxpDeveloperTool',
+          label: 'Adobe UXP Developer Tool',
+          status: 'unsupported'
+        }
+      ]
+    };
+  }
+
+  const apps = await Promise.all([
+    openFirstApplication('premiere', 'Adobe Premiere Pro', getPremiereApplicationNames()),
+    openFirstApplication('uxpDeveloperTool', 'Adobe UXP Developer Tool', getUxpDeveloperToolApplicationNames())
+  ]);
+  const failedApps = apps.filter((app) => app.status !== 'opened');
+
+  return {
+    status: failedApps.length === 0 ? 'opened' : 'partial',
+    message:
+      failedApps.length === 0
+        ? 'Opened Premiere Pro and UXP Developer Tool.'
+        : `Opened ${apps.length - failedApps.length} of ${apps.length} Adobe app(s). ${failedApps
+            .map((app) => app.message)
+            .filter(Boolean)
+            .join(' ')}`,
+    bridgeDir: paths.bridgeDir,
+    apps
+  };
+}
+
 export async function ensurePremiereBridgeDirectories(): Promise<PremiereBridgePaths> {
   const paths = getBridgePaths();
 
@@ -266,13 +311,62 @@ async function isPremiereRunning(): Promise<PremiereProcessStatus> {
 }
 
 function getPremiereProcessNames(): string[] {
-  const currentYear = new Date().getFullYear();
-  const yearCandidates = [currentYear - 1, currentYear, currentYear + 1];
-
   return [
     'Adobe Premiere Pro',
-    ...yearCandidates.map((year) => `Adobe Premiere Pro ${year}`)
+    ...getPremiereYearCandidates().map((year) => `Adobe Premiere Pro ${year}`)
   ];
+}
+
+function getPremiereApplicationNames(): string[] {
+  return [
+    ...getPremiereYearCandidates().map((year) => `Adobe Premiere Pro ${year}`),
+    'Adobe Premiere Pro'
+  ];
+}
+
+function getPremiereYearCandidates(): number[] {
+  const currentYear = new Date().getFullYear();
+  return [currentYear, currentYear - 1, currentYear + 1];
+}
+
+function getUxpDeveloperToolApplicationNames(): string[] {
+  return [
+    'UXP Developer Tool',
+    'UXP Developer Tools',
+    'Adobe UXP Developer Tool',
+    'Adobe UXP Developer Tools'
+  ];
+}
+
+async function openFirstApplication(
+  app: PremiereBridgeAppLaunchResult['app'],
+  label: string,
+  applicationNames: string[]
+): Promise<PremiereBridgeAppLaunchResult> {
+  let lastMessage: string | null = null;
+
+  for (const applicationName of applicationNames) {
+    const result = await runChildProcess('open', ['-a', applicationName]);
+
+    if (result.ok) {
+      return {
+        app,
+        label,
+        status: 'opened',
+        applicationName
+      };
+    }
+
+    lastMessage = result.error ?? result.stderr;
+  }
+
+  return {
+    app,
+    label,
+    status: 'failed',
+    message: `Could not open ${label}. ${lastMessage ?? 'The app may not be installed.'}`,
+    attemptedApplicationNames: applicationNames
+  };
 }
 
 async function readStatusFile(statusPath: string): Promise<BridgeStatusFileResult> {

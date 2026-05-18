@@ -10,11 +10,13 @@ interface StatusStripProps {
   premiereStatus: PremiereStatusResponse | null;
   premiereStatusError: string | null;
   isPremiereStatusLoading: boolean;
+  isPremiereBridgeAppsLaunching: boolean;
   toolDiagnostics: ToolDiagnosticsResult | null;
   storageSavedAt: string | null;
   outputFolder: string | null;
   onOpenDiagnostics: () => void;
   onRefreshPremiereStatus: () => void;
+  onOpenPremiereBridgeApps: () => void;
 }
 
 type StatusTone = 'neutral' | 'success' | 'warning' | 'danger' | 'info';
@@ -25,11 +27,13 @@ export function StatusStrip({
   premiereStatus,
   premiereStatusError,
   isPremiereStatusLoading,
+  isPremiereBridgeAppsLaunching,
   toolDiagnostics,
   storageSavedAt,
   outputFolder,
   onOpenDiagnostics,
-  onRefreshPremiereStatus
+  onRefreshPremiereStatus,
+  onOpenPremiereBridgeApps
 }: StatusStripProps): ReactElement {
   const toolStatus = getToolStatus(toolDiagnostics);
 
@@ -73,6 +77,15 @@ export function StatusStrip({
       />
 
       <div className="status-strip-actions">
+        <Button
+          label="Open Adobe Apps"
+          icon="pi pi-external-link"
+          severity="secondary"
+          outlined
+          loading={isPremiereBridgeAppsLaunching}
+          disabled={isPremiereBridgeAppsLaunching}
+          onClick={onOpenPremiereBridgeApps}
+        />
         <Button
           aria-label="Refresh Premiere status"
           icon="pi pi-refresh"
@@ -144,6 +157,7 @@ function formatAction(action: string): string {
     replacementExecute: 'Replacement running',
     operationHistory: 'Loading history',
     premiereStatus: 'Checking Premiere',
+    premiereLaunch: 'Opening Adobe apps',
     premiereImport: 'Premiere import',
     clearCache: 'Clearing cache'
   };

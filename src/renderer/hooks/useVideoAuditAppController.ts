@@ -93,6 +93,7 @@ type ActiveAction =
   | 'replacementExecute'
   | 'operationHistory'
   | 'premiereStatus'
+  | 'premiereLaunch'
   | 'premiereImport'
   | 'clearCache'
   | null;
@@ -245,6 +246,7 @@ export interface VideoAuditAppController {
   canStartMigration: boolean;
   premiereStatus: PremiereStatusResponse | null;
   premiereStatusError: string | null;
+  premiereLaunchMessage: string | null;
   isPremiereStatusLoading: boolean;
   isPremiereImportSubmitting: boolean;
   premiereImportResult: PremiereRequestResponse | null;
@@ -331,6 +333,7 @@ export interface VideoAuditAppController {
   refreshOperationHistory: () => Promise<void>;
   selectOperationHistoryRecord: (operationId: string) => Promise<void>;
   refreshPremiereStatus: () => Promise<void>;
+  openPremiereBridgeApps: () => Promise<void>;
   editSelectedInPremiere: () => Promise<void>;
 }
 
@@ -436,6 +439,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const [isOperationHistoryVisible, setIsOperationHistoryVisible] = useState(false);
   const [premiereStatus, setPremiereStatus] = useState<PremiereStatusResponse | null>(null);
   const [premiereStatusError, setPremiereStatusError] = useState<string | null>(null);
+  const [premiereLaunchMessage, setPremiereLaunchMessage] = useState<string | null>(null);
   const [isPremiereStatusLoading, setIsPremiereStatusLoading] = useState(false);
   const [isPremiereImportSubmitting, setIsPremiereImportSubmitting] = useState(false);
   const [premiereImportResult, setPremiereImportResult] = useState<PremiereRequestResponse | null>(null);
@@ -524,6 +528,32 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       setIsPremiereStatusLoading(false);
     }
   }, []);
+
+  const openPremiereBridgeApps = useCallback(async (): Promise<void> => {
+    setActiveAction('premiereLaunch');
+    setPremiereStatusError(null);
+    setPremiereLaunchMessage(null);
+    let launchError: string | null = null;
+
+    try {
+      const response = await window.videoAudit.premiere.openBridgeApps();
+      setPremiereLaunchMessage(`${response.message} Bridge folder: ${response.bridgeDir || 'Unknown'}`);
+
+      if (response.status !== 'opened') {
+        launchError = response.message;
+      }
+    } catch (error: unknown) {
+      launchError = getErrorMessage(error, 'Unable to open Premiere bridge apps.');
+      setPremiereLaunchMessage(launchError);
+    } finally {
+      setActiveAction(null);
+      await refreshPremiereStatus();
+
+      if (launchError) {
+        setPremiereStatusError(launchError);
+      }
+    }
+  }, [refreshPremiereStatus]);
 
   useEffect(() => {
     void refreshPremiereStatus();
@@ -3448,6 +3478,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     canStartMigration,
     premiereStatus,
     premiereStatusError,
+    premiereLaunchMessage,
     isPremiereStatusLoading,
     isPremiereImportSubmitting,
     premiereImportResult,
@@ -3529,6 +3560,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     refreshOperationHistory,
     selectOperationHistoryRecord,
     refreshPremiereStatus,
+    openPremiereBridgeApps,
     editSelectedInPremiere
   };
 }

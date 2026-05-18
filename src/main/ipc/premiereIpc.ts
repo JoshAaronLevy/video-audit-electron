@@ -1,13 +1,15 @@
 import { ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants/ipcChannels';
 import type {
+  PremiereBridgeAppsLaunchResponse,
   PremiereImportRequest,
   PremiereRequestResponse,
   PremiereStatusResponse
 } from '../../shared/types/premiere';
 import {
   createPremiereImportRequest,
-  getPremiereStatus
+  getPremiereStatus,
+  openPremiereBridgeApps
 } from '../services/premiereBridgeService';
 
 export function registerPremiereIpcHandlers(): void {
@@ -30,6 +32,22 @@ export function registerPremiereIpcHandlers(): void {
       };
     }
   });
+
+  ipcMain.handle(
+    IPC_CHANNELS.premiereOpenBridgeApps,
+    async (): Promise<PremiereBridgeAppsLaunchResponse> => {
+      try {
+        return await openPremiereBridgeApps();
+      } catch (error: unknown) {
+        return {
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Unable to open Premiere bridge apps.',
+          bridgeDir: '',
+          apps: []
+        };
+      }
+    }
+  );
 
   ipcMain.handle(
     IPC_CHANNELS.premiereCreateImportRequest,

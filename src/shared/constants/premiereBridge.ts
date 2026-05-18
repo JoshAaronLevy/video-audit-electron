@@ -1,5 +1,5 @@
 export const PREMIERE_BRIDGE_PLUGIN_ID = 'collie-video-premiere-bridge';
-export const DEFAULT_PREMIERE_BRIDGE_DIR = '~/CollieVideo/premiere-bridge';
+export const DEFAULT_PREMIERE_BRIDGE_DIR = '~/Library/Application Support/CollieVideo/premiere-bridge';
 
 export const PREMIERE_REQUEST_TYPES = {
   importSelectedVideos: 'import-selected-videos'

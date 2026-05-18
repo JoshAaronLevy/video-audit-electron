@@ -80,11 +80,13 @@ export function App(): ReactElement {
           premiereStatus={controller.premiereStatus}
           premiereStatusError={controller.premiereStatusError}
           isPremiereStatusLoading={controller.isPremiereStatusLoading}
+          isPremiereBridgeAppsLaunching={controller.activeAction === 'premiereLaunch'}
           toolDiagnostics={controller.toolDiagnostics}
           storageSavedAt={controller.storageSavedAt}
           outputFolder={controller.outputFolder}
           onOpenDiagnostics={() => setIsDiagnosticsVisible(true)}
           onRefreshPremiereStatus={controller.refreshPremiereStatus}
+          onOpenPremiereBridgeApps={controller.openPremiereBridgeApps}
         />
 
         <AuditProgressPanel
@@ -271,7 +273,9 @@ export function App(): ReactElement {
         activeAction={controller.activeAction}
         premiereStatus={controller.premiereStatus}
         premiereStatusError={controller.premiereStatusError}
+        premiereLaunchMessage={controller.premiereLaunchMessage}
         isPremiereStatusLoading={controller.isPremiereStatusLoading}
+        isPremiereBridgeAppsLaunching={controller.activeAction === 'premiereLaunch'}
         toolDiagnostics={controller.toolDiagnostics}
         toolDiagnosticsError={controller.toolDiagnosticsError}
         isToolDiagnosticsLoading={controller.isToolDiagnosticsLoading}
@@ -279,6 +283,7 @@ export function App(): ReactElement {
         storageSavedAt={controller.storageSavedAt}
         onHide={() => setIsDiagnosticsVisible(false)}
         onRefreshPremiereStatus={controller.refreshPremiereStatus}
+        onOpenPremiereBridgeApps={controller.openPremiereBridgeApps}
         onRunToolDiagnostics={controller.runToolDiagnostics}
       />
 

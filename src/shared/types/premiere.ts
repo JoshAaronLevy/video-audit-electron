@@ -48,6 +48,22 @@ export interface PremiereRequestResponse {
   details?: unknown;
 }
 
+export interface PremiereBridgeAppLaunchResult {
+  app: 'premiere' | 'uxpDeveloperTool';
+  label: string;
+  status: 'opened' | 'failed' | 'unsupported';
+  applicationName?: string;
+  message?: string;
+  attemptedApplicationNames?: string[];
+}
+
+export interface PremiereBridgeAppsLaunchResponse {
+  status: 'opened' | 'partial' | 'unsupported' | 'error';
+  message: string;
+  bridgeDir: string;
+  apps: PremiereBridgeAppLaunchResult[];
+}
+
 export interface PremiereBridgeRequestFile {
   id: string;
   type: string;

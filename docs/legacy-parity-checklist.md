@@ -44,7 +44,7 @@ Remaining parity decisions are concentrated in a few areas:
 | Thumbnails | Implemented | `mediaPreviewService` generates cached thumbnails and exposes safe `media-preview://` URLs. |
 | Preview clips | Implemented | Preview clips reuse thumbnail timestamps, cache records, manifests, and safe asset URLs. |
 | Migration | Implemented | Folder-based scan, review, and execute workflows copy new edits, archive matched destination files, and write manifest/log artifacts. |
-| Premiere bridge | Implemented | Bridge status and selected-video import request creation are available through main-process IPC. |
+| Premiere bridge | Implemented | Collie-specific UXP plugin, Application Support bridge path, bridge status, Adobe app launch, and selected-video import request creation are available. |
 | Local persistence | Implemented | App settings are persisted under Electron user data, and latest audit results are persisted in renderer IndexedDB. |
 | Table filtering | Implemented | Results table supports global filtering/search and soft removal/restore. |
 | Row selection | Implemented | Multi-row selection drives selected-video workflows for auto-fix, auto-crop, thumbnails, preview clips, migration context, and Premiere import. |

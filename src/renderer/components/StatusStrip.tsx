@@ -13,7 +13,7 @@ interface StatusStripProps {
   toolDiagnostics: ToolDiagnosticsResult | null;
   storageSavedAt: string | null;
   outputFolder: string | null;
-  onOpenUtilities: () => void;
+  onOpenDiagnostics: () => void;
   onRefreshPremiereStatus: () => void;
 }
 
@@ -28,7 +28,7 @@ export function StatusStrip({
   toolDiagnostics,
   storageSavedAt,
   outputFolder,
-  onOpenUtilities,
+  onOpenDiagnostics,
   onRefreshPremiereStatus
 }: StatusStripProps): ReactElement {
   const toolStatus = getToolStatus(toolDiagnostics);
@@ -39,23 +39,37 @@ export function StatusStrip({
         label="Job"
         value={getJobLabel(auditProgress, activeAction)}
         tone={auditProgress?.status === 'error' ? 'danger' : activeAction ? 'info' : 'neutral'}
+        onClick={onOpenDiagnostics}
       />
       <StatusItem
         label="Premiere"
         value={getPremiereStatusLabel(premiereStatus, premiereStatusError, isPremiereStatusLoading)}
         tone={getPremiereTone(premiereStatus, premiereStatusError, isPremiereStatusLoading)}
+        onClick={onOpenDiagnostics}
       />
-      <StatusItem label="ffmpeg" value={toolStatus.ffmpeg.label} tone={toolStatus.ffmpeg.tone} />
-      <StatusItem label="ffprobe" value={toolStatus.ffprobe.label} tone={toolStatus.ffprobe.tone} />
+      <StatusItem
+        label="ffmpeg"
+        value={toolStatus.ffmpeg.label}
+        tone={toolStatus.ffmpeg.tone}
+        onClick={onOpenDiagnostics}
+      />
+      <StatusItem
+        label="ffprobe"
+        value={toolStatus.ffprobe.label}
+        tone={toolStatus.ffprobe.tone}
+        onClick={onOpenDiagnostics}
+      />
       <StatusItem
         label="Audit"
         value={storageSavedAt ? `Saved ${formatDateTime(storageSavedAt)}` : 'Unsaved'}
         tone={storageSavedAt ? 'success' : 'neutral'}
+        onClick={onOpenDiagnostics}
       />
       <StatusItem
         label="Output"
         value={outputFolder ? 'Set' : 'Not set'}
         tone={outputFolder ? 'success' : 'neutral'}
+        onClick={onOpenDiagnostics}
       />
 
       <div className="status-strip-actions">
@@ -66,19 +80,29 @@ export function StatusStrip({
           loading={isPremiereStatusLoading}
           onClick={onRefreshPremiereStatus}
         />
-        <Button label="Diagnostics" icon="pi pi-chart-line" severity="secondary" onClick={onOpenUtilities} />
+        <Button label="Details" icon="pi pi-chart-line" severity="secondary" onClick={onOpenDiagnostics} />
       </div>
     </section>
   );
 }
 
-function StatusItem({ label, value, tone }: { label: string; value: string; tone: StatusTone }): ReactElement {
+function StatusItem({
+  label,
+  value,
+  tone,
+  onClick
+}: {
+  label: string;
+  value: string;
+  tone: StatusTone;
+  onClick: () => void;
+}): ReactElement {
   return (
-    <div className="status-item">
+    <button type="button" className="status-item" onClick={onClick}>
       <span className={`status-dot is-${tone}`} aria-hidden="true" />
       <span className="status-label">{label}</span>
       <strong title={value}>{value}</strong>
-    </div>
+    </button>
   );
 }
 

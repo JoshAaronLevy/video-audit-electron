@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-05-17
+
+### Added
+
+- Added a diagnostics dialog from the compact status strip with Premiere bridge, media tool, output, cache, and app default details.
+
+### Changed
+
+- Made status strip pills open diagnostics directly so runtime health details are available without restoring an always-visible side panel.
+
 ## [0.19.0] - 2026-05-17
 
 ### Added

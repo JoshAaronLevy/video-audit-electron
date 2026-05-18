@@ -4,6 +4,7 @@ import { AppHeader } from './components/AppHeader';
 import { AuditProgressPanel } from './components/AuditProgressPanel';
 import { AutoCropDialog } from './components/AutoCropDialog';
 import { AutoFixDialog } from './components/AutoFixDialog';
+import { DiagnosticsDialog } from './components/DiagnosticsDialog';
 import { MigrationResultDialog } from './components/MigrationResultDialog';
 import { MigrationScanDialog } from './components/MigrationScanDialog';
 import { ResultsToolbar } from './components/ResultsToolbar';
@@ -22,6 +23,7 @@ export function App(): ReactElement {
   const [isSourceSetupVisible, setIsSourceSetupVisible] = useState(false);
   const [isUtilitiesVisible, setIsUtilitiesVisible] = useState(false);
   const [isSettingsVisible, setIsSettingsVisible] = useState(false);
+  const [isDiagnosticsVisible, setIsDiagnosticsVisible] = useState(false);
   const hasSources = controller.selectedFolders.length > 0 || controller.selectedFiles.length > 0;
   const hasAuditData = Boolean(controller.videoRows) || Boolean(controller.storageSavedAt);
 
@@ -65,7 +67,7 @@ export function App(): ReactElement {
           toolDiagnostics={controller.toolDiagnostics}
           storageSavedAt={controller.storageSavedAt}
           outputFolder={controller.outputFolder}
-          onOpenUtilities={() => setIsUtilitiesVisible(true)}
+          onOpenDiagnostics={() => setIsDiagnosticsVisible(true)}
           onRefreshPremiereStatus={controller.refreshPremiereStatus}
         />
 
@@ -189,6 +191,26 @@ export function App(): ReactElement {
           onRevealPath={controller.revealPath}
         />
       </Dialog>
+
+      <DiagnosticsDialog
+        visible={isDiagnosticsVisible}
+        appInfo={controller.appInfo}
+        settings={controller.settings}
+        settingsMessage={controller.settingsMessage}
+        auditProgress={controller.auditProgress}
+        activeAction={controller.activeAction}
+        premiereStatus={controller.premiereStatus}
+        premiereStatusError={controller.premiereStatusError}
+        isPremiereStatusLoading={controller.isPremiereStatusLoading}
+        toolDiagnostics={controller.toolDiagnostics}
+        toolDiagnosticsError={controller.toolDiagnosticsError}
+        isToolDiagnosticsLoading={controller.isToolDiagnosticsLoading}
+        outputFolder={controller.outputFolder}
+        storageSavedAt={controller.storageSavedAt}
+        onHide={() => setIsDiagnosticsVisible(false)}
+        onRefreshPremiereStatus={controller.refreshPremiereStatus}
+        onRunToolDiagnostics={controller.runToolDiagnostics}
+      />
 
       <Dialog
         header="Settings"

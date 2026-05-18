@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.46.0] - 2026-05-18
+
+### Added
+
+- Added folder-tree selection helpers for extracting checked TreeTable folder paths, deduping overlapping parent/child selections, and calculating selected-folder video count and size summaries without double-counting.
+
 ## [0.45.0] - 2026-05-18
 
 ### Added

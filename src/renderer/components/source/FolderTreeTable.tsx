@@ -2,12 +2,9 @@ import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { Column } from 'primereact/column';
 import { TreeTable } from 'primereact/treetable';
 import type { TreeNode } from 'primereact/treenode';
-import type {
-  FolderTreeNode,
-  FolderTreeSelectionKey,
-  FolderTreeSelectionKeys
-} from '../../../shared/types/folderTree';
+import type { FolderTreeNode, FolderTreeSelectionKeys } from '../../../shared/types/folderTree';
 import { formatBytes } from '../../helpers/fileSize';
+import { getSelectedFolderPathsFromTree } from '../../helpers/folderTreeSelection';
 
 interface FolderTreeTableProps {
   root: FolderTreeNode | null;
@@ -46,7 +43,6 @@ export function FolderTreeTable({
   showDirectColumns = false
 }: FolderTreeTableProps): ReactElement {
   const nodes = useMemo(() => (root ? [toPrimeTreeNode(root)] : []), [root]);
-  const nodePathByKey = useMemo(() => buildNodePathMap(nodes), [nodes]);
   const [expandedKeys, setExpandedKeys] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -55,7 +51,7 @@ export function FolderTreeTable({
 
   const handleSelectionChange = (nextSelectionKeys: FolderTreeSelectionKeys): void => {
     onSelectionKeysChange(nextSelectionKeys);
-    onSelectedFolderPathsChange?.(getCheckedFolderPaths(nextSelectionKeys, nodePathByKey));
+    onSelectedFolderPathsChange?.(getSelectedFolderPathsFromTree(nextSelectionKeys, root));
   };
 
   return (
@@ -158,36 +154,10 @@ function toPrimeTreeNode(node: FolderTreeNode): FolderTreePrimeNode {
   };
 }
 
-function buildNodePathMap(nodes: FolderTreePrimeNode[]): Map<string, string> {
-  const nodePathByKey = new Map<string, string>();
-
-  function visit(node: FolderTreePrimeNode): void {
-    nodePathByKey.set(node.key, node.data.path);
-    node.children.forEach(visit);
-  }
-
-  nodes.forEach(visit);
-  return nodePathByKey;
-}
-
 function normalizeSelectionKeys(value: unknown): FolderTreeSelectionKeys {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return {};
   }
 
   return value as FolderTreeSelectionKeys;
-}
-
-function getCheckedFolderPaths(
-  selectionKeys: FolderTreeSelectionKeys,
-  nodePathByKey: Map<string, string>
-): string[] {
-  return Object.entries(selectionKeys)
-    .filter(([, value]) => isCheckedSelectionKey(value))
-    .map(([key]) => nodePathByKey.get(key))
-    .filter((path): path is string => Boolean(path));
-}
-
-function isCheckedSelectionKey(value: FolderTreeSelectionKey | undefined): boolean {
-  return Boolean(value && value.checked === true);
 }

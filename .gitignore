@@ -11,3 +11,4 @@ assets/icon.iconset/
 *.log
 coverage/
 .vite/
+TODO.md

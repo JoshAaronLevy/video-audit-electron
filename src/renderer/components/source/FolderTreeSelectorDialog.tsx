@@ -22,6 +22,8 @@ import { FolderTreeTable } from './FolderTreeTable';
 interface FolderTreeSelectorDialogProps {
   visible: boolean;
   selectedFolderPaths: string[];
+  initialRootPath: string | null;
+  lastScannedAt: string | null;
   includeSubfolders: boolean;
   isAuditActive: boolean;
   onConfirm: (selection: FolderTreeSelectionConfirm) => Promise<void> | void;
@@ -32,11 +34,14 @@ interface FolderTreeSelectionConfirm {
   rootPath: string;
   selectedFolderPaths: string[];
   summary: SelectedFolderSummary;
+  lastScannedAt: string | null;
 }
 
 export function FolderTreeSelectorDialog({
   visible,
   selectedFolderPaths,
+  initialRootPath,
+  lastScannedAt,
   includeSubfolders,
   isAuditActive,
   onConfirm,
@@ -97,6 +102,14 @@ export function FolderTreeSelectorDialog({
       setError(getErrorMessage(caughtError, 'Could not load folder tree scan result.'));
     }
   }, []);
+
+  useEffect(() => {
+    if (!visible || scanId || scanResult) {
+      return;
+    }
+
+    setRootPath(initialRootPath);
+  }, [initialRootPath, scanId, scanResult, visible]);
 
   useEffect(() => {
     return window.videoAudit.folderTree.onScanProgress((progress) => {
@@ -277,7 +290,8 @@ export function FolderTreeSelectorDialog({
       await onConfirm({
         rootPath,
         selectedFolderPaths: selectedSummary.dedupedFolderPaths,
-        summary: selectedSummary
+        summary: selectedSummary,
+        lastScannedAt: scanResult?.generatedAt ?? null
       });
       clearScannedTreeState();
       onHide();
@@ -286,7 +300,7 @@ export function FolderTreeSelectorDialog({
     } finally {
       setIsConfirming(false);
     }
-  }, [canConfirm, clearScannedTreeState, onConfirm, onHide, rootPath, selectedSummary]);
+  }, [canConfirm, clearScannedTreeState, onConfirm, onHide, rootPath, scanResult?.generatedAt, selectedSummary]);
 
   const footer = (
     <DialogFooter
@@ -335,7 +349,13 @@ export function FolderTreeSelectorDialog({
           eyebrow="Sources"
           title="Choose Folders"
           description="Select folders from a scanned directory tree."
-          meta={scanResult ? <Tag value={formatGeneratedAt(scanResult.generatedAt)} /> : null}
+          meta={
+            scanResult ? (
+              <Tag value={formatGeneratedAt(scanResult.generatedAt)} />
+            ) : lastScannedAt ? (
+              <Tag value={formatGeneratedAt(lastScannedAt)} severity="secondary" />
+            ) : null
+          }
         />
       }
       visible={visible}

@@ -13,6 +13,7 @@ import type {
   ScanFolderTreeStartResponse
 } from '../../shared/types/folderTree';
 import { scanFolderTree } from '../services/folderTreeService';
+import { getSettings } from '../services/settingsService';
 
 interface FolderTreeScanJob {
   id: string;
@@ -81,7 +82,7 @@ export function registerFolderTreeIpcHandlers(): void {
         };
       }
 
-      if (!selectedRootPaths.has(normalizedRootPath)) {
+      if (!(await isAuthorizedFolderTreeRoot(normalizedRootPath))) {
         return {
           status: 'invalid_request',
           message: 'Choose a folder tree root before scanning it.'
@@ -204,6 +205,20 @@ export function registerFolderTreeIpcHandlers(): void {
       };
     }
   );
+}
+
+async function isAuthorizedFolderTreeRoot(rootPath: string): Promise<boolean> {
+  if (selectedRootPaths.has(rootPath)) {
+    return true;
+  }
+
+  try {
+    const settings = await getSettings();
+    const persistedRootPath = settings.latestFolderTreeSource?.rootPath;
+    return persistedRootPath ? normalizeRootPath(persistedRootPath) === rootPath : false;
+  } catch {
+    return false;
+  }
 }
 
 async function runFolderTreeScanJob(

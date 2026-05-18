@@ -212,13 +212,16 @@ export function App(): ReactElement {
       <FolderTreeSelectorDialog
         visible={isFolderTreeSelectorVisible}
         selectedFolderPaths={controller.selectedFolders}
+        initialRootPath={controller.folderTreeRootPath}
+        lastScannedAt={controller.folderTreeLastScannedAt}
         includeSubfolders={controller.auditOptions.includeSubfolders}
         isAuditActive={controller.isAuditActive}
         onConfirm={async (selection) => {
           await controller.applyFolderTreeSelection(
             selection.selectedFolderPaths,
             selection.rootPath,
-            selection.summary
+            selection.summary,
+            selection.lastScannedAt
           );
           setIsFolderTreeSelectorVisible(false);
         }}

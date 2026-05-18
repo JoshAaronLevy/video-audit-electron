@@ -1,5 +1,6 @@
 import type { AuditOptions } from './audit';
 import type { DestinationConflictStrategy } from './fileOperations';
+import type { SelectedFolderSummary } from './folderTree';
 
 export type DefaultOriginalDisposition = 'trash' | 'archive';
 export type PostConversionDefaultAction = 'ask-every-time' | 'leave-outputs' | 'review-manually';
@@ -10,6 +11,15 @@ export interface AppWindowState {
   x: number | null;
   y: number | null;
   isMaximized: boolean;
+}
+
+export interface PersistedFolderTreeSource {
+  rootPath: string;
+  selectedFolderPaths: string[];
+  dedupedSelectedFolderPaths: string[];
+  selectedFolderSummary: SelectedFolderSummary | null;
+  includeSubfolders: boolean;
+  lastScannedAt: string | null;
 }
 
 export interface AppSettings {
@@ -34,6 +44,7 @@ export interface AppSettings {
   defaultPostConversionAction: PostConversionDefaultAction;
   previewOperationHistoryAfterExecution: boolean;
   latestSelectedFolder: string | null;
+  latestFolderTreeSource: PersistedFolderTreeSource | null;
   windowState: AppWindowState | null;
   lastAuditResultSummary: {
     jobId?: string;

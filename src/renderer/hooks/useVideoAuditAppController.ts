@@ -53,7 +53,11 @@ import type {
   ReplacementPlanActionUpdate,
   ReplacementPlanBulkAction
 } from '../../shared/types/replacementWorkflow';
-import type { AppSettings, AppSettingsUpdate } from '../../shared/types/settings';
+import type {
+  AppSettings,
+  AppSettingsUpdate,
+  PersistedFolderTreeSource
+} from '../../shared/types/settings';
 import type { FfprobeResult, VideoPreviewFrame, VideoRow } from '../../shared/types/video';
 import { dedupeOverlappingFolderPaths } from '../../shared/utils/folderPathSelection';
 import {
@@ -117,6 +121,8 @@ export interface VideoAuditAppController {
   activeAction: ActiveAction;
   selectedFolders: string[];
   selectedFolderSummary: SelectedFolderSummary | null;
+  folderTreeRootPath: string | null;
+  folderTreeLastScannedAt: string | null;
   selectedFiles: string[];
   outputFolder: string | null;
   auditOptions: AuditOptions;
@@ -246,7 +252,8 @@ export interface VideoAuditAppController {
   applyFolderTreeSelection: (
     folderPaths: string[],
     rootPath: string,
-    summary: SelectedFolderSummary
+    summary: SelectedFolderSummary,
+    lastScannedAt: string | null
   ) => Promise<void>;
   chooseFolders: () => Promise<void>;
   chooseFiles: () => Promise<void>;
@@ -340,6 +347,8 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const [activeAction, setActiveAction] = useState<ActiveAction>(null);
   const [selectedFolders, setSelectedFolders] = useState<string[]>([]);
   const [selectedFolderSummary, setSelectedFolderSummary] = useState<SelectedFolderSummary | null>(null);
+  const [folderTreeRootPath, setFolderTreeRootPath] = useState<string | null>(null);
+  const [folderTreeLastScannedAt, setFolderTreeLastScannedAt] = useState<string | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
   const [outputFolder, setOutputFolder] = useState<string | null>(null);
   const [auditOptions, setAuditOptions] = useState<AuditOptions>(DEFAULT_AUDIT_OPTIONS);
@@ -535,11 +544,29 @@ export function useVideoAuditAppController(): VideoAuditAppController {
         setSettings(loadedSettings);
         setOutputFolder(loadedSettings.defaultOutputDirectory);
 
+        const restoredFolderTreeSource = loadedSettings.latestFolderTreeSource;
+        const restoredFolderTreePaths = restoredFolderTreeSource
+          ? getPersistedFolderTreeSourcePaths(restoredFolderTreeSource)
+          : [];
+
+        if (restoredFolderTreeSource) {
+          setFolderTreeRootPath(restoredFolderTreeSource.rootPath);
+          setFolderTreeLastScannedAt(restoredFolderTreeSource.lastScannedAt);
+        }
+
         if (storedAudit) {
-          setSelectedFolders(storedAudit.request.folderPaths);
-          setSelectedFolderSummary(null);
+          setSelectedFolders(
+            restoredFolderTreePaths.length > 0
+              ? restoredFolderTreePaths
+              : dedupeOverlappingFolderPaths(storedAudit.request.folderPaths)
+          );
+          setSelectedFolderSummary(restoredFolderTreeSource?.selectedFolderSummary ?? null);
           setSelectedFiles(storedAudit.request.filePaths);
-          setAuditOptions(storedAudit.request.options);
+          setAuditOptions({
+            ...storedAudit.request.options,
+            includeSubfolders:
+              restoredFolderTreeSource?.includeSubfolders ?? storedAudit.request.options.includeSubfolders
+          });
           setShowThumbnailsState(storedAudit.showThumbnails);
           setStorageSavedAt(storedAudit.savedAt);
           setStorageMessage(`Restored saved audit from ${formatDateTime(storedAudit.savedAt)}.`);
@@ -549,7 +576,14 @@ export function useVideoAuditAppController(): VideoAuditAppController {
             showThumbnails: storedAudit.showThumbnails
           });
         } else {
-          setAuditOptions(settingsToAuditOptions(loadedSettings));
+          const restoredAuditOptions = settingsToAuditOptions(loadedSettings);
+          setSelectedFolders(restoredFolderTreePaths);
+          setSelectedFolderSummary(restoredFolderTreeSource?.selectedFolderSummary ?? null);
+          setAuditOptions({
+            ...restoredAuditOptions,
+            includeSubfolders:
+              restoredFolderTreeSource?.includeSubfolders ?? restoredAuditOptions.includeSubfolders
+          });
         }
       } catch (error: unknown) {
         if (isMounted) {
@@ -919,12 +953,15 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       await handleSelectionResult(result, (paths) => {
         setSelectedFolders(dedupeOverlappingFolderPaths(paths));
         setSelectedFolderSummary(null);
+        setFolderTreeRootPath(null);
+        setFolderTreeLastScannedAt(null);
       });
 
       if (!result.canceled && result.paths.length > 0) {
         await persistSettings({
           recentFolders: mergeRecentPaths(result.paths, settings?.recentFolders ?? []),
-          latestSelectedFolder: result.paths[0]
+          latestSelectedFolder: result.paths[0],
+          latestFolderTreeSource: null
         });
       }
     } catch (error: unknown) {
@@ -938,16 +975,27 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     async (
       folderPaths: string[],
       rootPath: string,
-      summary: SelectedFolderSummary
+      summary: SelectedFolderSummary,
+      lastScannedAt: string | null
     ): Promise<void> => {
       const dedupedFolderPaths = dedupeOverlappingFolderPaths(folderPaths);
+      const nextFolderTreeSource = createPersistedFolderTreeSource({
+        rootPath,
+        selectedFolderPaths: summary.selectedFolderPaths,
+        dedupedSelectedFolderPaths: dedupedFolderPaths,
+        summary: {
+          ...summary,
+          dedupedFolderPaths,
+          dedupedFolderCount: dedupedFolderPaths.length
+        },
+        includeSubfolders: auditOptions.includeSubfolders,
+        lastScannedAt
+      });
 
       setSelectedFolders(dedupedFolderPaths);
-      setSelectedFolderSummary({
-        ...summary,
-        dedupedFolderPaths,
-        dedupedFolderCount: dedupedFolderPaths.length
-      });
+      setSelectedFolderSummary(nextFolderTreeSource.selectedFolderSummary);
+      setFolderTreeRootPath(rootPath);
+      setFolderTreeLastScannedAt(lastScannedAt);
       setSelectionMessage(null);
       setWorkflowMessage(
         dedupedFolderPaths.length > 0
@@ -958,11 +1006,12 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       if (dedupedFolderPaths.length > 0) {
         await persistSettings({
           recentFolders: mergeRecentPaths([rootPath, ...dedupedFolderPaths], settings?.recentFolders ?? []),
-          latestSelectedFolder: rootPath
+          latestSelectedFolder: rootPath,
+          latestFolderTreeSource: nextFolderTreeSource
         });
       }
     },
-    [persistSettings, settings?.recentFolders]
+    [auditOptions.includeSubfolders, persistSettings, settings?.recentFolders]
   );
 
   const chooseRecentFolder = useCallback(
@@ -973,11 +1022,14 @@ export function useVideoAuditAppController(): VideoAuditAppController {
 
       setSelectedFolders([path]);
       setSelectedFolderSummary(null);
+      setFolderTreeRootPath(null);
+      setFolderTreeLastScannedAt(null);
       setSelectedFiles([]);
       setSelectionMessage(null);
       await persistSettings({
         recentFolders: mergeRecentPaths([path], settings?.recentFolders ?? []),
-        latestSelectedFolder: path
+        latestSelectedFolder: path,
+        latestFolderTreeSource: null
       });
     },
     [persistSettings, settings?.recentFolders]
@@ -1005,10 +1057,16 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const clearSelectedSources = useCallback((): void => {
     setSelectedFolders([]);
     setSelectedFolderSummary(null);
+    setFolderTreeRootPath(null);
+    setFolderTreeLastScannedAt(null);
     setSelectedFiles([]);
     setSelectionMessage(null);
     setWorkflowMessage('Selected sources cleared.');
-  }, []);
+    void persistSettings({
+      latestFolderTreeSource: null,
+      latestSelectedFolder: null
+    });
+  }, [persistSettings]);
 
   const chooseOutputFolder = useCallback(async (): Promise<void> => {
     setActiveAction('output');
@@ -1116,7 +1174,15 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       setAuditOptions(nextOptions);
 
       if (key === 'includeSubfolders') {
-        await persistSettings({ includeSubfoldersDefault: Boolean(value) });
+        await persistSettings({
+          includeSubfoldersDefault: Boolean(value),
+          latestFolderTreeSource: settings?.latestFolderTreeSource
+            ? {
+                ...settings.latestFolderTreeSource,
+                includeSubfolders: Boolean(value)
+              }
+            : null
+        });
       }
 
       if (key === 'includeLowResolutionAnalysis') {
@@ -1127,7 +1193,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
         await persistSettings({ blackBorderAnalysisEnabledDefault: Boolean(value) });
       }
     },
-    [auditOptions, persistSettings]
+    [auditOptions, persistSettings, settings?.latestFolderTreeSource]
   );
 
   const resetSettings = useCallback(async (): Promise<void> => {
@@ -1138,6 +1204,10 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       setSettings(reset);
       setOutputFolder(reset.defaultOutputDirectory);
       setAuditOptions(settingsToAuditOptions(reset));
+      setSelectedFolders([]);
+      setSelectedFolderSummary(null);
+      setFolderTreeRootPath(null);
+      setFolderTreeLastScannedAt(null);
       setSettingsMessage('Settings reset.');
     } catch (error: unknown) {
       setSettingsMessage(getErrorMessage(error, 'Could not reset settings.'));
@@ -3178,6 +3248,8 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     activeAction,
     selectedFolders,
     selectedFolderSummary,
+    folderTreeRootPath,
+    folderTreeLastScannedAt,
     selectedFiles,
     outputFolder,
     auditOptions,
@@ -3728,6 +3800,45 @@ function settingsToAuditOptions(settings: AppSettings): AuditOptions {
     includeSubfolders: settings.includeSubfoldersDefault,
     includeLowResolutionAnalysis: settings.lowResolutionAnalysisEnabledDefault,
     includeBlackBorderAnalysis: settings.blackBorderAnalysisEnabledDefault
+  };
+}
+
+function getPersistedFolderTreeSourcePaths(source: PersistedFolderTreeSource): string[] {
+  return dedupeOverlappingFolderPaths(
+    source.dedupedSelectedFolderPaths.length > 0
+      ? source.dedupedSelectedFolderPaths
+      : source.selectedFolderPaths
+  );
+}
+
+function createPersistedFolderTreeSource({
+  rootPath,
+  selectedFolderPaths,
+  dedupedSelectedFolderPaths,
+  summary,
+  includeSubfolders,
+  lastScannedAt
+}: {
+  rootPath: string;
+  selectedFolderPaths: string[];
+  dedupedSelectedFolderPaths: string[];
+  summary: SelectedFolderSummary;
+  includeSubfolders: boolean;
+  lastScannedAt: string | null;
+}): PersistedFolderTreeSource {
+  const dedupedFolderPaths = dedupeOverlappingFolderPaths(dedupedSelectedFolderPaths);
+
+  return {
+    rootPath,
+    selectedFolderPaths,
+    dedupedSelectedFolderPaths: dedupedFolderPaths,
+    selectedFolderSummary: {
+      ...summary,
+      dedupedFolderPaths,
+      dedupedFolderCount: dedupedFolderPaths.length
+    },
+    includeSubfolders,
+    lastScannedAt
   };
 }
 

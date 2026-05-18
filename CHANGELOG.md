@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.49.0] - 2026-05-18
+
+### Added
+
+- Persisted folder-tree source selections in app settings, including the selected root, selected and deduped folder paths, selected-folder summary, include-subfolders mode, and last scan timestamp without storing the scanned tree.
+
 ## [0.48.0] - 2026-05-18
 
 ### Added

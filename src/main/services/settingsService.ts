@@ -5,6 +5,7 @@ import type {
   AppSettings,
   AppSettingsUpdate,
   DefaultOriginalDisposition,
+  PersistedFolderTreeSource,
   PostConversionDefaultAction
 } from '../../shared/types/settings';
 import { getSettingsFilePath } from './appPaths';
@@ -37,6 +38,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   defaultPostConversionAction: 'ask-every-time',
   previewOperationHistoryAfterExecution: false,
   latestSelectedFolder: null,
+  latestFolderTreeSource: null,
   windowState: null,
   lastAuditResultSummary: null
 };
@@ -127,6 +129,7 @@ function normalizeSettings(value: unknown): AppSettings {
       DEFAULT_APP_SETTINGS.previewOperationHistoryAfterExecution
     ),
     latestSelectedFolder: normalizeNullableString(candidate.latestSelectedFolder),
+    latestFolderTreeSource: normalizePersistedFolderTreeSource(candidate.latestFolderTreeSource),
     windowState: normalizeWindowState(candidate.windowState),
     lastAuditResultSummary: normalizeLastAuditResultSummary(candidate.lastAuditResultSummary)
   };
@@ -232,6 +235,69 @@ function normalizeLastAuditResultSummary(value: unknown): AppSettings['lastAudit
     totalFiles,
     flaggedCount,
     errorCount
+  };
+}
+
+function normalizePersistedFolderTreeSource(value: unknown): PersistedFolderTreeSource | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const rootPath = normalizeNullableString(value.rootPath);
+  const selectedFolderPaths = normalizeStringArray(value.selectedFolderPaths);
+  const dedupedSelectedFolderPaths = normalizeStringArray(value.dedupedSelectedFolderPaths);
+
+  if (!rootPath || (selectedFolderPaths.length === 0 && dedupedSelectedFolderPaths.length === 0)) {
+    return null;
+  }
+
+  const effectiveDedupedPaths =
+    dedupedSelectedFolderPaths.length > 0 ? dedupedSelectedFolderPaths : selectedFolderPaths;
+
+  return {
+    rootPath,
+    selectedFolderPaths,
+    dedupedSelectedFolderPaths: effectiveDedupedPaths,
+    selectedFolderSummary: normalizeSelectedFolderSummary(value.selectedFolderSummary),
+    includeSubfolders: normalizeBoolean(value.includeSubfolders, true),
+    lastScannedAt: normalizeNullableString(value.lastScannedAt)
+  };
+}
+
+function normalizeSelectedFolderSummary(value: unknown): PersistedFolderTreeSource['selectedFolderSummary'] {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const selectedFolderPaths = normalizeStringArray(value.selectedFolderPaths);
+  const dedupedFolderPaths = normalizeStringArray(value.dedupedFolderPaths);
+  const selectedFolderCount = normalizeFiniteNumber(value.selectedFolderCount);
+  const dedupedFolderCount = normalizeFiniteNumber(value.dedupedFolderCount);
+  const directVideoCount = normalizeFiniteNumber(value.directVideoCount);
+  const directVideoSizeBytes = normalizeFiniteNumber(value.directVideoSizeBytes);
+  const totalVideoCount = normalizeFiniteNumber(value.totalVideoCount);
+  const totalVideoSizeBytes = normalizeFiniteNumber(value.totalVideoSizeBytes);
+
+  if (
+    selectedFolderCount === null ||
+    dedupedFolderCount === null ||
+    directVideoCount === null ||
+    directVideoSizeBytes === null ||
+    totalVideoCount === null ||
+    totalVideoSizeBytes === null
+  ) {
+    return null;
+  }
+
+  return {
+    selectedFolderPaths,
+    dedupedFolderPaths,
+    selectedFolderCount,
+    dedupedFolderCount,
+    directVideoCount,
+    directVideoSizeBytes,
+    totalVideoCount,
+    totalVideoSizeBytes
   };
 }
 

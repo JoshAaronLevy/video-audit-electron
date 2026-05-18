@@ -4,7 +4,7 @@ import { Column } from 'primereact/column';
 import { DataTable } from 'primereact/datatable';
 import { Message } from 'primereact/message';
 import { Tag } from 'primereact/tag';
-import type { AuditError, AuditSummary } from '../../shared/types/audit';
+import type { AuditError, AuditOptions, AuditSummary } from '../../shared/types/audit';
 import type { PreviewClipJobSnapshot } from '../../shared/types/mediaPreview';
 import type { PremiereRequestResponse } from '../../shared/types/premiere';
 import type { VideoAdjustments, VideoPreviewFrame, VideoRow } from '../../shared/types/video';
@@ -18,10 +18,17 @@ interface VideoResultsTableProps {
   globalFilter: string;
   resultsViewFilter: ResultsViewFilter;
   hasSources: boolean;
+  selectedFolderCount: number;
+  selectedFileCount: number;
   showThumbnails: boolean;
+  auditOptions: AuditOptions;
   auditSummary: AuditSummary | null;
   auditErrors: AuditError[];
   removedVideoCount: number;
+  isAuditActive: boolean;
+  canRunAudit: boolean;
+  auditPercent: number | null;
+  auditProgressMessage: string | null;
   isPreviewClipActive: boolean;
   isStorageLoading: boolean;
   storageMessage: string | null;
@@ -32,6 +39,8 @@ interface VideoResultsTableProps {
   premiereImportResult: PremiereRequestResponse | null;
   premiereImportError: string | null;
   onSelectedVideosChange: (videos: VideoRow[]) => void;
+  onOpenSourceSetup: () => void;
+  onRunAudit: () => void;
   onStartPreviewClipGeneration: (video: VideoRow, frames: VideoPreviewFrame[]) => void;
   onCancelPreviewClipGeneration: () => void;
   onRevealPath: (path: string) => void;
@@ -63,10 +72,17 @@ export function VideoResultsTable({
   globalFilter,
   resultsViewFilter,
   hasSources,
+  selectedFolderCount,
+  selectedFileCount,
   showThumbnails,
+  auditOptions,
   auditSummary,
   auditErrors,
   removedVideoCount,
+  isAuditActive,
+  canRunAudit,
+  auditPercent,
+  auditProgressMessage,
   isPreviewClipActive,
   isStorageLoading,
   storageMessage,
@@ -77,6 +93,8 @@ export function VideoResultsTable({
   premiereImportResult,
   premiereImportError,
   onSelectedVideosChange,
+  onOpenSourceSetup,
+  onRunAudit,
   onStartPreviewClipGeneration,
   onCancelPreviewClipGeneration,
   onRevealPath
@@ -94,9 +112,18 @@ export function VideoResultsTable({
     auditSummary,
     globalFilter,
     hasSources,
+    selectedFileCount,
+    selectedFolderCount,
+    auditOptions,
+    canRunAudit,
+    isAuditActive,
+    auditPercent,
+    auditProgressMessage,
     isStorageLoading,
     resultsViewFilter,
-    rows
+    rows,
+    onOpenSourceSetup,
+    onRunAudit
   });
   const tableHeader = (
     <div className="table-header">
@@ -153,7 +180,16 @@ export function VideoResultsTable({
         size="small"
         scrollable
         tableStyle={{ minWidth: showThumbnails ? '1320px' : '1220px' }}
-        emptyMessage={<EmptyState title={emptyState.title} body={emptyState.body} icon={emptyState.icon} />}
+        emptyMessage={
+          <EmptyState
+            title={emptyState.title}
+            body={emptyState.body}
+            icon={emptyState.icon}
+            meta={emptyState.meta}
+            progress={emptyState.progress}
+            actions={emptyState.actions}
+          />
+        }
       >
         <Column selectionMode="multiple" headerStyle={{ width: '3rem' }} style={{ width: '3rem' }} />
         {showThumbnails ? (
@@ -433,12 +469,66 @@ function actionsTemplate(
   );
 }
 
-function EmptyState({ title, body, icon }: { title: string; body: string; icon: string }): ReactElement {
+interface TableEmptyState {
+  title: string;
+  body: string;
+  icon: string;
+  meta?: string[];
+  progress?: {
+    percent: number | null;
+    label: string;
+  };
+  actions?: {
+    label: string;
+    icon: string;
+    severity: 'primary' | 'secondary' | 'info';
+    disabled?: boolean;
+    onClick: () => void;
+  }[];
+}
+
+function EmptyState({ title, body, icon, meta, progress, actions }: TableEmptyState): ReactElement {
   return (
     <div className="table-empty-state">
       <i className={icon} aria-hidden="true" />
       <strong>{title}</strong>
       <span>{body}</span>
+      {meta && meta.length > 0 ? (
+        <div className="table-empty-meta">
+          {meta.map((item) => (
+            <Tag key={item} value={item} />
+          ))}
+        </div>
+      ) : null}
+      {progress ? (
+        <div
+          className="table-empty-progress"
+          aria-label={progress.label}
+          aria-valuemax={100}
+          aria-valuemin={0}
+          aria-valuenow={progress.percent ?? undefined}
+          role="progressbar"
+        >
+          <div>
+            <span style={{ width: `${progress.percent ?? 0}%` }} />
+          </div>
+          <small>{progress.percent === null ? progress.label : `${progress.label} (${progress.percent}%)`}</small>
+        </div>
+      ) : null}
+      {actions && actions.length > 0 ? (
+        <div className="table-empty-actions">
+          {actions.map((action) => (
+            <Button
+              key={action.label}
+              label={action.label}
+              icon={action.icon}
+              severity={action.severity === 'primary' ? undefined : action.severity}
+              disabled={action.disabled}
+              onClick={action.onClick}
+            />
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -448,18 +538,36 @@ function getEmptyState({
   auditSummary,
   globalFilter,
   hasSources,
+  selectedFolderCount,
+  selectedFileCount,
+  auditOptions,
+  canRunAudit,
+  isAuditActive,
+  auditPercent,
+  auditProgressMessage,
   isStorageLoading,
   resultsViewFilter,
-  rows
+  rows,
+  onOpenSourceSetup,
+  onRunAudit
 }: {
   allRows: VideoRow[] | null;
   auditSummary: AuditSummary | null;
   globalFilter: string;
   hasSources: boolean;
+  selectedFolderCount: number;
+  selectedFileCount: number;
+  auditOptions: AuditOptions;
+  canRunAudit: boolean;
+  isAuditActive: boolean;
+  auditPercent: number | null;
+  auditProgressMessage: string | null;
   isStorageLoading: boolean;
   resultsViewFilter: ResultsViewFilter;
   rows: VideoRow[];
-}): { title: string; body: string; icon: string } {
+  onOpenSourceSetup: () => void;
+  onRunAudit: () => void;
+}): TableEmptyState {
   if (isStorageLoading) {
     return {
       title: 'Loading saved audit data',
@@ -468,19 +576,60 @@ function getEmptyState({
     };
   }
 
+  if (isAuditActive && !allRows) {
+    const optionLabels = getAuditOptionLabels(auditOptions);
+
+    return {
+      title: 'Audit running',
+      body: auditProgressMessage ?? 'Scanning selected videos and preparing results.',
+      icon: 'pi pi-spin pi-spinner',
+      meta: optionLabels,
+      progress: {
+        percent: auditPercent,
+        label: 'Audit progress'
+      }
+    };
+  }
+
   if (!hasSources && !allRows) {
     return {
-      title: 'Choose a folder or video files to begin.',
-      body: 'Source setup stays compact above the table.',
-      icon: 'pi pi-folder-open'
+      title: 'Start by choosing videos to audit',
+      body: 'Select a folder or individual files, then run an audit to find low-resolution, wrong-aspect-ratio, or black-border videos.',
+      icon: 'pi pi-folder-open',
+      actions: [
+        {
+          label: 'Choose Sources',
+          icon: 'pi pi-folder-open',
+          severity: 'primary',
+          onClick: onOpenSourceSetup
+        }
+      ]
     };
   }
 
   if (hasSources && !allRows) {
+    const optionLabels = getAuditOptionLabels(auditOptions);
+
     return {
-      title: 'Run an audit to populate results.',
-      body: 'The table will stay focused on videos that need review.',
-      icon: 'pi pi-play-circle'
+      title: `Ready to audit ${formatSourceCount(selectedFolderCount, selectedFileCount)}`,
+      body: `Audit options: ${optionLabels.join(', ') || 'none selected'}.`,
+      icon: 'pi pi-play-circle',
+      meta: optionLabels,
+      actions: [
+        {
+          label: 'Run Audit',
+          icon: 'pi pi-shield',
+          severity: 'primary',
+          disabled: !canRunAudit,
+          onClick: onRunAudit
+        },
+        {
+          label: 'Edit Sources',
+          icon: 'pi pi-pencil',
+          severity: 'secondary',
+          onClick: onOpenSourceSetup
+        }
+      ]
     };
   }
 
@@ -513,6 +662,38 @@ function getEmptyState({
     body: 'Run or refresh an audit to reload results.',
     icon: 'pi pi-search'
   };
+}
+
+function formatSourceCount(folderCount: number, fileCount: number): string {
+  const parts: string[] = [];
+
+  if (folderCount > 0) {
+    parts.push(`${folderCount.toLocaleString()} ${folderCount === 1 ? 'folder' : 'folders'}`);
+  }
+
+  if (fileCount > 0) {
+    parts.push(`${fileCount.toLocaleString()} ${fileCount === 1 ? 'file' : 'files'}`);
+  }
+
+  return parts.join(' and ') || 'selected sources';
+}
+
+function getAuditOptionLabels(options: AuditOptions): string[] {
+  const labels: string[] = [];
+
+  if (options.includeSubfolders) {
+    labels.push('subfolders');
+  }
+
+  if (options.includeLowResolutionAnalysis) {
+    labels.push('low-res');
+  }
+
+  if (options.includeBlackBorderAnalysis) {
+    labels.push('black borders');
+  }
+
+  return labels;
 }
 
 function getViewFilterLabel(filter: ResultsViewFilter): string {

@@ -102,10 +102,17 @@ export function App(): ReactElement {
             globalFilter={controller.globalFilter}
             resultsViewFilter={controller.resultsViewFilter}
             hasSources={hasSources}
+            selectedFolderCount={controller.selectedFolders.length}
+            selectedFileCount={controller.selectedFiles.length}
             showThumbnails={controller.showThumbnails}
+            auditOptions={controller.auditOptions}
             auditSummary={controller.auditSummary}
             auditErrors={controller.auditErrors}
             removedVideoCount={controller.removedVideoCount}
+            isAuditActive={controller.isAuditActive}
+            canRunAudit={controller.canRunAudit}
+            auditPercent={controller.auditPercent}
+            auditProgressMessage={controller.auditProgress?.message ?? null}
             isPreviewClipActive={controller.isPreviewClipActive}
             isStorageLoading={controller.isStorageLoading}
             storageMessage={controller.storageMessage}
@@ -116,6 +123,8 @@ export function App(): ReactElement {
             premiereImportResult={controller.premiereImportResult}
             premiereImportError={controller.premiereImportError}
             onSelectedVideosChange={controller.setSelectedVideos}
+            onOpenSourceSetup={() => setIsSourceSetupVisible(true)}
+            onRunAudit={controller.runAudit}
             onStartPreviewClipGeneration={controller.startPreviewClipGeneration}
             onCancelPreviewClipGeneration={controller.cancelPreviewClipGeneration}
             onRevealPath={controller.revealPath}

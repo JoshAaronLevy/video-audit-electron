@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-05-17
+
+### Added
+
+- Added actionable first-run and ready-to-audit empty states in the results workspace.
+
+### Changed
+
+- Improved audit-running empty-state feedback with compact progress and selected audit option context.
+
 ## [0.24.0] - 2026-05-17
 
 ### Added

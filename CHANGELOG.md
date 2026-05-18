@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.42.1] - 2026-05-18
+
+### Added
+
+- Added Stage 1 folder-tree source selection notes documenting the current source flow, audit integration points, reusable utilities, and constraints for the upcoming eager TreeTable implementation.
+
 ## [0.42.0] - 2026-05-18
 
 ### Changed

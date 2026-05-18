@@ -197,6 +197,9 @@ export interface CopyOperationPlan extends FileOperationPlan {
 export interface ArchiveOperationPlan extends FileOperationPlan {
   type: 'archive';
   archiveDirectory: string;
+  archiveDirectories: string[];
+  archiveDate: string;
+  conflictStrategy: DestinationConflictStrategy;
 }
 
 export interface ReplacementOperationPlan extends FileOperationPlan {
@@ -241,7 +244,8 @@ export interface CreateCopyOperationPlanRequest {
 export interface CreateArchiveOperationPlanRequest {
   operationType: 'archive';
   items: KnownFileOperationItem[];
-  archiveDirectory: string;
+  archiveDate?: string;
+  conflictStrategy?: DestinationConflictStrategy;
 }
 
 export interface CreateReplacementOperationPlanRequest {
@@ -331,6 +335,23 @@ export interface ExecuteMoveOperationPlanRequest {
 }
 
 export interface ExecuteMoveOperationPlanResponse {
+  status: 'complete' | 'partial' | 'failed' | 'not_found' | 'invalid_request' | 'error';
+  result?: FileOperationResult;
+  message?: string;
+}
+
+export interface CreateArchiveOperationPlanResponse {
+  status: 'planned' | 'invalid_request' | 'error';
+  plan?: ArchiveOperationPlan;
+  message?: string;
+}
+
+export interface ExecuteArchiveOperationPlanRequest {
+  planId: string;
+  confirmed: boolean;
+}
+
+export interface ExecuteArchiveOperationPlanResponse {
   status: 'complete' | 'partial' | 'failed' | 'not_found' | 'invalid_request' | 'error';
   result?: FileOperationResult;
   message?: string;

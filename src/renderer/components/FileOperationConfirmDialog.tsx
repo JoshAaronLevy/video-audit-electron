@@ -4,10 +4,14 @@ import { Dialog } from 'primereact/dialog';
 import { InputText } from 'primereact/inputtext';
 import { Message } from 'primereact/message';
 import { Tag } from 'primereact/tag';
-import type { MoveOperationPlan, TrashOperationPlan } from '../../shared/types/fileOperations';
+import type {
+  ArchiveOperationPlan,
+  MoveOperationPlan,
+  TrashOperationPlan
+} from '../../shared/types/fileOperations';
 import { DialogFooter, DialogHeader } from './DialogChrome';
 
-type ConfirmableFileOperationPlan = MoveOperationPlan | TrashOperationPlan;
+type ConfirmableFileOperationPlan = ArchiveOperationPlan | MoveOperationPlan | TrashOperationPlan;
 type ConfirmButtonSeverity = 'secondary' | 'success' | 'info' | 'warning' | 'danger' | 'help' | 'contrast';
 
 interface FileOperationConfirmDialogProps {
@@ -104,6 +108,17 @@ export function FileOperationConfirmDialog({
               </section>
             ) : null}
 
+            {plan.type === 'archive' ? (
+              <section className="file-operation-path-panel" aria-label="Archive destination">
+                <span>Archive date</span>
+                <strong>{plan.archiveDate}</strong>
+                <span>Archive folders</span>
+                <code title={plan.archiveDirectories.join('\n')}>{formatArchiveDirectories(plan)}</code>
+                <span>Conflicts</span>
+                <strong>{getConflictStrategyLabel(plan.conflictStrategy)}</strong>
+              </section>
+            ) : null}
+
             {confirmation?.reasons.length ? (
               <Message
                 severity="warn"
@@ -156,6 +171,18 @@ function Metric({ label, value }: { label: string; value: string }): ReactElemen
 
 function getConflictStrategyLabel(strategy: MoveOperationPlan['conflictStrategy']): string {
   return strategy === 'rename-with-suffix' ? 'Rename with suffix' : 'Block existing files';
+}
+
+function formatArchiveDirectories(plan: ArchiveOperationPlan): string {
+  if (plan.archiveDirectories.length === 0) {
+    return 'No archive folders';
+  }
+
+  if (plan.archiveDirectories.length === 1) {
+    return plan.archiveDirectories[0];
+  }
+
+  return `${plan.archiveDirectories.length.toLocaleString()} source archive folders`;
 }
 
 function formatBytes(bytes: number): string {

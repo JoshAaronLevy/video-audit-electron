@@ -45,6 +45,8 @@ export const IPC_CHANNELS = {
   fileOperationExecuteTrashPlan: 'file-operation:trash:execute-plan',
   fileOperationCreateMovePlan: 'file-operation:move:create-plan',
   fileOperationExecuteMovePlan: 'file-operation:move:execute-plan',
+  fileOperationCreateArchivePlan: 'file-operation:archive:create-plan',
+  fileOperationExecuteArchivePlan: 'file-operation:archive:execute-plan',
   migrationScan: 'migration:scan',
   migrationExecuteStart: 'migration:execute:start',
   migrationExecuteGetResult: 'migration:execute:get-result',

@@ -18,12 +18,15 @@ interface SelectionActionBarProps {
   isTrashExecuting: boolean;
   isMovePlanning: boolean;
   isMoveExecuting: boolean;
+  isArchivePlanning: boolean;
+  isArchiveExecuting: boolean;
   isPremiereImportSubmitting: boolean;
   canAutoFixSelected: boolean;
   canOpenCropOptions: boolean;
   canGenerateThumbnails: boolean;
   canMoveSelectedToTrash: boolean;
   canMoveSelectedToFolder: boolean;
+  canArchiveSelectedOriginals: boolean;
   canStartMigration: boolean;
   canEditSelectedInPremiere: boolean;
   onRemoveSelectedVideos: () => void;
@@ -34,6 +37,7 @@ interface SelectionActionBarProps {
   onOpenMigrationDialog: () => void;
   onOpenTrashDialog: () => void;
   onOpenMoveDialog: (conflictStrategy?: DestinationConflictStrategy) => void;
+  onOpenArchiveDialog: () => void;
   onEditSelectedInPremiere: () => void;
 }
 
@@ -50,12 +54,15 @@ export function SelectionActionBar({
   isTrashExecuting,
   isMovePlanning,
   isMoveExecuting,
+  isArchivePlanning,
+  isArchiveExecuting,
   isPremiereImportSubmitting,
   canAutoFixSelected,
   canOpenCropOptions,
   canGenerateThumbnails,
   canMoveSelectedToTrash,
   canMoveSelectedToFolder,
+  canArchiveSelectedOriginals,
   canStartMigration,
   canEditSelectedInPremiere,
   onRemoveSelectedVideos,
@@ -66,6 +73,7 @@ export function SelectionActionBar({
   onOpenMigrationDialog,
   onOpenTrashDialog,
   onOpenMoveDialog,
+  onOpenArchiveDialog,
   onEditSelectedInPremiere
 }: SelectionActionBarProps): ReactElement | null {
   const menuRef = useRef<Menu>(null);
@@ -122,6 +130,13 @@ export function SelectionActionBar({
         });
 
         items.push({
+          label: `Archive Originals (${selectedCount.toLocaleString()})`,
+          icon: 'pi pi-box',
+          disabled: !canArchiveSelectedOriginals || isArchivePlanning || isArchiveExecuting,
+          command: onOpenArchiveDialog
+        });
+
+        items.push({
           label: `Remove from Table (${selectedCount.toLocaleString()})`,
           icon: 'pi pi-eye-slash',
           disabled: isAuditActive,
@@ -141,12 +156,15 @@ export function SelectionActionBar({
       return items;
     },
     [
+      canArchiveSelectedOriginals,
       canGenerateThumbnails,
       canMoveSelectedToFolder,
       canMoveSelectedToTrash,
       canStartMigration,
       hasSelection,
       isAuditActive,
+      isArchiveExecuting,
+      isArchivePlanning,
       isMediaPreviewActive,
       isMigrationActive,
       isMoveExecuting,
@@ -154,6 +172,7 @@ export function SelectionActionBar({
       isTrashExecuting,
       isTrashPlanning,
       onOpenMigrationDialog,
+      onOpenArchiveDialog,
       onOpenMoveDialog,
       onOpenThumbnailDialog,
       onOpenTrashDialog,

@@ -29,10 +29,14 @@ import type {
 import type { PathSelectionResult, RevealPathResult } from '../shared/types/dialog';
 import type { ToolDiagnosticsResult } from '../shared/types/diagnostics';
 import type {
+  CreateArchiveOperationPlanRequest,
+  CreateArchiveOperationPlanResponse,
   CreateMoveOperationPlanRequest,
   CreateMoveOperationPlanResponse,
   CreateTrashOperationPlanRequest,
   CreateTrashOperationPlanResponse,
+  ExecuteArchiveOperationPlanRequest,
+  ExecuteArchiveOperationPlanResponse,
   ExecuteMoveOperationPlanRequest,
   ExecuteMoveOperationPlanResponse,
   ExecuteTrashOperationPlanRequest,
@@ -99,6 +103,8 @@ export interface VideoAuditApi {
     executeTrashPlan: (request: ExecuteTrashOperationPlanRequest) => Promise<ExecuteTrashOperationPlanResponse>;
     createMovePlan: (request: CreateMoveOperationPlanRequest) => Promise<CreateMoveOperationPlanResponse>;
     executeMovePlan: (request: ExecuteMoveOperationPlanRequest) => Promise<ExecuteMoveOperationPlanResponse>;
+    createArchivePlan: (request: CreateArchiveOperationPlanRequest) => Promise<CreateArchiveOperationPlanResponse>;
+    executeArchivePlan: (request: ExecuteArchiveOperationPlanRequest) => Promise<ExecuteArchiveOperationPlanResponse>;
   };
   settings: {
     get: () => Promise<AppSettings>;
@@ -202,7 +208,11 @@ export const videoAuditApi: VideoAuditApi = {
     createMovePlan: (request: CreateMoveOperationPlanRequest) =>
       ipcRenderer.invoke(IPC_CHANNELS.fileOperationCreateMovePlan, request),
     executeMovePlan: (request: ExecuteMoveOperationPlanRequest) =>
-      ipcRenderer.invoke(IPC_CHANNELS.fileOperationExecuteMovePlan, request)
+      ipcRenderer.invoke(IPC_CHANNELS.fileOperationExecuteMovePlan, request),
+    createArchivePlan: (request: CreateArchiveOperationPlanRequest) =>
+      ipcRenderer.invoke(IPC_CHANNELS.fileOperationCreateArchivePlan, request),
+    executeArchivePlan: (request: ExecuteArchiveOperationPlanRequest) =>
+      ipcRenderer.invoke(IPC_CHANNELS.fileOperationExecuteArchivePlan, request)
   },
   settings: {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.settingsGet),

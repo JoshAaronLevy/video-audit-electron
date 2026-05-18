@@ -1,10 +1,14 @@
 import { ipcMain, shell } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants/ipcChannels';
 import type {
+  CreateArchiveOperationPlanRequest,
+  CreateArchiveOperationPlanResponse,
   CreateMoveOperationPlanRequest,
   CreateMoveOperationPlanResponse,
   CreateTrashOperationPlanRequest,
   CreateTrashOperationPlanResponse,
+  ExecuteArchiveOperationPlanRequest,
+  ExecuteArchiveOperationPlanResponse,
   ExecuteMoveOperationPlanRequest,
   ExecuteMoveOperationPlanResponse,
   ExecuteTrashOperationPlanRequest,
@@ -14,6 +18,10 @@ import type {
   RevealKnownPathRequest,
   RevealKnownPathResponse
 } from '../../shared/types/fileOperations';
+import {
+  createArchivePlan,
+  executeArchivePlan
+} from '../services/archiveService';
 import {
   createMovePlan,
   createTrashPlan,
@@ -99,6 +107,18 @@ export function registerFileOperationIpcHandlers(): void {
     IPC_CHANNELS.fileOperationExecuteMovePlan,
     async (_event, request: ExecuteMoveOperationPlanRequest): Promise<ExecuteMoveOperationPlanResponse> =>
       executeMovePlan(request)
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.fileOperationCreateArchivePlan,
+    async (_event, request: CreateArchiveOperationPlanRequest): Promise<CreateArchiveOperationPlanResponse> =>
+      createArchivePlan(request)
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.fileOperationExecuteArchivePlan,
+    async (_event, request: ExecuteArchiveOperationPlanRequest): Promise<ExecuteArchiveOperationPlanResponse> =>
+      executeArchivePlan(request)
   );
 }
 

@@ -147,12 +147,15 @@ export function App(): ReactElement {
           isTrashExecuting={controller.isTrashExecuting}
           isMovePlanning={controller.isMovePlanning}
           isMoveExecuting={controller.isMoveExecuting}
+          isArchivePlanning={controller.isArchivePlanning}
+          isArchiveExecuting={controller.isArchiveExecuting}
           isPremiereImportSubmitting={controller.isPremiereImportSubmitting}
           canAutoFixSelected={controller.canAutoFixSelected}
           canOpenCropOptions={controller.canOpenCropOptions}
           canGenerateThumbnails={controller.canGenerateThumbnails}
           canMoveSelectedToTrash={controller.canMoveSelectedToTrash}
           canMoveSelectedToFolder={controller.canMoveSelectedToFolder}
+          canArchiveSelectedOriginals={controller.canArchiveSelectedOriginals}
           canStartMigration={controller.canStartMigration}
           canEditSelectedInPremiere={controller.canEditSelectedInPremiere}
           onRemoveSelectedVideos={controller.removeSelectedVideos}
@@ -163,6 +166,7 @@ export function App(): ReactElement {
           onOpenMigrationDialog={controller.openMigrationDialog}
           onOpenTrashDialog={controller.openTrashDialog}
           onOpenMoveDialog={controller.openMoveDialog}
+          onOpenArchiveDialog={controller.openArchiveDialog}
           onEditSelectedInPremiere={controller.editSelectedInPremiere}
         />
       </section>
@@ -378,6 +382,30 @@ export function App(): ReactElement {
         description="Review what was moved and what needs attention."
         error={controller.moveResultError}
         onHide={controller.closeMoveResultDialog}
+      />
+
+      <FileOperationConfirmDialog
+        visible={controller.isArchiveConfirmDialogVisible}
+        plan={controller.archivePlan}
+        title="Archive Originals"
+        description="Review selected source videos before moving eligible originals into local archive folders."
+        confirmLabel="Archive Originals"
+        confirmIcon="pi pi-box"
+        confirmSeverity="warning"
+        error={controller.archivePlanError}
+        isSubmitting={controller.isArchiveExecuting}
+        onConfirm={controller.executeArchivePlan}
+        onHide={controller.closeArchiveDialog}
+      />
+
+      <FileOperationResultDialog
+        visible={controller.isArchiveResultDialogVisible}
+        result={controller.archiveResult}
+        title="Archive Originals Result"
+        description="Review what was archived and what needs attention."
+        error={controller.archiveResultError}
+        onRevealPath={controller.revealPath}
+        onHide={controller.closeArchiveResultDialog}
       />
     </main>
   );

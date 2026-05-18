@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.35.0] - 2026-05-18
+
+### Added
+
+- Added a safe Archive Originals workflow that moves selected source videos into `.video-audit-archive/YYYY-MM-DD` folders beside their source directories.
+- Added main-process archive planning and execution with conflict detection, rename-with-suffix handling, per-file partial-failure reporting, and operation history records.
+- Added typed preload and IPC methods plus renderer confirmation/result dialogs for archive operations, including a Reveal Archive action.
+
 ## [0.34.0] - 2026-05-18
 
 ### Added

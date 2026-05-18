@@ -12,6 +12,7 @@ interface FileOperationResultDialogProps {
   title: string;
   description: string;
   error: string | null;
+  onRevealPath?: (path: string) => void;
   onHide: () => void;
 }
 
@@ -21,10 +22,12 @@ export function FileOperationResultDialog({
   title,
   description,
   error,
+  onRevealPath,
   onHide
 }: FileOperationResultDialogProps): ReactElement {
   const attentionItems =
     result?.items.filter((item) => item.status === 'failed' || item.status === 'skipped') ?? [];
+  const revealArchivePath = getRevealArchivePath(result);
 
   return (
     <Dialog
@@ -37,6 +40,15 @@ export function FileOperationResultDialog({
       }
       footer={
         <DialogFooter>
+          {revealArchivePath && onRevealPath ? (
+            <Button
+              label="Reveal Archive"
+              icon="pi pi-folder-open"
+              severity="secondary"
+              outlined
+              onClick={() => onRevealPath(revealArchivePath)}
+            />
+          ) : null}
           <Button label="Close" icon="pi pi-check" onClick={onHide} />
         </DialogFooter>
       }
@@ -102,6 +114,10 @@ function getStatusLabel(status: FileOperationResult['status']): string {
 }
 
 function getSuccessMetricLabel(type: FileOperationResult['type']): string {
+  if (type === 'archive') {
+    return 'Archived';
+  }
+
   return type === 'trash' ? 'Trashed' : 'Moved';
 }
 
@@ -110,11 +126,27 @@ function getSuccessMessage(result: FileOperationResult): string {
     return `${result.summary.succeeded.toLocaleString()} file(s) moved to Trash.`;
   }
 
+  if (result.type === 'archive') {
+    return `${result.summary.succeeded.toLocaleString()} file(s) archived.`;
+  }
+
   return `${result.summary.succeeded.toLocaleString()} file(s) moved.`;
 }
 
 function getAttentionFallback(type: FileOperationResult['type']): string {
+  if (type === 'archive') {
+    return 'Item was not archived.';
+  }
+
   return type === 'trash' ? 'Item was not moved to Trash.' : 'Item was not moved.';
+}
+
+function getRevealArchivePath(result: FileOperationResult | null): string | null {
+  if (!result || result.type !== 'archive') {
+    return null;
+  }
+
+  return result.items.find((item) => item.status === 'success')?.archivePath ?? null;
 }
 
 function formatBytes(bytes: number): string {

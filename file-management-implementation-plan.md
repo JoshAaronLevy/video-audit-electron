@@ -2,8 +2,6 @@
 
 ## Project Context
 
-We just finished implementing the initial Electron conversion plan, which focused on auditing local videos, generating thumbnails/previews, running ffprobe/ffmpeg workflows, persisting local app state, etc. (from `electron-conversion-plan.md`).
-
 At this point, the app is a standalone private macOS Electron app. It can audit local videos, generate thumbnails/preview clips, run ffprobe/ffmpeg workflows, auto-fix/auto-crop selected videos, and persist local app state.
 
 This plan adds safe file-management workflows focused on post-conversion cleanup.

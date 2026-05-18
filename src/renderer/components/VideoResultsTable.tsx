@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
+import { FilterMatchMode } from 'primereact/api';
 import { Button } from 'primereact/button';
 import { Column } from 'primereact/column';
 import { DataTable } from 'primereact/datatable';
+import { Dropdown } from 'primereact/dropdown';
+import { InputText } from 'primereact/inputtext';
 import { Message } from 'primereact/message';
+import { MultiSelect } from 'primereact/multiselect';
 import { Tag } from 'primereact/tag';
 import type { AuditError, AuditOptions, AuditSummary } from '../../shared/types/audit';
 import type { KnownPathValidationItem } from '../../shared/types/fileOperations';
@@ -67,8 +71,75 @@ const globalFilterFields = [
 ];
 
 type TagSeverity = 'success' | 'info' | 'warning' | 'danger' | 'secondary';
+type DurationFilterValue =
+  | 'under-5'
+  | '5-10'
+  | '10-20'
+  | '20-30'
+  | '30-45'
+  | '45-60'
+  | 'over-60';
+type FileSizeFilterValue = 'very-small' | 'small' | 'medium' | 'large' | 'very-large';
+type ModifiedFilterValue =
+  | 'last-7'
+  | 'last-30'
+  | 'last-90'
+  | 'last-180'
+  | 'last-365'
+  | 'more-than-365';
+type CropFilterValue = 'Auto' | 'Review' | 'No' | 'Uncertain' | 'Error' | 'Not scanned';
+
+interface SelectOption<TValue> {
+  label: string;
+  value: TValue;
+}
+
+interface FilterTemplateOptions<TValue> {
+  value: TValue;
+  filterApplyCallback: (value?: TValue, index?: number) => void;
+}
 
 const ROW_ACTION_TOOLTIP_OPTIONS = { position: 'top' } as const;
+const durationFilterOptions: SelectOption<DurationFilterValue>[] = [
+  { label: 'Under 5 minutes', value: 'under-5' },
+  { label: '5-10 minutes', value: '5-10' },
+  { label: '10-20 minutes', value: '10-20' },
+  { label: '20-30 minutes', value: '20-30' },
+  { label: '30-45 minutes', value: '30-45' },
+  { label: '45-60 minutes', value: '45-60' },
+  { label: 'Over 60 minutes', value: 'over-60' }
+];
+const fileSizeFilterOptions: SelectOption<FileSizeFilterValue>[] = [
+  { label: '0-99 MB', value: 'very-small' },
+  { label: '100-249 MB', value: 'small' },
+  { label: '250-499 MB', value: 'medium' },
+  { label: '500-749 MB', value: 'large' },
+  { label: '750+ MB', value: 'very-large' }
+];
+const modifiedFilterOptions: SelectOption<ModifiedFilterValue>[] = [
+  { label: 'Last 7 days', value: 'last-7' },
+  { label: 'Last 30 days', value: 'last-30' },
+  { label: 'Last 90 days', value: 'last-90' },
+  { label: 'Last 180 days', value: 'last-180' },
+  { label: 'Last 365 days', value: 'last-365' },
+  { label: 'More than 365 days ago', value: 'more-than-365' }
+];
+const resolutionFilterOptions: SelectOption<boolean>[] = [
+  { label: 'Low Res', value: true },
+  { label: 'High Res', value: false }
+];
+const aspectFilterOptions: SelectOption<boolean>[] = [
+  { label: 'Correct', value: false },
+  { label: 'Incorrect', value: true }
+];
+const cropFilterOptions: SelectOption<CropFilterValue>[] = [
+  { label: 'Auto', value: 'Auto' },
+  { label: 'Review', value: 'Review' },
+  { label: 'No', value: 'No' },
+  { label: 'Uncertain', value: 'Uncertain' },
+  { label: 'Error', value: 'Error' },
+  { label: 'Not scanned', value: 'Not scanned' }
+];
 
 export function VideoResultsTable({
   rows,
@@ -122,6 +193,7 @@ export function VideoResultsTable({
       onClearPreviewFrameError();
     }
   }, [detailPath, onClearPreviewFrameError]);
+  const fileTypeFilterOptions = useMemo(() => buildFileTypeFilterOptions(rows), [rows]);
   const emptyState = getEmptyState({
     allRows,
     auditSummary,
@@ -189,6 +261,7 @@ export function VideoResultsTable({
         rowsPerPageOptions={[25, 50, 100, 250, 500, 1000]}
         sortMode="multiple"
         removableSort
+        filterDisplay="row"
         globalFilter={globalFilter}
         globalFilterFields={globalFilterFields}
         stripedRows
@@ -210,25 +283,144 @@ export function VideoResultsTable({
         <Column header="Preview" body={thumbnailTemplate} style={{ width: '6.5rem' }} />
         <Column
           field="displayFile"
+          filterField="path"
           header="File Name"
           sortable
+          filter
+          filterMatchMode={FilterMatchMode.CUSTOM}
+          filterFunction={fileNameFilterFunction}
+          filterElement={(options) =>
+            fileNameFilterTemplate(options as FilterTemplateOptions<string | null>)
+          }
+          showFilterMenu={false}
           body={(row: VideoRow) => fileTemplate(row, displayRootPath)}
           style={{ width: '27rem' }}
         />
-        <Column field="fileType" header="Type" sortable body={typeTemplate} style={{ width: '6.5rem' }} />
-        <Column field="sizeMB" header="Size" sortable body={sizeTemplate} style={{ width: '7rem' }} />
-        <Column field="durationSeconds" header="Duration" sortable body={durationTemplate} style={{ width: '7.5rem' }} />
-        <Column field="modifiedAt" header="Modified" sortable body={modifiedTemplate} style={{ width: '8.5rem' }} />
-        <Column field="width" header="Resolution" sortable body={resolutionTemplate} style={{ width: '8rem' }} />
+        <Column
+          field="fileType"
+          header="Type"
+          sortable
+          filter
+          filterMatchMode={FilterMatchMode.CUSTOM}
+          filterFunction={fileTypeFilterFunction}
+          filterElement={(options) =>
+            multiSelectFilterTemplate(
+              options as FilterTemplateOptions<string[] | null>,
+              fileTypeFilterOptions,
+              'Type'
+            )
+          }
+          showFilterMenu={false}
+          body={typeTemplate}
+          style={{ width: '6.5rem' }}
+        />
+        <Column
+          field="sizeMB"
+          header="Size"
+          sortable
+          filter
+          filterMatchMode={FilterMatchMode.CUSTOM}
+          filterFunction={fileSizeFilterFunction}
+          filterElement={(options) =>
+            multiSelectFilterTemplate(
+              options as FilterTemplateOptions<FileSizeFilterValue[] | null>,
+              fileSizeFilterOptions,
+              'Size'
+            )
+          }
+          showFilterMenu={false}
+          body={sizeTemplate}
+          style={{ width: '7rem' }}
+        />
+        <Column
+          field="durationSeconds"
+          header="Duration"
+          sortable
+          filter
+          filterMatchMode={FilterMatchMode.CUSTOM}
+          filterFunction={durationFilterFunction}
+          filterElement={(options) =>
+            multiSelectFilterTemplate(
+              options as FilterTemplateOptions<DurationFilterValue[] | null>,
+              durationFilterOptions,
+              'Duration'
+            )
+          }
+          showFilterMenu={false}
+          body={durationTemplate}
+          style={{ width: '7.5rem' }}
+        />
+        <Column
+          field="modifiedAt"
+          header="Modified"
+          sortable
+          filter
+          filterMatchMode={FilterMatchMode.CUSTOM}
+          filterFunction={modifiedFilterFunction}
+          filterElement={(options) =>
+            multiSelectFilterTemplate(
+              options as FilterTemplateOptions<ModifiedFilterValue[] | null>,
+              modifiedFilterOptions,
+              'Modified'
+            )
+          }
+          showFilterMenu={false}
+          body={modifiedTemplate}
+          style={{ width: '8.5rem' }}
+        />
+        <Column
+          field="width"
+          filterField="isLowResolution"
+          header="Resolution"
+          sortable
+          filter
+          filterMatchMode={FilterMatchMode.EQUALS}
+          filterElement={(options) =>
+            dropdownFilterTemplate(
+              options as FilterTemplateOptions<boolean | null>,
+              resolutionFilterOptions,
+              'Resolution'
+            )
+          }
+          showFilterMenu={false}
+          body={resolutionTemplate}
+          style={{ width: '8rem' }}
+        />
         <Column
           field="displayAspectRatio"
+          filterField="isWrongAspectRatio"
           header="Aspect"
           sortable
+          filter
+          filterMatchMode={FilterMatchMode.EQUALS}
+          filterElement={(options) =>
+            dropdownFilterTemplate(
+              options as FilterTemplateOptions<boolean | null>,
+              aspectFilterOptions,
+              'Aspect'
+            )
+          }
+          showFilterMenu={false}
           body={aspectTemplate}
           style={{ width: '7rem' }}
         />
-        <Column field="adjustments" header="Crop" body={cropTemplate} style={{ width: '7.5rem' }} />
-        <Column field="reasons" header="Issues" body={issuesTemplate} style={{ width: '16rem' }} />
+        <Column
+          field="adjustments"
+          header="Crop"
+          filter
+          filterMatchMode={FilterMatchMode.CUSTOM}
+          filterFunction={cropFilterFunction}
+          filterElement={(options) =>
+            multiSelectFilterTemplate(
+              options as FilterTemplateOptions<CropFilterValue[] | null>,
+              cropFilterOptions,
+              'Crop'
+            )
+          }
+          showFilterMenu={false}
+          body={cropTemplate}
+          style={{ width: '7.5rem' }}
+        />
         <Column
           header="Actions"
           body={(row: VideoRow) => actionsTemplate(row, setDetailPath, onRevealKnownFile)}
@@ -271,6 +463,200 @@ function thumbnailTemplate(row: VideoRow): ReactElement {
       </span>
     </div>
   );
+}
+
+function fileNameFilterTemplate(options: FilterTemplateOptions<string | null>): ReactElement {
+  return (
+    <InputText
+      value={options.value ?? ''}
+      placeholder="File Name"
+      className="table-column-filter"
+      onChange={(event) => {
+        const nextValue = event.target.value;
+        options.filterApplyCallback(nextValue.trim() ? nextValue : null);
+      }}
+    />
+  );
+}
+
+function multiSelectFilterTemplate<TValue extends string>(
+  options: FilterTemplateOptions<TValue[] | null>,
+  filterOptions: SelectOption<TValue>[],
+  placeholder: string
+): ReactElement {
+  return (
+    <MultiSelect
+      value={options.value ?? []}
+      options={filterOptions}
+      placeholder={placeholder}
+      className="table-column-filter"
+      display="chip"
+      maxSelectedLabels={1}
+      onChange={(event) => {
+        const nextValue = (event.value ?? []) as TValue[];
+        options.filterApplyCallback(nextValue);
+      }}
+    />
+  );
+}
+
+function dropdownFilterTemplate<TValue>(
+  options: FilterTemplateOptions<TValue | null>,
+  filterOptions: SelectOption<TValue>[],
+  placeholder: string
+): ReactElement {
+  return (
+    <Dropdown
+      value={options.value ?? null}
+      options={filterOptions}
+      placeholder={placeholder}
+      className="table-column-filter"
+      showClear
+      onChange={(event) => {
+        options.filterApplyCallback((event.value ?? null) as TValue | null);
+      }}
+    />
+  );
+}
+
+function fileNameFilterFunction(value: string | null, filter: string | null): boolean {
+  const normalizedFilter = filter?.trim().toLowerCase() ?? '';
+
+  if (!normalizedFilter) {
+    return true;
+  }
+
+  return String(value ?? '').toLowerCase().includes(normalizedFilter);
+}
+
+function fileTypeFilterFunction(value: string | null, filter: string[] | null): boolean {
+  if (!filter || filter.length === 0) {
+    return true;
+  }
+
+  return filter.includes(getFileTypeLabelFromValue(value));
+}
+
+function fileSizeFilterFunction(
+  value: number | null | undefined,
+  filter: FileSizeFilterValue[] | null
+): boolean {
+  if (!filter || filter.length === 0) {
+    return true;
+  }
+
+  return filter.some((range) => isFileSizeInRange(value, range));
+}
+
+function isFileSizeInRange(
+  sizeMB: number | null | undefined,
+  range: FileSizeFilterValue
+): boolean {
+  if (sizeMB === null || sizeMB === undefined) {
+    return false;
+  }
+
+  const roundedSizeMB = Math.round(sizeMB);
+
+  switch (range) {
+    case 'very-small':
+      return roundedSizeMB < 100;
+    case 'small':
+      return roundedSizeMB >= 100 && roundedSizeMB < 250;
+    case 'medium':
+      return roundedSizeMB >= 250 && roundedSizeMB < 500;
+    case 'large':
+      return roundedSizeMB >= 500 && roundedSizeMB < 750;
+    case 'very-large':
+      return roundedSizeMB >= 750;
+  }
+}
+
+function durationFilterFunction(
+  value: number | null | undefined,
+  filter: DurationFilterValue[] | null
+): boolean {
+  if (!filter || filter.length === 0) {
+    return true;
+  }
+
+  return filter.some((range) => isDurationInRange(value, range));
+}
+
+function isDurationInRange(
+  durationSeconds: number | null | undefined,
+  range: DurationFilterValue
+): boolean {
+  if (durationSeconds === null || durationSeconds === undefined) {
+    return false;
+  }
+
+  const durationMinutes = durationSeconds / 60;
+
+  switch (range) {
+    case 'under-5':
+      return durationMinutes < 5;
+    case '5-10':
+      return durationMinutes >= 5 && durationMinutes < 10;
+    case '10-20':
+      return durationMinutes >= 10 && durationMinutes < 20;
+    case '20-30':
+      return durationMinutes >= 20 && durationMinutes < 30;
+    case '30-45':
+      return durationMinutes >= 30 && durationMinutes < 45;
+    case '45-60':
+      return durationMinutes >= 45 && durationMinutes < 60;
+    case 'over-60':
+      return durationMinutes >= 60;
+  }
+}
+
+function modifiedFilterFunction(value: string | null, filter: ModifiedFilterValue[] | null): boolean {
+  if (!filter || filter.length === 0) {
+    return true;
+  }
+
+  return filter.some((range) => isModifiedDateInRange(value, range));
+}
+
+function isModifiedDateInRange(value: string | null, range: ModifiedFilterValue): boolean {
+  if (!value) {
+    return false;
+  }
+
+  const timestamp = new Date(value).getTime();
+
+  if (!Number.isFinite(timestamp)) {
+    return false;
+  }
+
+  const ageDays = (Date.now() - timestamp) / (24 * 60 * 60 * 1000);
+
+  switch (range) {
+    case 'last-7':
+      return ageDays >= 0 && ageDays <= 7;
+    case 'last-30':
+      return ageDays >= 0 && ageDays <= 30;
+    case 'last-90':
+      return ageDays >= 0 && ageDays <= 90;
+    case 'last-180':
+      return ageDays >= 0 && ageDays <= 180;
+    case 'last-365':
+      return ageDays >= 0 && ageDays <= 365;
+    case 'more-than-365':
+      return ageDays > 365;
+  }
+}
+
+function cropFilterFunction(
+  value: VideoAdjustments | null | undefined,
+  filter: CropFilterValue[] | null
+): boolean {
+  if (!filter || filter.length === 0) {
+    return true;
+  }
+
+  return filter.includes(getBlackBorderCropStatus(value ?? undefined) as CropFilterValue);
 }
 
 function fileTemplate(row: VideoRow, displayRootPath: string | null): ReactElement {
@@ -348,8 +734,25 @@ function removeFinalExtension(fileName: string): string {
   return fileName.slice(0, extensionIndex);
 }
 
+function buildFileTypeFilterOptions(rows: VideoRow[]): SelectOption<string>[] {
+  return Array.from(new Set(rows.map(getFileTypeLabel).filter(Boolean)))
+    .sort((first, second) => first.localeCompare(second))
+    .map((fileType) => ({
+      label: fileType,
+      value: fileType
+    }));
+}
+
+function getFileTypeLabel(row: VideoRow): string {
+  return getFileTypeLabelFromValue(row.fileType || row.fileExtension);
+}
+
+function getFileTypeLabelFromValue(value: string | null | undefined): string {
+  return (value ?? '').replace(/^\./, '').toUpperCase();
+}
+
 function typeTemplate(row: VideoRow): ReactElement {
-  return <span className="metadata-pill">{row.fileType || row.fileExtension || 'Video'}</span>;
+  return <span className="metadata-pill">{getFileTypeLabel(row) || 'Video'}</span>;
 }
 
 function sizeTemplate(row: VideoRow): string {
@@ -506,24 +909,6 @@ function formatVisibleAreaDetail(row: VideoRow): string | null {
   }
 
   return `Visible area: ${visibleArea.width}x${visibleArea.height} at ${visibleArea.x},${visibleArea.y}.`;
-}
-
-function issuesTemplate(row: VideoRow): ReactElement {
-  const issues = getIssueBadges(row);
-
-  return (
-    <div className="issue-badges" title={row.reasons || undefined}>
-      {issues.map((issue) => (
-        <Tag
-          key={issue.label}
-          value={issue.label}
-          severity={issue.severity}
-          className="issue-badge"
-          title={issue.detail}
-        />
-      ))}
-    </div>
-  );
 }
 
 function actionsTemplate(
@@ -758,8 +1143,8 @@ function getEmptyState({
   }
 
   return {
-    title: 'No videos found.',
-    body: 'Run or refresh an audit to reload results.',
+    title: 'No videos match the current table filters.',
+    body: 'Clear one or more column filters to broaden the table.',
     icon: 'pi pi-search'
   };
 }
@@ -823,92 +1208,6 @@ function getFilteredEmptyStateBody(filter: ResultsViewFilter, globalFilter: stri
   }
 
   return 'Run or refresh an audit to reload results.';
-}
-
-function getIssueBadges(row: VideoRow): { label: string; severity: TagSeverity; detail: string }[] {
-  const issues: { label: string; severity: TagSeverity; detail: string }[] = [];
-  const blackBorder = row.adjustments?.blackBorder;
-
-  if (row.isLowResolution) {
-    issues.push({
-      label: 'Low-res',
-      severity: 'danger',
-      detail: 'Video resolution is below the configured minimum.'
-    });
-  }
-
-  if (row.isWrongAspectRatio) {
-    issues.push({
-      label: 'Not 16:9',
-      severity: 'warning',
-      detail: 'Video aspect ratio is outside the configured tolerance.'
-    });
-  }
-
-  if (hasBlackBorderIssue(row)) {
-    issues.push({
-      label: 'Black borders',
-      severity: blackBorder?.classification === 'analysis_error' ? 'danger' : 'warning',
-      detail: blackBorder?.recommendedFix?.reason ?? getBlackBorderCropDisplay(row).detail
-    });
-  }
-
-  if (hasRowError(row)) {
-    issues.push({
-      label: 'Error',
-      severity: 'danger',
-      detail: blackBorder?.error ?? row.reasons
-    });
-  }
-
-  if (issues.length === 0 && row.reasons) {
-    issues.push({
-      label: 'Review',
-      severity: 'info',
-      detail: row.reasons
-    });
-  }
-
-  if (issues.length === 0) {
-    issues.push({
-      label: 'OK',
-      severity: 'success',
-      detail: 'No issues detected for this row.'
-    });
-  }
-
-  return issues;
-}
-
-function hasBlackBorderIssue(row: VideoRow): boolean {
-  const blackBorder = row.adjustments?.blackBorder;
-
-  if (!blackBorder?.analyzed) {
-    return false;
-  }
-
-  return (
-    blackBorder.detected ||
-    blackBorder.classification === 'nested_borders' ||
-    blackBorder.classification === 'asymmetric_border' ||
-    blackBorder.classification === 'pillarboxed' ||
-    blackBorder.classification === 'letterboxed' ||
-    blackBorder.classification === 'uncertain' ||
-    blackBorder.classification === 'analysis_error' ||
-    blackBorder.recommendedFix?.eligible === true ||
-    blackBorder.recommendedFix?.type === 'crop-scale' ||
-    blackBorder.recommendedFix?.type === 'manual-review'
-  );
-}
-
-function hasRowError(row: VideoRow): boolean {
-  const blackBorder = row.adjustments?.blackBorder;
-
-  return (
-    Boolean(blackBorder?.error) ||
-    blackBorder?.classification === 'analysis_error' ||
-    row.reasons.toLowerCase().includes('error')
-  );
 }
 
 function AuditErrorList({ errors }: { errors: AuditError[] }): ReactElement {

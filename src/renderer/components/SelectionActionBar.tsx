@@ -112,7 +112,7 @@ export function SelectionActionBar({
           label: `Move to Folder (${selectedCount.toLocaleString()})`,
           icon: 'pi pi-folder-open',
           disabled: !canMoveSelectedToFolder || isMovePlanning || isMoveExecuting,
-          command: () => onOpenMoveDialog('skip')
+          command: () => onOpenMoveDialog()
         });
 
         items.push({

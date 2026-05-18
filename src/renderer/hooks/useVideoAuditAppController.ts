@@ -1251,6 +1251,76 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     [auditResult, persistCurrentResult]
   );
 
+  const loadOperationHistory = useCallback(async (): Promise<void> => {
+    setOperationHistoryError(null);
+    setActiveAction('operationHistory');
+
+    try {
+      const response = await window.videoAudit.operationHistory.listRecent({
+        limit: 50
+      });
+
+      if (response.status !== 'success') {
+        setOperationHistoryError(response.message ?? 'Could not load operation history.');
+        return;
+      }
+
+      setOperationHistoryRecords(response.records);
+      setSelectedOperationHistoryRecord((current) => {
+        if (current && response.records.some((record) => record.id === current.id)) {
+          return current;
+        }
+
+        return response.records[0] ?? null;
+      });
+    } catch (error: unknown) {
+      setOperationHistoryError(getErrorMessage(error, 'Could not load operation history.'));
+    } finally {
+      setActiveAction(null);
+    }
+  }, []);
+
+  const openOperationHistory = useCallback(async (): Promise<void> => {
+    setIsOperationHistoryVisible(true);
+    await loadOperationHistory();
+  }, [loadOperationHistory]);
+
+  const closeOperationHistory = useCallback((): void => {
+    if (isOperationHistoryLoading) {
+      return;
+    }
+
+    setIsOperationHistoryVisible(false);
+    setOperationHistoryError(null);
+  }, [isOperationHistoryLoading]);
+
+  const refreshOperationHistory = useCallback(async (): Promise<void> => {
+    await loadOperationHistory();
+  }, [loadOperationHistory]);
+
+  const selectOperationHistoryRecord = useCallback(async (operationId: string): Promise<void> => {
+    setOperationHistoryError(null);
+    setActiveAction('operationHistory');
+
+    try {
+      const response = await window.videoAudit.operationHistory.getDetails(operationId);
+
+      if (response.status !== 'success' || !response.record) {
+        setOperationHistoryError(response.message ?? 'Could not load operation details.');
+        return;
+      }
+
+      setSelectedOperationHistoryRecord(response.record);
+      setOperationHistoryRecords((records) =>
+        records.map((record) => (record.id === response.record?.id ? response.record : record))
+      );
+    } catch (error: unknown) {
+      setOperationHistoryError(getErrorMessage(error, 'Could not load operation details.'));
+    } finally {
+      setActiveAction(null);
+    }
+  }, []);
+
   const openTrashDialog = useCallback(async (): Promise<void> => {
     if (selectedVideos.length === 0) {
       setWorkflowMessage('Select at least one video before moving files to Trash.');
@@ -1353,14 +1423,19 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const closeTrashResultDialog = useCallback((): void => {
     setIsTrashResultDialogVisible(false);
     setTrashResultError(null);
-  }, []);
+    if (settings?.previewOperationHistoryAfterExecution) {
+      void openOperationHistory();
+    }
+  }, [openOperationHistory, settings?.previewOperationHistoryAfterExecution]);
 
   const openMoveDialog = useCallback(
-    async (conflictStrategy: DestinationConflictStrategy = 'skip'): Promise<void> => {
+    async (conflictStrategy?: DestinationConflictStrategy): Promise<void> => {
       if (selectedVideos.length === 0) {
         setWorkflowMessage('Select at least one video before moving files.');
         return;
       }
+
+      const effectiveConflictStrategy = conflictStrategy ?? settings?.fileManagementConflictStrategy ?? 'skip';
 
       setMovePlan(null);
       setMovePlanError(null);
@@ -1388,7 +1463,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
           operationType: 'move',
           items: selectedVideos.map(toKnownFileOperationItem),
           destinationDirectory,
-          conflictStrategy
+          conflictStrategy: effectiveConflictStrategy
         });
 
         if (response.status !== 'planned' || !response.plan) {
@@ -1408,7 +1483,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
         setActiveAction(null);
       }
     },
-    [selectedVideos]
+    [selectedVideos, settings?.fileManagementConflictStrategy]
   );
 
   const closeMoveDialog = useCallback((): void => {
@@ -1467,7 +1542,10 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const closeMoveResultDialog = useCallback((): void => {
     setIsMoveResultDialogVisible(false);
     setMoveResultError(null);
-  }, []);
+    if (settings?.previewOperationHistoryAfterExecution) {
+      void openOperationHistory();
+    }
+  }, [openOperationHistory, settings?.previewOperationHistoryAfterExecution]);
 
   const openArchiveDialog = useCallback(async (): Promise<void> => {
     if (selectedVideos.length === 0) {
@@ -1484,7 +1562,8 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     try {
       const response = await window.videoAudit.fileOperations.createArchivePlan({
         operationType: 'archive',
-        items: selectedVideos.map(toKnownFileOperationItem)
+        items: selectedVideos.map(toKnownFileOperationItem),
+        conflictStrategy: settings?.fileManagementConflictStrategy ?? 'rename-with-suffix'
       });
 
       if (response.status !== 'planned' || !response.plan) {
@@ -1503,7 +1582,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     } finally {
       setActiveAction(null);
     }
-  }, [selectedVideos]);
+  }, [selectedVideos, settings?.fileManagementConflictStrategy]);
 
   const closeArchiveDialog = useCallback((): void => {
     if (isArchiveExecuting) {
@@ -1561,7 +1640,10 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const closeArchiveResultDialog = useCallback((): void => {
     setIsArchiveResultDialogVisible(false);
     setArchiveResultError(null);
-  }, []);
+    if (settings?.previewOperationHistoryAfterExecution) {
+      void openOperationHistory();
+    }
+  }, [openOperationHistory, settings?.previewOperationHistoryAfterExecution]);
 
   const createPostConversionPlan = useCallback(
     async ({
@@ -1579,9 +1661,23 @@ export function useVideoAuditAppController(): VideoAuditAppController {
         return false;
       }
 
+      const postConversionAction = settings?.defaultPostConversionAction ?? 'ask-every-time';
+      const shouldShowPostConversionDialog = settings?.showPostConversionDialogAutomatically ?? true;
+
+      if (!shouldShowPostConversionDialog || postConversionAction === 'leave-outputs') {
+        setPostConversionPlan(null);
+        setPostConversionSourceLabel(null);
+        setPostConversionMode('choices');
+        setPostConversionError(null);
+        setPostConversionMessage(null);
+        setIsPostConversionDialogVisible(false);
+        setWorkflowMessage(`${sourceLabel} complete. Converted files were left in the output folder.`);
+        return true;
+      }
+
       setPostConversionPlan(null);
       setPostConversionSourceLabel(sourceLabel);
-      setPostConversionMode('choices');
+      setPostConversionMode(postConversionAction === 'review-manually' ? 'manual-review' : 'choices');
       setPostConversionError(null);
       setPostConversionMessage(null);
       setIsPostConversionDialogVisible(true);
@@ -1609,7 +1705,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
         setActiveAction(null);
       }
     },
-    []
+    [settings?.defaultPostConversionAction, settings?.showPostConversionDialogAutomatically]
   );
 
   const updatePostConversionPlanActions = useCallback(
@@ -1694,7 +1790,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       }
 
       if (
-        requiresReplacementConfirmation(postConversionPlan) &&
+        requiresReplacementConfirmation(postConversionPlan, settings) &&
         typedConfirmation !== REPLACE_CONFIRMATION_PHRASE
       ) {
         setPostConversionError('Type REPLACE before replacing originals.');
@@ -1750,7 +1846,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
         setWorkflowMessage(message);
       }
     },
-    [postConversionPlan]
+    [postConversionPlan, settings]
   );
 
   const reviewPostConversionPlan = useCallback((): void => {
@@ -1802,77 +1898,10 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const closeReplacementResultDialog = useCallback((): void => {
     setIsReplacementResultDialogVisible(false);
     setReplacementResultError(null);
-  }, []);
-
-  const loadOperationHistory = useCallback(async (): Promise<void> => {
-    setOperationHistoryError(null);
-    setActiveAction('operationHistory');
-
-    try {
-      const response = await window.videoAudit.operationHistory.listRecent({
-        limit: 50
-      });
-
-      if (response.status !== 'success') {
-        setOperationHistoryError(response.message ?? 'Could not load operation history.');
-        return;
-      }
-
-      setOperationHistoryRecords(response.records);
-      setSelectedOperationHistoryRecord((current) => {
-        if (current && response.records.some((record) => record.id === current.id)) {
-          return current;
-        }
-
-        return response.records[0] ?? null;
-      });
-    } catch (error: unknown) {
-      setOperationHistoryError(getErrorMessage(error, 'Could not load operation history.'));
-    } finally {
-      setActiveAction(null);
+    if (settings?.previewOperationHistoryAfterExecution) {
+      void openOperationHistory();
     }
-  }, []);
-
-  const openOperationHistory = useCallback(async (): Promise<void> => {
-    setIsOperationHistoryVisible(true);
-    await loadOperationHistory();
-  }, [loadOperationHistory]);
-
-  const closeOperationHistory = useCallback((): void => {
-    if (isOperationHistoryLoading) {
-      return;
-    }
-
-    setIsOperationHistoryVisible(false);
-    setOperationHistoryError(null);
-  }, [isOperationHistoryLoading]);
-
-  const refreshOperationHistory = useCallback(async (): Promise<void> => {
-    await loadOperationHistory();
-  }, [loadOperationHistory]);
-
-  const selectOperationHistoryRecord = useCallback(async (operationId: string): Promise<void> => {
-    setOperationHistoryError(null);
-    setActiveAction('operationHistory');
-
-    try {
-      const response = await window.videoAudit.operationHistory.getDetails(operationId);
-
-      if (response.status !== 'success' || !response.record) {
-        setOperationHistoryError(response.message ?? 'Could not load operation details.');
-        return;
-      }
-
-      setSelectedOperationHistoryRecord(response.record);
-      setOperationHistoryRecords((records) =>
-        records.map((record) => (record.id === response.record?.id ? response.record : record))
-      );
-    } catch (error: unknown) {
-      setOperationHistoryError(getErrorMessage(error, 'Could not load operation details.'));
-    } finally {
-      setActiveAction(null);
-    }
-  }, []);
+  }, [openOperationHistory, settings?.previewOperationHistoryAfterExecution]);
 
   useEffect(() => {
     return window.videoAudit.autoFix.onProgress((progress) => {
@@ -3359,17 +3388,32 @@ function getExecutableReplacementItemCount(plan: ReplacementPlan): number {
   return getExecutableReplacementItems(plan).length;
 }
 
-function requiresReplacementConfirmation(plan: ReplacementPlan): boolean {
+function requiresReplacementConfirmation(plan: ReplacementPlan, settings: AppSettings | null): boolean {
   const executableItems = getExecutableReplacementItems(plan);
+  const thresholds = getReplacementConfirmationThresholds(settings);
 
   return (
-    executableItems.length > 10 ||
-    executableItems.reduce((total, item) => total + (item.originalSizeBytes ?? 0), 0) > TEN_GB_BYTES ||
+    executableItems.length > thresholds.fileCount ||
+    executableItems.reduce((total, item) => total + (item.originalSizeBytes ?? 0), 0) > thresholds.sizeBytes ||
     executableItems.some((item) => item.warnings.length > 0) ||
     plan.summary.destinationConflicts > 0 ||
     executableItems.some((item) => isExternalVolumePath(item.originalPath) || isExternalVolumePath(item.outputPath)) ||
     executableItems.some((item) => item.warningCodes.includes('extension-changed'))
   );
+}
+
+function getReplacementConfirmationThresholds(settings: AppSettings | null): { fileCount: number; sizeBytes: number } {
+  if (!settings?.requireTypedConfirmationForLargeOperations) {
+    return {
+      fileCount: 10,
+      sizeBytes: TEN_GB_BYTES
+    };
+  }
+
+  return {
+    fileCount: Math.min(10, Math.max(1, settings.typedConfirmationFileCountThreshold)),
+    sizeBytes: Math.min(TEN_GB_BYTES, Math.max(1024 * 1024, settings.typedConfirmationSizeThresholdBytes))
+  };
 }
 
 function getExecutableReplacementItems(plan: ReplacementPlan): ReplacementPlan['items'] {

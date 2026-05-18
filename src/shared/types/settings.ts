@@ -1,4 +1,8 @@
 import type { AuditOptions } from './audit';
+import type { DestinationConflictStrategy } from './fileOperations';
+
+export type DefaultOriginalDisposition = 'trash' | 'archive';
+export type PostConversionDefaultAction = 'ask-every-time' | 'leave-outputs' | 'review-manually';
 
 export interface AppWindowState {
   width: number;
@@ -20,6 +24,15 @@ export interface AppSettings {
   ffprobePathOverride: string | null;
   previewClipDurationSecondsDefault: 5 | 10;
   previewClipWidthDefault: 480 | 640;
+  defaultOriginalDisposition: DefaultOriginalDisposition;
+  requireTypedConfirmationForLargeOperations: boolean;
+  typedConfirmationFileCountThreshold: number;
+  typedConfirmationSizeThresholdBytes: number;
+  defaultArchiveFolderPattern: string;
+  fileManagementConflictStrategy: DestinationConflictStrategy;
+  showPostConversionDialogAutomatically: boolean;
+  defaultPostConversionAction: PostConversionDefaultAction;
+  previewOperationHistoryAfterExecution: boolean;
   latestSelectedFolder: string | null;
   windowState: AppWindowState | null;
   lastAuditResultSummary: {

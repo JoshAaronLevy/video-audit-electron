@@ -12,6 +12,7 @@ import type {
   ReplacementPlanBulkAction,
   ReplacementPlanItem
 } from '../../shared/types/replacementWorkflow';
+import type { AppSettings } from '../../shared/types/settings';
 import { DialogFooter, DialogHeader } from './DialogChrome';
 import { ReplacementPlanSummary } from './ReplacementPlanSummary';
 import { ReplacementReviewTable } from './ReplacementReviewTable';
@@ -25,6 +26,7 @@ interface PostConversionDialogProps {
   visible: boolean;
   sourceLabel: string | null;
   plan: ReplacementPlan | null;
+  settings: AppSettings | null;
   mode: PostConversionDialogMode;
   error: string | null;
   message: string | null;
@@ -47,6 +49,7 @@ export function PostConversionDialog({
   visible,
   sourceLabel,
   plan,
+  settings,
   mode,
   error,
   message,
@@ -65,7 +68,7 @@ export function PostConversionDialog({
   onHide
 }: PostConversionDialogProps): ReactElement {
   const [typedConfirmation, setTypedConfirmation] = useState('');
-  const highRiskReasons = useMemo(() => (plan ? getHighRiskReasons(plan) : []), [plan]);
+  const highRiskReasons = useMemo(() => (plan ? getHighRiskReasons(plan, settings) : []), [plan, settings]);
   const requiresConfirmation = highRiskReasons.length > 0;
   const executableCount = plan?.items.filter(isExecutableReplacementItem).length ?? 0;
   const isBusy = isPlanning || isUpdatingActions || isExecuting;
@@ -250,16 +253,17 @@ function isExecutableReplacementItem(item: ReplacementPlanItem): boolean {
   );
 }
 
-function getHighRiskReasons(plan: ReplacementPlan): string[] {
+function getHighRiskReasons(plan: ReplacementPlan, settings: AppSettings | null): string[] {
   const reasons: string[] = [];
   const executableItems = plan.items.filter(isExecutableReplacementItem);
+  const thresholds = getReplacementConfirmationThresholds(settings);
 
-  if (executableItems.length > 10) {
-    reasons.push('More than 10 files are ready to replace.');
+  if (executableItems.length > thresholds.fileCount) {
+    reasons.push(`More than ${thresholds.fileCount.toLocaleString()} files are ready to replace.`);
   }
 
-  if (executableItems.reduce((total, item) => total + (item.originalSizeBytes ?? 0), 0) > TEN_GB_BYTES) {
-    reasons.push('Original files total more than 10 GB.');
+  if (executableItems.reduce((total, item) => total + (item.originalSizeBytes ?? 0), 0) > thresholds.sizeBytes) {
+    reasons.push(`Original files total more than ${formatBytes(thresholds.sizeBytes)}.`);
   }
 
   if (executableItems.some((item) => item.warnings.length > 0)) {
@@ -279,6 +283,32 @@ function getHighRiskReasons(plan: ReplacementPlan): string[] {
   }
 
   return reasons;
+}
+
+function getReplacementConfirmationThresholds(settings: AppSettings | null): { fileCount: number; sizeBytes: number } {
+  if (!settings?.requireTypedConfirmationForLargeOperations) {
+    return {
+      fileCount: 10,
+      sizeBytes: TEN_GB_BYTES
+    };
+  }
+
+  return {
+    fileCount: Math.min(10, Math.max(1, settings.typedConfirmationFileCountThreshold)),
+    sizeBytes: Math.min(TEN_GB_BYTES, Math.max(1024 * 1024, settings.typedConfirmationSizeThresholdBytes))
+  };
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes >= 1024 ** 3) {
+    return `${(bytes / 1024 ** 3).toFixed(0)} GB`;
+  }
+
+  if (bytes >= 1024 ** 2) {
+    return `${(bytes / 1024 ** 2).toFixed(0)} MB`;
+  }
+
+  return `${bytes.toLocaleString()} B`;
 }
 
 function isExternalPath(path: string): boolean {

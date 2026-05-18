@@ -314,6 +314,7 @@ export function App(): ReactElement {
         visible={controller.isPostConversionDialogVisible}
         sourceLabel={controller.postConversionSourceLabel}
         plan={controller.postConversionPlan}
+        settings={controller.settings}
         mode={controller.postConversionMode}
         error={controller.postConversionError}
         message={controller.postConversionMessage}

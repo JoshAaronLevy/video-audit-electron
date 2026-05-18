@@ -128,6 +128,94 @@ export function SettingsPanel({
           />
         </SettingsSection>
 
+        <SettingsSection eyebrow="File Management" title="Safety Defaults">
+          <ChoiceSetting
+            label="Original disposal"
+            value={settings.defaultOriginalDisposition}
+            options={[
+              { label: 'Trash', value: 'trash' },
+              { label: 'Archive', value: 'archive' }
+            ]}
+            disabled={isSavingSettings}
+            onChange={(value) => onUpdateSettingsField('defaultOriginalDisposition', value)}
+          />
+          <ChoiceSetting
+            label="Conflict handling"
+            value={settings.fileManagementConflictStrategy}
+            options={[
+              { label: 'Block', value: 'skip' },
+              { label: 'Rename', value: 'rename-with-suffix' }
+            ]}
+            disabled={isSavingSettings}
+            onChange={(value) => onUpdateSettingsField('fileManagementConflictStrategy', value)}
+          />
+          <ToggleSetting
+            label="Extra typed confirmation"
+            description="Require typed confirmation at or below the safe baseline thresholds."
+            checked={settings.requireTypedConfirmationForLargeOperations}
+            disabled={isSavingSettings}
+            onChange={(value) => onUpdateSettingsField('requireTypedConfirmationForLargeOperations', value)}
+          />
+          <ChoiceSetting
+            label="Confirmation file count"
+            value={settings.typedConfirmationFileCountThreshold}
+            options={[
+              { label: '1 file', value: 1 },
+              { label: '5 files', value: 5 },
+              { label: '10 files', value: 10 }
+            ]}
+            disabled={isSavingSettings || !settings.requireTypedConfirmationForLargeOperations}
+            onChange={(value) => onUpdateSettingsField('typedConfirmationFileCountThreshold', value)}
+          />
+          <ChoiceSetting
+            label="Confirmation size"
+            value={settings.typedConfirmationSizeThresholdBytes}
+            options={[
+              { label: '1 GB', value: 1024 ** 3 },
+              { label: '5 GB', value: 5 * 1024 ** 3 },
+              { label: '10 GB', value: 10 * 1024 ** 3 }
+            ]}
+            disabled={isSavingSettings || !settings.requireTypedConfirmationForLargeOperations}
+            onChange={(value) => onUpdateSettingsField('typedConfirmationSizeThresholdBytes', value)}
+          />
+          <TextSetting
+            label="Archive folder pattern"
+            description="Relative archive pattern reserved for archive workflows."
+            value={settings.defaultArchiveFolderPattern}
+            disabled={isSavingSettings}
+            onSave={(value) => onUpdateSettingsField('defaultArchiveFolderPattern', value ?? '.video-audit-archive/{YYYY-MM-DD}')}
+          />
+          <ToggleSetting
+            label="Show post-conversion dialog"
+            description="Ask what to do after Auto-Fix or Auto-Crop produces converted videos."
+            checked={settings.showPostConversionDialogAutomatically}
+            disabled={isSavingSettings}
+            onChange={(value) => onUpdateSettingsField('showPostConversionDialogAutomatically', value)}
+          />
+          <ChoiceSetting
+            label="Post-conversion default"
+            value={settings.defaultPostConversionAction}
+            options={[
+              { label: 'Ask', value: 'ask-every-time' },
+              { label: 'Leave Outputs', value: 'leave-outputs' },
+              { label: 'Review', value: 'review-manually' }
+            ]}
+            disabled={isSavingSettings || !settings.showPostConversionDialogAutomatically}
+            onChange={(value) => onUpdateSettingsField('defaultPostConversionAction', value)}
+          />
+          <ToggleSetting
+            label="Preview operation history"
+            description="Keep operation history easy to inspect after file-management work."
+            checked={settings.previewOperationHistoryAfterExecution}
+            disabled={isSavingSettings}
+            onChange={(value) => onUpdateSettingsField('previewOperationHistoryAfterExecution', value)}
+          />
+          <Message
+            severity="info"
+            text="Permanent delete and overwrite-by-default are not available settings."
+          />
+        </SettingsSection>
+
         <SettingsSection eyebrow="Media Tools" title="ffmpeg / ffprobe">
           <TextSetting
             label="ffmpeg path override"

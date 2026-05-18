@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.39.0] - 2026-05-18
+
+### Added
+
+- Added a searchable manual replacement review table with original, converted, metadata, proposed final path, action, status, and warning columns.
+- Added main-process replacement plan action updates plus typed IPC and preload APIs so manual review choices update stored plans before execution.
+- Added per-row replacement action controls, bulk action controls, action summary counts, and manual review execution for safe replacement actions.
+
 ## [0.38.0] - 2026-05-18
 
 ### Added

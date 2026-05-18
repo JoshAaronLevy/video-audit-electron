@@ -54,6 +54,7 @@ export const IPC_CHANNELS = {
   operationHistoryList: 'operation-history:list',
   operationHistoryGetDetails: 'operation-history:get-details',
   replacementCreatePlan: 'replacement:create-plan',
+  replacementUpdatePlanActions: 'replacement:update-plan-actions',
   replacementExecuteStart: 'replacement:execute:start',
   replacementExecuteCancel: 'replacement:execute:cancel',
   replacementExecuteGetResult: 'replacement:execute:get-result',

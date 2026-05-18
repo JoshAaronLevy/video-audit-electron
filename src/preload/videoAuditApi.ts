@@ -74,7 +74,9 @@ import type {
   ExecuteReplacementPlanRequest,
   ReplacementExecutionJobSnapshot,
   ReplacementExecutionResultResponse,
-  ReplacementExecutionStartResponse
+  ReplacementExecutionStartResponse,
+  UpdateReplacementPlanActionsRequest,
+  UpdateReplacementPlanActionsResponse
 } from '../shared/types/replacementWorkflow';
 import type {
   MigrationExecuteRequest,
@@ -171,6 +173,7 @@ export interface VideoAuditApi {
   };
   replacement: {
     createPlan: (request: CreateReplacementPlanRequest) => Promise<CreateReplacementPlanResponse>;
+    updatePlanActions: (request: UpdateReplacementPlanActionsRequest) => Promise<UpdateReplacementPlanActionsResponse>;
     executePlan: (request: ExecuteReplacementPlanRequest) => Promise<ReplacementExecutionStartResponse>;
     cancelExecution: (jobId: string) => Promise<ReplacementExecutionJobSnapshot>;
     getExecutionResult: (jobId: string) => Promise<ReplacementExecutionResultResponse>;
@@ -377,6 +380,8 @@ export const videoAuditApi: VideoAuditApi = {
   replacement: {
     createPlan: (request: CreateReplacementPlanRequest) =>
       ipcRenderer.invoke(IPC_CHANNELS.replacementCreatePlan, request),
+    updatePlanActions: (request: UpdateReplacementPlanActionsRequest) =>
+      ipcRenderer.invoke(IPC_CHANNELS.replacementUpdatePlanActions, request),
     executePlan: (request: ExecuteReplacementPlanRequest) =>
       ipcRenderer.invoke(IPC_CHANNELS.replacementExecuteStart, request),
     cancelExecution: (jobId: string) =>

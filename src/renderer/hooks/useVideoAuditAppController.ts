@@ -45,8 +45,11 @@ import type {
   MigrationScanResult
 } from '../../shared/types/migration';
 import type {
+  ReplacementAction,
   ReplacementExecutionJobSnapshot,
-  ReplacementPlan
+  ReplacementPlan,
+  ReplacementPlanActionUpdate,
+  ReplacementPlanBulkAction
 } from '../../shared/types/replacementWorkflow';
 import type { AppSettings, AppSettingsUpdate } from '../../shared/types/settings';
 import type { FfprobeResult, VideoPreviewFrame, VideoRow } from '../../shared/types/video';
@@ -78,6 +81,7 @@ type ActiveAction =
   | 'archivePlan'
   | 'archiveExecute'
   | 'replacementPlan'
+  | 'replacementUpdate'
   | 'replacementExecute'
   | 'premiereStatus'
   | 'premiereImport'
@@ -212,6 +216,7 @@ export interface VideoAuditAppController {
   postConversionMessage: string | null;
   isPostConversionDialogVisible: boolean;
   isReplacementPlanning: boolean;
+  isReplacementActionUpdating: boolean;
   replacementProgress: ReplacementExecutionJobSnapshot | null;
   replacementPercent: number | null;
   replacementResult: FileOperationResult | null;
@@ -287,6 +292,8 @@ export interface VideoAuditAppController {
   closeArchiveDialog: () => void;
   executeArchivePlan: () => Promise<void>;
   closeArchiveResultDialog: () => void;
+  changePostConversionPlanAction: (itemId: string, selectedAction: ReplacementAction) => Promise<void>;
+  applyPostConversionPlanBulkAction: (action: ReplacementPlanBulkAction) => Promise<void>;
   replacePostConversionOriginals: (typedConfirmation: string | null) => Promise<void>;
   reviewPostConversionPlan: () => void;
   leavePostConversionOutputs: () => void;
@@ -657,10 +664,12 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const isArchiveExecuting = activeAction === 'archiveExecute';
   const isArchiveActive = isArchivePlanning || isArchiveExecuting;
   const isReplacementPlanning = activeAction === 'replacementPlan';
+  const isReplacementActionUpdating = activeAction === 'replacementUpdate';
   const isReplacementExecuting =
     activeAction === 'replacementExecute' ||
     replacementProgress?.status === 'starting' ||
     replacementProgress?.status === 'running';
+  const isReplacementActive = isReplacementPlanning || isReplacementActionUpdating || isReplacementExecuting;
   const isPremiereImportActive = activeAction === 'premiereImport' || isPremiereImportSubmitting;
   const auditPercent = getProgressPercent(auditProgress?.processedFiles, auditProgress?.totalFiles);
   const discoveryPercent = getProgressPercent(
@@ -699,8 +708,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isTrashActive &&
     !isMoveActive &&
     !isArchiveActive &&
-    !isReplacementPlanning &&
-    !isReplacementExecuting &&
+    !isReplacementActive &&
     !isPremiereImportActive &&
     (selectedFolders.length > 0 || selectedFiles.length > 0) &&
     (auditOptions.includeLowResolutionAnalysis || auditOptions.includeBlackBorderAnalysis);
@@ -717,8 +725,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isTrashActive &&
     !isMoveActive &&
     !isArchiveActive &&
-    !isReplacementPlanning &&
-    !isReplacementExecuting &&
+    !isReplacementActive &&
     !isPremiereImportActive;
   const canAutoFixSelected =
     selectedVideos.length > 0 &&
@@ -733,8 +740,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isTrashActive &&
     !isMoveActive &&
     !isArchiveActive &&
-    !isReplacementPlanning &&
-    !isReplacementExecuting &&
+    !isReplacementActive &&
     !isPremiereImportActive;
   const canOpenCropOptions =
     selectedVideos.length > 0 &&
@@ -749,8 +755,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isTrashActive &&
     !isMoveActive &&
     !isArchiveActive &&
-    !isReplacementPlanning &&
-    !isReplacementExecuting &&
+    !isReplacementActive &&
     !isPremiereImportActive;
   const canGenerateThumbnails =
     visibleVideoRows.length > 0 &&
@@ -765,8 +770,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isTrashActive &&
     !isMoveActive &&
     !isArchiveActive &&
-    !isReplacementPlanning &&
-    !isReplacementExecuting &&
+    !isReplacementActive &&
     !isPremiereImportActive;
   const canMoveSelectedToTrash =
     selectedVideos.length > 0 &&
@@ -781,8 +785,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isTrashActive &&
     !isMoveActive &&
     !isArchiveActive &&
-    !isReplacementPlanning &&
-    !isReplacementExecuting &&
+    !isReplacementActive &&
     !isPremiereImportActive;
   const canMoveSelectedToFolder =
     selectedVideos.length > 0 &&
@@ -797,8 +800,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isTrashActive &&
     !isMoveActive &&
     !isArchiveActive &&
-    !isReplacementPlanning &&
-    !isReplacementExecuting &&
+    !isReplacementActive &&
     !isPremiereImportActive;
   const canArchiveSelectedOriginals =
     selectedVideos.length > 0 &&
@@ -813,8 +815,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isTrashActive &&
     !isMoveActive &&
     !isArchiveActive &&
-    !isReplacementPlanning &&
-    !isReplacementExecuting &&
+    !isReplacementActive &&
     !isPremiereImportActive;
   const canStartMigration =
     Boolean(auditedRootDirectory) &&
@@ -830,8 +831,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isTrashActive &&
     !isMoveActive &&
     !isArchiveActive &&
-    !isReplacementPlanning &&
-    !isReplacementExecuting &&
+    !isReplacementActive &&
     !isPremiereImportActive;
   const canEditSelectedInPremiere =
     selectedVideos.length > 0 &&
@@ -847,8 +847,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     !isTrashActive &&
     !isMoveActive &&
     !isArchiveActive &&
-    !isReplacementPlanning &&
-    !isReplacementExecuting &&
+    !isReplacementActive &&
     !isPremiereImportActive;
 
   const persistSettings = useCallback(async (partialSettings: AppSettingsUpdate): Promise<AppSettings | null> => {
@@ -1597,6 +1596,73 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     []
   );
 
+  const updatePostConversionPlanActions = useCallback(
+    async (actions: ReplacementPlanActionUpdate[], successMessage: string): Promise<void> => {
+      if (!postConversionPlan) {
+        setPostConversionError('Create a replacement plan before updating actions.');
+        return;
+      }
+
+      if (actions.length === 0) {
+        setPostConversionMessage('No matching replacement plan items to update.');
+        return;
+      }
+
+      setPostConversionError(null);
+      setPostConversionMessage(null);
+      setActiveAction('replacementUpdate');
+
+      try {
+        const response = await window.videoAudit.replacement.updatePlanActions({
+          planId: postConversionPlan.id,
+          actions
+        });
+
+        if (response.status !== 'updated' || !response.plan) {
+          setPostConversionError(response.message ?? 'Could not update replacement plan actions.');
+          return;
+        }
+
+        setPostConversionPlan(response.plan);
+        setPostConversionMessage(successMessage);
+      } catch (error: unknown) {
+        setPostConversionError(getErrorMessage(error, 'Could not update replacement plan actions.'));
+      } finally {
+        setActiveAction(null);
+      }
+    },
+    [postConversionPlan]
+  );
+
+  const changePostConversionPlanAction = useCallback(
+    async (itemId: string, selectedAction: ReplacementAction): Promise<void> => {
+      await updatePostConversionPlanActions(
+        [
+          {
+            itemId,
+            selectedAction
+          }
+        ],
+        'Replacement action updated.'
+      );
+    },
+    [updatePostConversionPlanActions]
+  );
+
+  const applyPostConversionPlanBulkAction = useCallback(
+    async (action: ReplacementPlanBulkAction): Promise<void> => {
+      if (!postConversionPlan) {
+        setPostConversionError('Create a replacement plan before updating actions.');
+        return;
+      }
+
+      const actions = getReplacementBulkActionUpdates(postConversionPlan, action);
+
+      await updatePostConversionPlanActions(actions, getReplacementBulkActionMessage(action));
+    },
+    [postConversionPlan, updatePostConversionPlanActions]
+  );
+
   const replacePostConversionOriginals = useCallback(
     async (typedConfirmation: string | null): Promise<void> => {
       if (!postConversionPlan) {
@@ -1691,14 +1757,14 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   }, []);
 
   const closePostConversionDialog = useCallback((): void => {
-    if (isReplacementExecuting) {
+    if (isReplacementActionUpdating || isReplacementExecuting) {
       return;
     }
 
     setIsPostConversionDialogVisible(false);
     setPostConversionError(null);
     setPostConversionMessage(null);
-  }, [isReplacementExecuting]);
+  }, [isReplacementActionUpdating, isReplacementExecuting]);
 
   const cancelReplacementExecution = useCallback(async (): Promise<void> => {
     if (!replacementJobId) {
@@ -3037,6 +3103,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     postConversionMessage,
     isPostConversionDialogVisible,
     isReplacementPlanning,
+    isReplacementActionUpdating,
     replacementProgress,
     replacementPercent,
     replacementResult,
@@ -3112,6 +3179,8 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     closeArchiveDialog,
     executeArchivePlan,
     closeArchiveResultDialog,
+    changePostConversionPlanAction,
+    applyPostConversionPlanBulkAction,
     replacePostConversionOriginals,
     reviewPostConversionPlan,
     leavePostConversionOutputs,
@@ -3131,6 +3200,57 @@ function hasSuccessfulConversionOutputs(result: AutoFixResult | AutoCropResult |
   return Boolean(
     result?.items.some((item) => item.status === 'success' && Boolean(item.outputPath))
   );
+}
+
+function getReplacementBulkActionUpdates(
+  plan: ReplacementPlan,
+  action: ReplacementPlanBulkAction
+): ReplacementPlanActionUpdate[] {
+  if (action === 'ready-replace') {
+    return plan.items
+      .filter((item) => item.status === 'ready')
+      .map((item) => ({
+        itemId: item.id,
+        selectedAction: 'replace-original'
+      }));
+  }
+
+  if (action === 'warning-skip') {
+    return plan.items
+      .filter((item) => item.status === 'warning')
+      .map((item) => ({
+        itemId: item.id,
+        selectedAction: 'skip'
+      }));
+  }
+
+  if (action === 'keep-output') {
+    return plan.items.map((item) => ({
+      itemId: item.id,
+      selectedAction: 'keep-output'
+    }));
+  }
+
+  return plan.items.map((item) => ({
+    itemId: item.id,
+    selectedAction: 'skip'
+  }));
+}
+
+function getReplacementBulkActionMessage(action: ReplacementPlanBulkAction): string {
+  if (action === 'ready-replace') {
+    return 'Ready items were set to replace originals.';
+  }
+
+  if (action === 'warning-skip') {
+    return 'Warning items were set to skip.';
+  }
+
+  if (action === 'keep-output') {
+    return 'All items were set to keep outputs.';
+  }
+
+  return 'Replacement actions were cleared.';
 }
 
 function getExecutableReplacementItemCount(plan: ReplacementPlan): number {

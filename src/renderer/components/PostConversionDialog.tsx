@@ -6,12 +6,15 @@ import { Message } from 'primereact/message';
 import { ProgressBar } from 'primereact/progressbar';
 import { Tag } from 'primereact/tag';
 import type {
+  ReplacementAction,
   ReplacementExecutionJobSnapshot,
   ReplacementPlan,
+  ReplacementPlanBulkAction,
   ReplacementPlanItem
 } from '../../shared/types/replacementWorkflow';
 import { DialogFooter, DialogHeader } from './DialogChrome';
 import { ReplacementPlanSummary } from './ReplacementPlanSummary';
+import { ReplacementReviewTable } from './ReplacementReviewTable';
 
 const REPLACE_CONFIRMATION = 'REPLACE';
 const TEN_GB_BYTES = 10 * 1024 * 1024 * 1024;
@@ -26,9 +29,12 @@ interface PostConversionDialogProps {
   error: string | null;
   message: string | null;
   isPlanning: boolean;
+  isUpdatingActions: boolean;
   isExecuting: boolean;
   progress: ReplacementExecutionJobSnapshot | null;
   percent: number | null;
+  onPlanActionChange: (itemId: string, selectedAction: ReplacementAction) => void;
+  onPlanBulkAction: (action: ReplacementPlanBulkAction) => void;
   onReplaceOriginals: (typedConfirmation: string | null) => void;
   onCancelExecution: () => void;
   onReviewManually: () => void;
@@ -45,9 +51,12 @@ export function PostConversionDialog({
   error,
   message,
   isPlanning,
+  isUpdatingActions,
   isExecuting,
   progress,
   percent,
+  onPlanActionChange,
+  onPlanBulkAction,
   onReplaceOriginals,
   onCancelExecution,
   onReviewManually,
@@ -59,14 +68,13 @@ export function PostConversionDialog({
   const highRiskReasons = useMemo(() => (plan ? getHighRiskReasons(plan) : []), [plan]);
   const requiresConfirmation = highRiskReasons.length > 0;
   const executableCount = plan?.items.filter(isExecutableReplacementItem).length ?? 0;
-  const isBusy = isPlanning || isExecuting;
+  const isBusy = isPlanning || isUpdatingActions || isExecuting;
   const canReplace = Boolean(
     plan &&
       executableCount > 0 &&
       !isBusy &&
       (!requiresConfirmation || typedConfirmation === REPLACE_CONFIRMATION)
   );
-  const reviewItems = plan?.items.slice(0, 12) ?? [];
 
   useEffect(() => {
     if (visible) {
@@ -121,7 +129,7 @@ export function PostConversionDialog({
               />
             ) : null}
             <Button
-              label="Replace Originals"
+              label={mode === 'manual-review' ? 'Execute Selected Actions' : 'Replace Originals'}
               icon="pi pi-sync"
               severity="danger"
               disabled={!canReplace}
@@ -176,6 +184,18 @@ export function PostConversionDialog({
           <>
             <ReplacementPlanSummary plan={plan} />
 
+            {highRiskReasons.length > 0 ? (
+              <section className="typed-confirmation-row">
+                <span>Type {REPLACE_CONFIRMATION} to confirm</span>
+                <InputText
+                  value={typedConfirmation}
+                  placeholder={REPLACE_CONFIRMATION}
+                  onChange={(event) => setTypedConfirmation(event.target.value)}
+                />
+                <small>{highRiskReasons.join(' ')}</small>
+              </section>
+            ) : null}
+
             {mode === 'choices' ? (
               <>
                 <section className="post-conversion-option-grid" aria-label="Post-conversion actions">
@@ -205,38 +225,16 @@ export function PostConversionDialog({
                   severity={plan.summary.blocked > 0 ? 'warn' : 'info'}
                   text="Replace originals with converted files moves original files to macOS Trash, then moves converted files into the original source folders."
                 />
-
-                {highRiskReasons.length > 0 ? (
-                  <section className="typed-confirmation-row">
-                    <span>Type {REPLACE_CONFIRMATION} to confirm</span>
-                    <InputText
-                      value={typedConfirmation}
-                      placeholder={REPLACE_CONFIRMATION}
-                      onChange={(event) => setTypedConfirmation(event.target.value)}
-                    />
-                    <small>{highRiskReasons.join(' ')}</small>
-                  </section>
-                ) : null}
               </>
             ) : (
-              <section className="replacement-review-list" aria-label="Replacement plan items">
-                <h3>Plan Items</h3>
-                <ul>
-                  {reviewItems.map((item) => (
-                    <li key={item.id}>
-                      <div>
-                        <strong title={item.originalPath}>{item.originalFileName}</strong>
-                        <Tag value={item.status} severity={getStatusSeverity(item)} />
-                      </div>
-                      <span title={item.outputPath}>{item.outputFileName}</span>
-                      <code title={item.proposedFinalPath}>{item.proposedFinalPath || 'No final path'}</code>
-                      {[...item.warnings, ...item.errors].length > 0 ? (
-                        <small>{[...item.warnings, ...item.errors].join(' ')}</small>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
-              </section>
+              <ReplacementReviewTable
+                plan={plan}
+                isBusy={isBusy}
+                canExecute={canReplace}
+                onActionChange={onPlanActionChange}
+                onBulkAction={onPlanBulkAction}
+                onExecute={() => onReplaceOriginals(requiresConfirmation ? typedConfirmation : null)}
+              />
             )}
           </>
         ) : null}
@@ -281,18 +279,6 @@ function getHighRiskReasons(plan: ReplacementPlan): string[] {
   }
 
   return reasons;
-}
-
-function getStatusSeverity(item: ReplacementPlanItem): 'success' | 'info' | 'warning' | 'danger' {
-  if (item.status === 'ready') {
-    return 'success';
-  }
-
-  if (item.status === 'warning') {
-    return 'warning';
-  }
-
-  return 'danger';
 }
 
 function isExternalPath(path: string): boolean {

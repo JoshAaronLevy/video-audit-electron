@@ -22,7 +22,9 @@ import type {
   ReplacementPlanItemStatus,
   ReplacementPlanSource,
   ReplacementPlanWarningCode,
-  ReplacementPlanErrorCode
+  ReplacementPlanErrorCode,
+  UpdateReplacementPlanActionsRequest,
+  UpdateReplacementPlanActionsResponse
 } from '../../shared/types/replacementWorkflow';
 import { validateKnownPath } from '../utils/fileOperationSafety';
 
@@ -73,6 +75,62 @@ export async function createReplacementPlan(
 
 export function getStoredReplacementPlan(planId: string): ReplacementPlan | null {
   return replacementPlans.get(planId) ?? null;
+}
+
+export async function updateReplacementPlanActions(
+  request: Partial<UpdateReplacementPlanActionsRequest> | null | undefined
+): Promise<UpdateReplacementPlanActionsResponse> {
+  const normalized = normalizeReplacementPlanActionUpdateRequest(request);
+
+  if (!normalized.ok) {
+    return {
+      status: 'invalid_request',
+      message: normalized.message
+    };
+  }
+
+  const plan = replacementPlans.get(normalized.planId);
+
+  if (!plan) {
+    return {
+      status: 'not_found',
+      message: 'Replacement plan not found. Create a fresh replacement plan before updating actions.'
+    };
+  }
+
+  const existingItemIds = new Set(plan.items.map((item) => item.id));
+  const actionByItemId = new Map<string, ReplacementAction>();
+
+  for (const action of normalized.actions) {
+    if (!existingItemIds.has(action.itemId)) {
+      return {
+        status: 'invalid_request',
+        message: `Replacement plan item was not found: ${action.itemId}`
+      };
+    }
+
+    actionByItemId.set(action.itemId, action.selectedAction);
+  }
+
+  const items: ReplacementPlanItem[] = [];
+
+  for (const item of plan.items) {
+    const selectedAction = actionByItemId.get(item.id) ?? item.selectedAction;
+    items.push(await buildReplacementPlanItem(toReplacementPlanInputItem(item), selectedAction));
+  }
+
+  const updatedPlan: ReplacementPlan = {
+    ...plan,
+    items,
+    summary: summarizeReplacementPlanItems(items)
+  };
+
+  replacementPlans.set(updatedPlan.id, updatedPlan);
+
+  return {
+    status: 'updated',
+    plan: updatedPlan
+  };
 }
 
 export function deleteStoredReplacementPlan(planId: string): void {
@@ -250,6 +308,84 @@ function normalizeReplacementPlanRequest(
   };
 }
 
+function normalizeReplacementPlanActionUpdateRequest(
+  request: Partial<UpdateReplacementPlanActionsRequest> | null | undefined
+):
+  | {
+      ok: true;
+      planId: string;
+      actions: { itemId: string; selectedAction: ReplacementAction }[];
+    }
+  | { ok: false; message: string } {
+  if (!request || typeof request !== 'object') {
+    return {
+      ok: false,
+      message: 'Replacement plan action update request is required.'
+    };
+  }
+
+  const planId = normalizePathString(request.planId);
+
+  if (!planId) {
+    return {
+      ok: false,
+      message: 'Replacement plan ID is required.'
+    };
+  }
+
+  if (!Array.isArray(request.actions)) {
+    return {
+      ok: false,
+      message: 'Replacement plan action updates are required.'
+    };
+  }
+
+  const actions: { itemId: string; selectedAction: ReplacementAction }[] = [];
+
+  for (const action of request.actions) {
+    if (!action || typeof action !== 'object') {
+      return {
+        ok: false,
+        message: 'Each replacement plan action update must be an object.'
+      };
+    }
+
+    const itemId = normalizePathString(action.itemId);
+
+    if (!itemId) {
+      return {
+        ok: false,
+        message: 'Each replacement plan action update needs an item ID.'
+      };
+    }
+
+    if (!isReplacementAction(action.selectedAction)) {
+      return {
+        ok: false,
+        message: `Unsupported replacement action: ${String(action.selectedAction)}`
+      };
+    }
+
+    actions.push({
+      itemId,
+      selectedAction: action.selectedAction
+    });
+  }
+
+  if (actions.length === 0) {
+    return {
+      ok: false,
+      message: 'At least one replacement plan action update is required.'
+    };
+  }
+
+  return {
+    ok: true,
+    planId,
+    actions
+  };
+}
+
 function getReplacementInputItems({
   source,
   autoFixResult,
@@ -304,6 +440,23 @@ function toAutoCropReplacementInputItem(item: AutoCropResultItem): ReplacementPl
     outputFileName: item.outputPath ? basename(item.outputPath) : null,
     outputSizeBytes: item.outputSizeBytes ?? null,
     conversionStatus: item.status
+  };
+}
+
+function toReplacementPlanInputItem(item: ReplacementPlanItem): ReplacementPlanInputItem {
+  return {
+    id: item.id,
+    source: item.source,
+    originalPath: item.originalPath,
+    originalFileName: item.originalFileName,
+    originalSizeBytes: item.originalSizeBytes,
+    originalModifiedAtMs: item.originalModifiedAtMs,
+    outputPath: item.outputPath,
+    outputFileName: item.outputFileName,
+    outputSizeBytes: item.outputSizeBytes,
+    outputModifiedAtMs: item.outputModifiedAtMs,
+    selectedAction: item.selectedAction,
+    conversionStatus: item.conversionStatus ?? null
   };
 }
 
@@ -508,9 +661,11 @@ function normalizeSource(value: unknown): ReplacementPlanSource | null {
 }
 
 function normalizeReplacementAction(value: unknown): ReplacementAction {
-  return REPLACEMENT_ACTIONS.includes(value as ReplacementAction)
-    ? (value as ReplacementAction)
-    : 'replace-original';
+  return isReplacementAction(value) ? value : 'replace-original';
+}
+
+function isReplacementAction(value: unknown): value is ReplacementAction {
+  return REPLACEMENT_ACTIONS.includes(value as ReplacementAction);
 }
 
 function isSamePath(left: string, right: string): boolean {

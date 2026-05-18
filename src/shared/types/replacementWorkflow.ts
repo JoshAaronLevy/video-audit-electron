@@ -115,6 +115,28 @@ export interface CreateReplacementPlanResponse {
   message?: string;
 }
 
+export interface ReplacementPlanActionUpdate {
+  itemId: string;
+  selectedAction: ReplacementAction;
+}
+
+export type ReplacementPlanBulkAction =
+  | 'ready-replace'
+  | 'warning-skip'
+  | 'keep-output'
+  | 'clear-actions';
+
+export interface UpdateReplacementPlanActionsRequest {
+  planId: string;
+  actions: ReplacementPlanActionUpdate[];
+}
+
+export interface UpdateReplacementPlanActionsResponse {
+  status: 'updated' | 'invalid_request' | 'not_found' | 'error';
+  plan?: ReplacementPlan;
+  message?: string;
+}
+
 export type ReplacementOriginalDisposition = 'move-original-to-trash';
 
 export interface ExecuteReplacementPlanRequest {

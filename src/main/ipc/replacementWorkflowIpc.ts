@@ -7,7 +7,9 @@ import type {
   ExecuteReplacementPlanRequest,
   ReplacementExecutionJobSnapshot,
   ReplacementExecutionResultResponse,
-  ReplacementExecutionStartResponse
+  ReplacementExecutionStartResponse,
+  UpdateReplacementPlanActionsRequest,
+  UpdateReplacementPlanActionsResponse
 } from '../../shared/types/replacementWorkflow';
 import type { JobRecord } from '../services/jobRegistry';
 import { JobRegistry } from '../services/jobRegistry';
@@ -17,7 +19,7 @@ import {
   runReplacementExecution,
   type PreparedReplacementExecution
 } from '../services/replacementExecutionService';
-import { createReplacementPlan } from '../services/replacementPlanService';
+import { createReplacementPlan, updateReplacementPlanActions } from '../services/replacementPlanService';
 
 const replacementExecutionJobs = new JobRegistry<
   PreparedReplacementExecution,
@@ -35,6 +37,20 @@ export function registerReplacementWorkflowIpcHandlers(): void {
         return {
           status: 'error',
           message: error instanceof Error ? error.message : 'Unable to create replacement plan.'
+        };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.replacementUpdatePlanActions,
+    async (_event, request: UpdateReplacementPlanActionsRequest): Promise<UpdateReplacementPlanActionsResponse> => {
+      try {
+        return await updateReplacementPlanActions(request);
+      } catch (error: unknown) {
+        return {
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Unable to update replacement plan actions.'
         };
       }
     }

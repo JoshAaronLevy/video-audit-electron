@@ -304,9 +304,12 @@ export function App(): ReactElement {
         error={controller.postConversionError}
         message={controller.postConversionMessage}
         isPlanning={controller.isReplacementPlanning}
+        isUpdatingActions={controller.isReplacementActionUpdating}
         isExecuting={controller.isReplacementExecuting}
         progress={controller.replacementProgress}
         percent={controller.replacementPercent}
+        onPlanActionChange={controller.changePostConversionPlanAction}
+        onPlanBulkAction={controller.applyPostConversionPlanBulkAction}
         onReplaceOriginals={controller.replacePostConversionOriginals}
         onCancelExecution={controller.cancelReplacementExecution}
         onReviewManually={controller.reviewPostConversionPlan}

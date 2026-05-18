@@ -9,7 +9,7 @@ import { MigrationResultDialog } from './components/MigrationResultDialog';
 import { MigrationScanDialog } from './components/MigrationScanDialog';
 import { ResultsToolbar } from './components/ResultsToolbar';
 import { SelectionActionBar } from './components/SelectionActionBar';
-import { SettingsPanel } from './components/SettingsPanel';
+import { SettingsDialog } from './components/SettingsDialog';
 import { SourceConfigDialog } from './components/SourceConfigDialog';
 import { SourceSummaryBar } from './components/SourceSummaryBar';
 import { StatusStrip } from './components/StatusStrip';
@@ -217,27 +217,22 @@ export function App(): ReactElement {
         onRunToolDiagnostics={controller.runToolDiagnostics}
       />
 
-      <Dialog
-        header="Settings"
+      <SettingsDialog
         visible={isSettingsVisible}
-        className="app-dialog settings-dialog"
-        modal
+        appInfo={controller.appInfo}
+        appInfoMessage={controller.appInfoMessage}
+        settings={controller.settings}
+        settingsMessage={controller.settingsMessage}
+        premiereStatus={controller.premiereStatus}
+        toolDiagnostics={controller.toolDiagnostics}
+        toolDiagnosticsError={controller.toolDiagnosticsError}
+        isToolDiagnosticsLoading={controller.isToolDiagnosticsLoading}
+        activeAction={controller.activeAction}
         onHide={() => setIsSettingsVisible(false)}
-      >
-        <SettingsPanel
-          appInfo={controller.appInfo}
-          appInfoMessage={controller.appInfoMessage}
-          settings={controller.settings}
-          settingsMessage={controller.settingsMessage}
-          toolDiagnostics={controller.toolDiagnostics}
-          toolDiagnosticsError={controller.toolDiagnosticsError}
-          isToolDiagnosticsLoading={controller.isToolDiagnosticsLoading}
-          activeAction={controller.activeAction}
-          onUpdateSettingsField={controller.updateSettingsField}
-          onResetSettings={controller.resetSettings}
-          onRunToolDiagnostics={controller.runToolDiagnostics}
-        />
-      </Dialog>
+        onUpdateSettingsField={controller.updateSettingsField}
+        onResetSettings={controller.resetSettings}
+        onRunToolDiagnostics={controller.runToolDiagnostics}
+      />
 
       <AutoFixDialog
         visible={controller.isAutoFixDialogVisible}

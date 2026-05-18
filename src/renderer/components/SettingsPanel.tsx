@@ -1,12 +1,13 @@
-import { useEffect, useState, type ReactElement } from 'react';
+import { useEffect, useState, type ReactElement, type ReactNode } from 'react';
 import { Button } from 'primereact/button';
-import { Card } from 'primereact/card';
-import { Divider } from 'primereact/divider';
+import { Checkbox } from 'primereact/checkbox';
 import { InputText } from 'primereact/inputtext';
 import { Message } from 'primereact/message';
 import { SelectButton } from 'primereact/selectbutton';
+import { Tag } from 'primereact/tag';
 import type { AppInfo } from '../../shared/types/app';
 import type { ToolDiagnosticsResult } from '../../shared/types/diagnostics';
+import type { PremiereStatusResponse } from '../../shared/types/premiere';
 import type { AppSettings } from '../../shared/types/settings';
 
 interface SettingsPanelProps {
@@ -14,6 +15,7 @@ interface SettingsPanelProps {
   appInfoMessage: string | null;
   settings: AppSettings | null;
   settingsMessage: string | null;
+  premiereStatus: PremiereStatusResponse | null;
   toolDiagnostics: ToolDiagnosticsResult | null;
   toolDiagnosticsError: string | null;
   isToolDiagnosticsLoading: boolean;
@@ -28,6 +30,7 @@ export function SettingsPanel({
   appInfoMessage,
   settings,
   settingsMessage,
+  premiereStatus,
   toolDiagnostics,
   toolDiagnosticsError,
   isToolDiagnosticsLoading,
@@ -36,35 +39,122 @@ export function SettingsPanel({
   onResetSettings,
   onRunToolDiagnostics
 }: SettingsPanelProps): ReactElement {
+  const isSavingSettings = activeAction === 'settings';
+
+  if (!settings) {
+    return (
+      <div className="settings-panel">
+        <Message severity="info" text={settingsMessage ?? 'Loading settings...'} />
+      </div>
+    );
+  }
+
   return (
-    <Card className="workspace-card side-card">
-      <div className="section-heading">
+    <div className="settings-panel settings-panel-grouped">
+      <div className="settings-hero">
         <div>
-          <p className="eyebrow">App</p>
-          <h2>Settings</h2>
+          <p className="eyebrow">Preferences</p>
+          <h2>Video Audit Settings</h2>
+          <span>Changes save as you update each setting.</span>
+        </div>
+        <div className="settings-hero-actions">
+          <Tag value={appInfo?.version ? `v${appInfo.version}` : 'Loading'} />
+          <Button
+            label="Reset"
+            icon="pi pi-refresh"
+            severity="secondary"
+            outlined
+            loading={isSavingSettings}
+            onClick={onResetSettings}
+          />
         </div>
       </div>
 
-      {settings ? (
-        <div className="settings-panel">
+      {settingsMessage ? <Message severity="info" text={settingsMessage} /> : null}
+      {toolDiagnosticsError ? <Message severity="error" text={toolDiagnosticsError} /> : null}
+      {appInfoMessage ? <Message severity="error" text={appInfoMessage} /> : null}
+
+      <div className="settings-section-grid">
+        <SettingsSection eyebrow="General" title="App State">
+          <dl className="settings-info-list">
+            <InfoRow label="Recent folders" value={String(settings.recentFolders.length)} />
+            <InfoRow label="Recent files" value={String(settings.recentFiles.length)} />
+            <InfoRow label="Latest folder" value={settings.latestSelectedFolder ?? 'None'} />
+            <InfoRow
+              label="Window"
+              value={settings.windowState ? `${settings.windowState.width}x${settings.windowState.height}` : 'Default size'}
+            />
+          </dl>
+        </SettingsSection>
+
+        <SettingsSection eyebrow="Audit" title="Defaults">
+          <ToggleSetting
+            label="Include subfolders"
+            description="Use recursive folder scans for new audits."
+            checked={settings.includeSubfoldersDefault}
+            disabled={isSavingSettings}
+            onChange={(value) => onUpdateSettingsField('includeSubfoldersDefault', value)}
+          />
+          <ToggleSetting
+            label="Low-resolution analysis"
+            description="Flag videos below the configured minimum height."
+            checked={settings.lowResolutionAnalysisEnabledDefault}
+            disabled={isSavingSettings}
+            onChange={(value) => onUpdateSettingsField('lowResolutionAnalysisEnabledDefault', value)}
+          />
+          <ToggleSetting
+            label="Black-border analysis"
+            description="Analyze crop and border review candidates."
+            checked={settings.blackBorderAnalysisEnabledDefault}
+            disabled={isSavingSettings}
+            onChange={(value) => onUpdateSettingsField('blackBorderAnalysisEnabledDefault', value)}
+          />
+        </SettingsSection>
+
+        <SettingsSection eyebrow="Output" title="Paths">
           <TextSetting
-            label="Auto-fix destination"
-            value={settings.defaultAutoFixDestinationRoot}
-            disabled={activeAction === 'settings'}
-            onSave={(value) => onUpdateSettingsField('defaultAutoFixDestinationRoot', value)}
+            label="Default output directory"
+            description="Used as the saved output location when available."
+            value={settings.defaultOutputDirectory}
+            disabled={isSavingSettings}
+            onSave={(value) => onUpdateSettingsField('defaultOutputDirectory', value)}
           />
           <TextSetting
+            label="Auto-fix destination"
+            description="Destination root for copied Auto-Fix outputs."
+            value={settings.defaultAutoFixDestinationRoot}
+            disabled={isSavingSettings}
+            onSave={(value) => onUpdateSettingsField('defaultAutoFixDestinationRoot', value)}
+          />
+        </SettingsSection>
+
+        <SettingsSection eyebrow="Media Tools" title="ffmpeg / ffprobe">
+          <TextSetting
             label="ffmpeg path override"
+            description="Leave blank to use the bundled or PATH-resolved command."
             value={settings.ffmpegPathOverride}
-            disabled={activeAction === 'settings'}
+            disabled={isSavingSettings}
             onSave={(value) => onUpdateSettingsField('ffmpegPathOverride', value)}
           />
           <TextSetting
             label="ffprobe path override"
+            description="Leave blank to use the bundled or PATH-resolved command."
             value={settings.ffprobePathOverride}
-            disabled={activeAction === 'settings'}
+            disabled={isSavingSettings}
             onSave={(value) => onUpdateSettingsField('ffprobePathOverride', value)}
           />
+        </SettingsSection>
+
+        <SettingsSection eyebrow="Premiere" title="Bridge">
+          <dl className="settings-info-list">
+            <InfoRow label="Status" value={formatPremiereStatus(premiereStatus)} />
+            <InfoRow label="Message" value={premiereStatus?.message ?? 'Not checked'} />
+            <InfoRow label="Project" value={premiereStatus?.bridge?.activeProjectName ?? 'None'} />
+            <InfoRow label="Output" value={premiereStatus?.bridge?.outputDirectory ?? 'None'} />
+          </dl>
+        </SettingsSection>
+
+        <SettingsSection eyebrow="Thumbnails" title="Preview Cache">
           <ChoiceSetting
             label="Preview clip duration"
             value={settings.previewClipDurationSecondsDefault}
@@ -72,7 +162,7 @@ export function SettingsPanel({
               { label: '5s', value: 5 },
               { label: '10s', value: 10 }
             ]}
-            disabled={activeAction === 'settings'}
+            disabled={isSavingSettings}
             onChange={(value) =>
               onUpdateSettingsField(
                 'previewClipDurationSecondsDefault',
@@ -87,34 +177,24 @@ export function SettingsPanel({
               { label: '480px', value: 480 },
               { label: '640px', value: 640 }
             ]}
-            disabled={activeAction === 'settings'}
+            disabled={isSavingSettings}
             onChange={(value) =>
               onUpdateSettingsField('previewClipWidthDefault', value as AppSettings['previewClipWidthDefault'])
             }
           />
-
-          {settingsMessage ? <Message severity="info" text={settingsMessage} /> : null}
-          {toolDiagnosticsError ? <Message severity="error" text={toolDiagnosticsError} /> : null}
-
-          <div className="settings-summary">
-            <InfoRow label="Recent folders" value={String(settings.recentFolders.length)} />
-            <InfoRow label="Recent files" value={String(settings.recentFiles.length)} />
-            <InfoRow label="Latest folder" value={settings.latestSelectedFolder ?? 'None'} />
-            <InfoRow label="Default output" value={settings.defaultOutputDirectory ?? 'None'} />
+          <dl className="settings-info-list">
             <InfoRow
-              label="Preview clips"
-              value={`${settings.previewClipDurationSecondsDefault}s at ${settings.previewClipWidthDefault}px`}
-            />
-            <InfoRow
-              label="Window"
+              label="Last audit"
               value={
-                settings.windowState
-                  ? `${settings.windowState.width}x${settings.windowState.height}`
-                  : 'Default size'
+                settings.lastAuditResultSummary
+                  ? `${settings.lastAuditResultSummary.totalFiles} files, ${settings.lastAuditResultSummary.flaggedCount} flagged`
+                  : 'None'
               }
             />
-          </div>
+          </dl>
+        </SettingsSection>
 
+        <SettingsSection eyebrow="Diagnostics" title="Runtime">
           <div className="tool-diagnostics">
             <div className="compact-heading">
               <h3>Media Tools</h3>
@@ -124,7 +204,7 @@ export function SettingsPanel({
                 severity="info"
                 outlined
                 loading={isToolDiagnosticsLoading}
-                disabled={activeAction === 'settings'}
+                disabled={isSavingSettings}
                 onClick={onRunToolDiagnostics}
               />
             </div>
@@ -144,34 +224,66 @@ export function SettingsPanel({
               <p className="empty-copy">Check ffmpeg and ffprobe availability before running media workflows.</p>
             )}
           </div>
+          <dl className="settings-info-list">
+            <InfoRow label="App" value={appInfo?.name ?? 'Loading...'} />
+            <InfoRow label="Electron" value={appInfo?.electronVersion ?? 'Loading...'} />
+            <InfoRow label="Chrome" value={appInfo?.chromeVersion ?? 'Loading...'} />
+            <InfoRow label="Node" value={appInfo?.nodeVersion ?? 'Loading...'} />
+          </dl>
+        </SettingsSection>
+      </div>
+    </div>
+  );
+}
 
-          <Button
-            label="Reset Settings"
-            icon="pi pi-refresh"
-            severity="secondary"
-            outlined
-            loading={activeAction === 'settings'}
-            onClick={onResetSettings}
-          />
-        </div>
-      ) : (
-        <p className="empty-copy">{settingsMessage ?? 'Loading settings...'}</p>
-      )}
+function SettingsSection({
+  eyebrow,
+  title,
+  children
+}: {
+  eyebrow: string;
+  title: string;
+  children: ReactNode;
+}): ReactElement {
+  return (
+    <section className="settings-section" aria-label={`${eyebrow} settings`}>
+      <div className="settings-section-heading">
+        <p className="eyebrow">{eyebrow}</p>
+        <h3>{title}</h3>
+      </div>
+      <div className="settings-section-content">{children}</div>
+    </section>
+  );
+}
 
-      <Divider />
+function ToggleSetting({
+  label,
+  description,
+  checked,
+  disabled,
+  onChange
+}: {
+  label: string;
+  description: string;
+  checked: boolean;
+  disabled: boolean;
+  onChange: (value: boolean) => void;
+}): ReactElement {
+  const inputId = `setting-${label.toLowerCase().replaceAll(' ', '-')}`;
 
-      {appInfoMessage ? (
-        <p className="error-copy">{appInfoMessage}</p>
-      ) : (
-        <dl className="info-list" aria-label="Application information">
-          <InfoRow label="App" value={appInfo?.name ?? 'Loading...'} />
-          <InfoRow label="Version" value={appInfo?.version ?? 'Loading...'} />
-          <InfoRow label="Electron" value={appInfo?.electronVersion ?? 'Loading...'} />
-          <InfoRow label="Chrome" value={appInfo?.chromeVersion ?? 'Loading...'} />
-          <InfoRow label="Node" value={appInfo?.nodeVersion ?? 'Loading...'} />
-        </dl>
-      )}
-    </Card>
+  return (
+    <label className="toggle-setting" htmlFor={inputId}>
+      <Checkbox
+        inputId={inputId}
+        checked={checked}
+        disabled={disabled}
+        onChange={(event) => onChange(Boolean(event.checked))}
+      />
+      <span>
+        <strong>{label}</strong>
+        <small>{description}</small>
+      </span>
+    </label>
   );
 }
 
@@ -207,11 +319,13 @@ function ChoiceSetting<Value extends string | number>({
 
 function TextSetting({
   label,
+  description,
   value,
   disabled,
   onSave
 }: {
   label: string;
+  description: string;
   value: string | null;
   disabled: boolean;
   onSave: (value: string | null) => void;
@@ -226,6 +340,7 @@ function TextSetting({
   return (
     <div className="text-setting">
       <label htmlFor={inputId}>{label}</label>
+      <small>{description}</small>
       <div className="text-setting-row">
         <InputText
           id={inputId}
@@ -251,7 +366,27 @@ function InfoRow({ label, value }: { label: string; value: string }): ReactEleme
   return (
     <div className="info-row">
       <dt>{label}</dt>
-      <dd>{value}</dd>
+      <dd title={value}>{value}</dd>
     </div>
   );
+}
+
+function formatPremiereStatus(status: PremiereStatusResponse | null): string {
+  if (!status) {
+    return 'Unknown';
+  }
+
+  if (status.status === 'ready') {
+    return 'Ready';
+  }
+
+  if (status.status === 'premiere_not_running') {
+    return 'Premiere not running';
+  }
+
+  if (status.status === 'bridge_disconnected') {
+    return 'Bridge disconnected';
+  }
+
+  return 'Error';
 }

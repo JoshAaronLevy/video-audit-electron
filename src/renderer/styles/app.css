@@ -1185,7 +1185,75 @@ select {
   color: #475569;
 }
 
-.settings-summary,
+.settings-panel-grouped {
+  display: grid;
+  gap: 1rem;
+}
+
+.settings-hero {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.95rem;
+  background: #f1f7ff;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+}
+
+.settings-hero h2 {
+  margin: 0;
+  color: #172033;
+  font-size: 1.18rem;
+  letter-spacing: 0;
+}
+
+.settings-hero span {
+  display: block;
+  margin-top: 0.2rem;
+  color: #64748b;
+  font-size: 0.84rem;
+  font-weight: 750;
+}
+
+.settings-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.settings-section-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.settings-section {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.9rem;
+  background: #ffffff;
+  border: 1px solid #dbe3ee;
+  border-radius: 10px;
+}
+
+.settings-section-heading {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.settings-section-heading h3 {
+  margin: 0;
+  color: #172033;
+  font-size: 0.98rem;
+}
+
+.settings-section-content,
+.settings-info-list,
 .tool-diagnostics,
 .info-list {
   display: grid;
@@ -1193,9 +1261,8 @@ select {
   margin: 0;
 }
 
-.settings-summary,
 .tool-diagnostics {
-  padding: 0.85rem;
+  padding: 0.75rem;
   background: #f8fafc;
   border: 1px solid #dbe3ee;
   border-radius: 8px;
@@ -1241,9 +1308,41 @@ select {
   color: #b42318;
 }
 
+.toggle-setting {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.55rem;
+  align-items: start;
+  min-width: 0;
+  padding: 0.65rem;
+  background: #f8fafc;
+  border: 1px solid #e5ebf3;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.toggle-setting span {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.toggle-setting strong {
+  color: #172033;
+  font-size: 0.86rem;
+}
+
+.toggle-setting small,
+.text-setting > small {
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
 .info-row {
   display: grid;
-  grid-template-columns: 110px minmax(0, 1fr);
+  grid-template-columns: 130px minmax(0, 1fr);
   gap: 0.65rem;
   align-items: baseline;
 }
@@ -1263,8 +1362,10 @@ select {
 
 .text-setting,
 .choice-setting {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 0.45rem;
+  min-width: 0;
 }
 
 .text-setting label,
@@ -1628,6 +1729,7 @@ select {
   .source-config-picker-grid,
   .source-config-paths,
   .metric-grid,
+  .settings-section-grid,
   .video-details-main,
   .tool-diagnostics li,
   .diagnostics-list,
@@ -1641,6 +1743,7 @@ select {
   .source-config-picker .p-button,
   .source-config-recent-list .p-button,
   .source-config-footer .p-button,
+  .settings-hero-actions .p-button,
   .results-toolbar-secondary .p-button,
   .selection-action-buttons .p-button,
   .diagnostics-actions .p-button,
@@ -1660,7 +1763,9 @@ select {
   }
 
   .diagnostics-card-header,
-  .diagnostics-actions {
+  .diagnostics-actions,
+  .settings-hero,
+  .settings-hero-actions {
     align-items: flex-start;
     flex-direction: column;
   }

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-05-17
+
+### Added
+
+- Added a dedicated settings dialog wrapper for the header Settings entry point.
+
+### Changed
+
+- Redesigned settings into grouped General, Audit Defaults, Output Paths, Media Tools, Premiere Bridge, Thumbnail Cache, and Diagnostics sections.
+
 ## [0.23.0] - 2026-05-17
 
 ### Changed

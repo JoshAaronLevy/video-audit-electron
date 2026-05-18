@@ -99,6 +99,7 @@ type ActiveAction =
   | null;
 
 type PostConversionDialogMode = 'choices' | 'manual-review';
+type AuditStartOutcome = 'started' | 'not_started';
 
 const DEFAULT_AUDIT_OPTIONS: AuditOptions = {
   includeSubfolders: true,
@@ -271,7 +272,7 @@ export interface VideoAuditAppController {
   updateSettingsField: <Key extends keyof AppSettings>(key: Key, value: AppSettings[Key]) => Promise<void>;
   resetSettings: () => Promise<void>;
   runToolDiagnostics: () => Promise<void>;
-  runAudit: () => Promise<void>;
+  runAudit: () => Promise<AuditStartOutcome>;
   refreshAudit: () => Promise<void>;
   cancelAudit: () => Promise<void>;
   clearAuditData: () => Promise<void>;
@@ -1263,7 +1264,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     }
   }, []);
 
-  const startAuditRequest = useCallback(async (request: AuditRequest): Promise<void> => {
+  const startAuditRequest = useCallback(async (request: AuditRequest): Promise<AuditStartOutcome> => {
     setWorkflowMessage(null);
     setAuditProgress(null);
     setAuditResult(null);
@@ -1279,14 +1280,15 @@ export function useVideoAuditAppController(): VideoAuditAppController {
 
     if (response.status !== 'started' || !response.jobId) {
       setWorkflowMessage(response.message ?? 'Could not start audit.');
-      return;
+      return 'not_started';
     }
 
     setAuditJobId(response.jobId);
     setWorkflowMessage(response.message ?? 'Audit started.');
+    return 'started';
   }, []);
 
-  const runAudit = useCallback(async (): Promise<void> => {
+  const runAudit = useCallback(async (): Promise<AuditStartOutcome> => {
     const request = {
       folderPaths: dedupeOverlappingFolderPaths(selectedFolders),
       filePaths: selectedFiles,
@@ -1295,18 +1297,19 @@ export function useVideoAuditAppController(): VideoAuditAppController {
 
     if (request.folderPaths.length === 0 && request.filePaths.length === 0) {
       setWorkflowMessage('Choose at least one folder or video file before running an audit.');
-      return;
+      return 'not_started';
     }
 
     if (!request.options.includeLowResolutionAnalysis && !request.options.includeBlackBorderAnalysis) {
       setWorkflowMessage('At least one audit option must be selected.');
-      return;
+      return 'not_started';
     }
 
     try {
-      await startAuditRequest(request);
+      return await startAuditRequest(request);
     } catch (error: unknown) {
       setWorkflowMessage(getErrorMessage(error, 'Could not start audit.'));
+      return 'not_started';
     }
   }, [auditOptions, selectedFiles, selectedFolders, startAuditRequest]);
 

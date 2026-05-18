@@ -27,7 +27,7 @@ interface SourceConfigDialogProps {
   onChooseOutputFolder: () => void;
   onChooseRecentFolder: (path: string) => void;
   onClearSelectedSources: () => void;
-  onRunAudit: () => void;
+  onRunAudit: () => void | Promise<void>;
   onCancelAudit: () => void;
   onRevealPath: (path: string) => void;
   onAuditOptionChange: <Key extends keyof AuditOptions>(key: Key, value: AuditOptions[Key]) => void;
@@ -90,7 +90,9 @@ export function SourceConfigDialog({
           icon="pi pi-verified"
           severity="success"
           disabled={!canRunAudit}
-          onClick={onRunAudit}
+          onClick={() => {
+            void onRunAudit();
+          }}
         />
       )}
     </DialogFooter>

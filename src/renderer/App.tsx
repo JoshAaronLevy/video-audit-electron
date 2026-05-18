@@ -47,6 +47,14 @@ export function App(): ReactElement {
     }
   }, [controller.folderTreeOpenRequestCount]);
 
+  const runAuditFromSourceDialog = async (): Promise<void> => {
+    const outcome = await controller.runAudit();
+
+    if (outcome === 'started') {
+      setIsSourceSetupVisible(false);
+    }
+  };
+
   return (
     <main className="app-shell">
       <AppHeader
@@ -205,7 +213,7 @@ export function App(): ReactElement {
         onChooseOutputFolder={controller.chooseOutputFolder}
         onChooseRecentFolder={controller.chooseRecentFolder}
         onClearSelectedSources={controller.clearSelectedSources}
-        onRunAudit={controller.runAudit}
+        onRunAudit={runAuditFromSourceDialog}
         onCancelAudit={controller.cancelAudit}
         onRevealPath={controller.revealPath}
         onAuditOptionChange={controller.updateAuditOption}

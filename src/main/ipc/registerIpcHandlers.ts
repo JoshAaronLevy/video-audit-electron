@@ -8,6 +8,7 @@ import { registerAutoFixIpcHandlers } from './autoFixIpc';
 import { registerDialogIpcHandlers } from './dialogIpc';
 import { registerMediaPreviewIpcHandlers } from './mediaPreviewIpc';
 import { registerMigrationIpcHandlers } from './migrationIpc';
+import { registerOperationHistoryIpcHandlers } from './operationHistoryIpc';
 import { registerPremiereIpcHandlers } from './premiereIpc';
 import { registerSettingsIpcHandlers } from './settingsIpc';
 import { checkMediaToolAvailability } from '../services/toolDiagnosticsService';
@@ -41,6 +42,7 @@ export function registerIpcHandlers(): void {
   registerDialogIpcHandlers();
   registerMediaPreviewIpcHandlers();
   registerMigrationIpcHandlers();
+  registerOperationHistoryIpcHandlers();
   registerPremiereIpcHandlers();
   registerSettingsIpcHandlers();
 }

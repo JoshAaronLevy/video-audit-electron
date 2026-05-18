@@ -3,27 +3,41 @@ import type {
   FileOperationExecutionStatus,
   FileOperationPlan,
   FileOperationResult,
-  FileOperationResultItem,
   FileOperationType
 } from './fileOperations';
 
 export type OperationHistoryStatus =
-  | FileOperationExecutionStatus
-  | 'complete-with-failures'
+  | 'running'
+  | 'complete'
+  | 'partial'
+  | 'failed'
   | 'canceled';
 
 export interface OperationHistorySummary {
-  totalItems: number;
-  succeededItems: number;
-  skippedItems: number;
-  failedItems: number;
+  requested: number;
+  succeeded: number;
+  skipped: number;
+  failed: number;
   totalSizeBytes: number;
 }
 
-export interface OperationHistoryItemRecord extends FileOperationResultItem {
+export interface OperationHistoryItemRecord {
+  id: string;
+  planItemId: string;
+  sourcePath: string;
+  destinationPath?: string | null;
+  outputPath?: string | null;
+  archivePath?: string | null;
+  operationType: FileOperationType;
+  fileName: string;
+  status: FileOperationExecutionStatus;
+  startedAt: string | null;
+  completedAt: string | null;
   sourceBefore?: FileIdentity | null;
   sourceAfter?: FileIdentity | null;
   destinationAfter?: FileIdentity | null;
+  warnings?: string[];
+  error?: string | null;
 }
 
 export interface OperationHistoryRecord {
@@ -41,9 +55,17 @@ export interface OperationHistoryRecord {
   logPath?: string | null;
 }
 
+export interface OperationHistoryListRequest {
+  limit?: number;
+  offset?: number;
+}
+
 export interface OperationHistoryListResponse {
   status: 'success' | 'error';
   records: OperationHistoryRecord[];
+  total: number;
+  limit: number;
+  offset: number;
   message?: string;
 }
 

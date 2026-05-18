@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-05-18
+
+### Added
+
+- Added an app-owned JSON operation history log for future file-management workflows.
+- Added main-process operation history services for creating records, appending item results, marking completion or failure, and reading recent operation history.
+- Added read-only operation history IPC and typed preload APIs for listing recent operations and reading operation details.
+
 ## [0.30.0] - 2026-05-18
 
 ### Added

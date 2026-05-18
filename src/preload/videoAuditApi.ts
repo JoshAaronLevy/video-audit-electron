@@ -46,6 +46,11 @@ import type {
   PremiereStatusResponse
 } from '../shared/types/premiere';
 import type {
+  OperationHistoryDetailsResponse,
+  OperationHistoryListRequest,
+  OperationHistoryListResponse
+} from '../shared/types/operationHistory';
+import type {
   MigrationExecuteRequest,
   MigrationJobSnapshot,
   MigrationResultResponse,
@@ -121,6 +126,10 @@ export interface VideoAuditApi {
     execute: (request: MigrationExecuteRequest) => Promise<MigrationStartResponse>;
     getResult: (jobId: string) => Promise<MigrationResultResponse>;
     onProgress: (callback: (progress: MigrationJobSnapshot) => void) => () => void;
+  };
+  operationHistory: {
+    listRecent: (request?: OperationHistoryListRequest) => Promise<OperationHistoryListResponse>;
+    getDetails: (operationId: string) => Promise<OperationHistoryDetailsResponse>;
   };
   premiere: {
     getStatus: () => Promise<PremiereStatusResponse>;
@@ -292,6 +301,12 @@ export const videoAuditApi: VideoAuditApi = {
         ipcRenderer.removeListener(IPC_CHANNELS.migrationExecuteProgress, listener);
       };
     }
+  },
+  operationHistory: {
+    listRecent: (request?: OperationHistoryListRequest) =>
+      ipcRenderer.invoke(IPC_CHANNELS.operationHistoryList, request),
+    getDetails: (operationId: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.operationHistoryGetDetails, operationId)
   },
   premiere: {
     getStatus: () => ipcRenderer.invoke(IPC_CHANNELS.premiereGetStatus),

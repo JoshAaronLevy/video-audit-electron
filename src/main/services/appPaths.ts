@@ -12,3 +12,11 @@ export function getSettingsFilePath(): string {
 export function getMediaPreviewCacheDir(): string {
   return join(getAppDataDir(), 'media-preview');
 }
+
+export function getFileOperationHistoryDir(): string {
+  return join(getAppDataDir(), 'file-operations');
+}
+
+export function getFileOperationHistoryFilePath(): string {
+  return join(getFileOperationHistoryDir(), 'operation-history.json');
+}

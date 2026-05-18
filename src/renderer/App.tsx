@@ -102,6 +102,7 @@ export function App(): ReactElement {
             showThumbnails={controller.showThumbnails}
             isAuditActive={controller.isAuditActive}
             isStorageLoading={controller.isStorageLoading}
+            isCacheClearing={controller.activeAction === 'clearCache'}
             canRefreshAudit={controller.canRefreshAudit}
             hasAuditData={hasAuditData}
             onGlobalFilterChange={controller.setGlobalFilter}

@@ -14,6 +14,7 @@ interface ResultsToolbarProps {
   showThumbnails: boolean;
   isAuditActive: boolean;
   isStorageLoading: boolean;
+  isCacheClearing: boolean;
   canRefreshAudit: boolean;
   hasAuditData: boolean;
   onGlobalFilterChange: (value: string) => void;
@@ -30,6 +31,7 @@ export function ResultsToolbar({
   showThumbnails,
   isAuditActive,
   isStorageLoading,
+  isCacheClearing,
   canRefreshAudit,
   hasAuditData,
   onGlobalFilterChange,
@@ -58,18 +60,9 @@ export function ResultsToolbar({
         icon: 'pi pi-refresh',
         disabled: !canRefreshAudit || isAuditActive,
         command: onRefreshAudit
-      },
-      {
-        separator: true
-      },
-      {
-        label: 'Clear Data',
-        icon: 'pi pi-trash',
-        disabled: isAuditActive || isStorageLoading || !hasAuditData,
-        command: onClearData
       }
     ],
-    [canRefreshAudit, hasAuditData, isAuditActive, isStorageLoading, onClearData, onRefreshAudit]
+    [canRefreshAudit, isAuditActive, onRefreshAudit]
   );
   const activeCount = resultsViewCounts[resultsViewFilter] ?? 0;
 
@@ -117,6 +110,17 @@ export function ResultsToolbar({
         </label>
 
         <Menu id="results-toolbar-menu" model={overflowItems} popup ref={menuRef} />
+        <Button
+          label="Clear Cache"
+          icon="pi pi-trash"
+          severity="danger"
+          outlined
+          loading={isCacheClearing}
+          disabled={isAuditActive || isStorageLoading || isCacheClearing || !hasAuditData}
+          onClick={() => {
+            void onClearData();
+          }}
+        />
         <Button
           label="View"
           icon="pi pi-sliders-h"

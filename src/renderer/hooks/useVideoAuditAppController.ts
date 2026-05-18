@@ -63,6 +63,7 @@ import { dedupeOverlappingFolderPaths } from '../../shared/utils/folderPathSelec
 import {
   clearStoredAuditResult,
   loadStoredAuditResult,
+  saveStoredAuditHistoryEntry,
   saveStoredAuditResult
 } from '../storage/auditResultStorage';
 import type { ResultsViewCounts, ResultsViewFilter } from '../types/resultsView';
@@ -93,6 +94,7 @@ type ActiveAction =
   | 'operationHistory'
   | 'premiereStatus'
   | 'premiereImport'
+  | 'clearCache'
   | null;
 
 type PostConversionDialogMode = 'choices' | 'manual-review';
@@ -2359,68 +2361,144 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   );
 
   const clearAuditData = useCallback(async (): Promise<void> => {
-    await clearStoredAuditResult();
-    setAuditJobId(null);
-    setAuditProgress(null);
-    setAuditResult(null);
-    setAuditSummary(null);
-    setAuditErrors([]);
-    setVideoRows(null);
-    setSelectedVideos([]);
-    setGlobalFilter('');
-    setResultsViewFilter('all');
-    setSelectedFolders([]);
-    setSelectedFiles([]);
-    setDiscoveryProgress(null);
-    setFfprobeProgress(null);
-    setAutoFixJobId(null);
-    setAutoFixProgress(null);
-    setAutoFixResult(null);
-    setAutoFixError(null);
-    setIsAutoFixDialogVisible(false);
-    setAutoCropJobId(null);
-    setAutoCropProgress(null);
-    setAutoCropResult(null);
-    setAutoCropError(null);
-    setIsAutoCropDialogVisible(false);
-    setMediaPreviewJobId(null);
-    setMediaPreviewProgress(null);
-    setMediaPreviewResult(null);
-    setMediaPreviewError(null);
-    setIsThumbnailDialogVisible(false);
-    setPreviewClipJobId(null);
-    setPreviewClipProgress(null);
-    setPreviewClipResult(null);
-    setPreviewClipError(null);
-    setMigrationNewEditedDirState('');
-    setMigrationScan(null);
-    setMigrationScanError(null);
-    setMigrationJobId(null);
-    setMigrationProgress(null);
-    setMigrationResult(null);
-    setMigrationResultError(null);
-    setIsMigrationScanDialogVisible(false);
-    setIsMigrationResultDialogVisible(false);
-    setPostConversionPlan(null);
-    setPostConversionSourceLabel(null);
-    setPostConversionMode('choices');
-    setPostConversionError(null);
-    setPostConversionMessage(null);
-    setIsPostConversionDialogVisible(false);
-    setReplacementJobId(null);
-    setReplacementProgress(null);
-    setReplacementResult(null);
-    setReplacementResultError(null);
-    setIsReplacementResultDialogVisible(false);
-    setPremiereImportResult(null);
-    setPremiereImportError(null);
-    setIsPremiereImportSubmitting(false);
-    setLastAuditRequest(null);
-    pendingAuditRequestRef.current = null;
-    setStorageSavedAt(null);
-    setStorageMessage('Audit data cleared.');
+    setActiveAction('clearCache');
+    setStorageMessage('Clearing cache...');
     setWorkflowMessage(null);
-  }, []);
+
+    let savedHistoryMetadata = false;
+    let historyMetadataError: string | null = null;
+
+    if (auditResult && lastAuditRequest) {
+      try {
+        await saveStoredAuditHistoryEntry({
+          request: lastAuditRequest,
+          result: auditResult,
+          outputFolder,
+          savedAt: storageSavedAt
+        });
+        savedHistoryMetadata = true;
+      } catch (error: unknown) {
+        historyMetadataError = getErrorMessage(error, 'Could not save scan history metadata.');
+      }
+    }
+
+    try {
+      const previewCacheResponse = await window.videoAudit.mediaPreview.clearCache();
+
+      if (previewCacheResponse.status !== 'complete') {
+        throw new Error(previewCacheResponse.message || 'Could not clear media preview cache.');
+      }
+
+      await clearStoredAuditResult();
+
+      const updatedSettings = await window.videoAudit.settings.update({
+        defaultOutputDirectory: null,
+        latestSelectedFolder: null,
+        latestFolderTreeSource: null,
+        lastAuditResultSummary: null
+      });
+
+      setSettings(updatedSettings);
+      setSettingsMessage(null);
+      setOutputFolder(updatedSettings.defaultOutputDirectory);
+      setAuditOptions(settingsToAuditOptions(updatedSettings));
+      setAuditJobId(null);
+      setAuditProgress(null);
+      setAuditResult(null);
+      setAuditSummary(null);
+      setAuditErrors([]);
+      setVideoRows(null);
+      setSelectedVideos([]);
+      setGlobalFilter('');
+      setResultsViewFilter('all');
+      setShowThumbnailsState(true);
+      setSelectedFolders([]);
+      setSelectedFolderSummary(null);
+      setFolderTreeRootPath(null);
+      setFolderTreeLastScannedAt(null);
+      setSelectedFiles([]);
+      setSelectionMessage(null);
+      setDiscoveryJobId(null);
+      setDiscoveryProgress(null);
+      setFfprobeJobId(null);
+      setFfprobeProgress(null);
+      setAutoFixJobId(null);
+      setAutoFixProgress(null);
+      setAutoFixResult(null);
+      setAutoFixError(null);
+      setIsAutoFixDialogVisible(false);
+      setAutoCropJobId(null);
+      setAutoCropProgress(null);
+      setAutoCropResult(null);
+      setAutoCropError(null);
+      setIsAutoCropDialogVisible(false);
+      setMediaPreviewJobId(null);
+      setMediaPreviewProgress(null);
+      setMediaPreviewResult(null);
+      setMediaPreviewError(null);
+      setMediaPreviewScope('all');
+      setIsThumbnailDialogVisible(false);
+      setPreviewClipJobId(null);
+      setPreviewClipProgress(null);
+      setPreviewClipResult(null);
+      setPreviewClipError(null);
+      setMigrationNewEditedDirState('');
+      setMigrationScan(null);
+      setMigrationScanError(null);
+      setMigrationJobId(null);
+      setMigrationProgress(null);
+      setMigrationResult(null);
+      setMigrationResultError(null);
+      setIsMigrationScanDialogVisible(false);
+      setIsMigrationResultDialogVisible(false);
+      setTrashPlan(null);
+      setTrashPlanError(null);
+      setTrashResult(null);
+      setTrashResultError(null);
+      setIsTrashConfirmDialogVisible(false);
+      setIsTrashResultDialogVisible(false);
+      setMovePlan(null);
+      setMovePlanError(null);
+      setMoveResult(null);
+      setMoveResultError(null);
+      setIsMoveConfirmDialogVisible(false);
+      setIsMoveResultDialogVisible(false);
+      setArchivePlan(null);
+      setArchivePlanError(null);
+      setArchiveResult(null);
+      setArchiveResultError(null);
+      setIsArchiveConfirmDialogVisible(false);
+      setIsArchiveResultDialogVisible(false);
+      setPostConversionPlan(null);
+      setPostConversionSourceLabel(null);
+      setPostConversionMode('choices');
+      setPostConversionError(null);
+      setPostConversionMessage(null);
+      setIsPostConversionDialogVisible(false);
+      setReplacementJobId(null);
+      setReplacementProgress(null);
+      setReplacementResult(null);
+      setReplacementResultError(null);
+      setIsReplacementResultDialogVisible(false);
+      setPremiereImportResult(null);
+      setPremiereImportError(null);
+      setIsPremiereImportSubmitting(false);
+      setLastAuditRequest(null);
+      pendingAuditRequestRef.current = null;
+      setStorageSavedAt(null);
+      setStorageMessage(
+        historyMetadataError
+          ? `Cache cleared. Scan history metadata could not be saved: ${historyMetadataError}`
+          : savedHistoryMetadata
+            ? 'Cache cleared. Scan metadata saved for future history.'
+            : 'Cache cleared.'
+      );
+    } catch (error: unknown) {
+      setStorageMessage(getErrorMessage(error, 'Could not clear cache.'));
+    } finally {
+      setActiveAction(null);
+    }
+  }, [auditResult, lastAuditRequest, outputFolder, storageSavedAt]);
 
   const startDiscovery = useCallback(async (): Promise<void> => {
     const request: FileDiscoveryRequest = {

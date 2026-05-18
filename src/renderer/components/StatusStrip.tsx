@@ -144,7 +144,8 @@ function formatAction(action: string): string {
     replacementExecute: 'Replacement running',
     operationHistory: 'Loading history',
     premiereStatus: 'Checking Premiere',
-    premiereImport: 'Premiere import'
+    premiereImport: 'Premiere import',
+    clearCache: 'Clearing cache'
   };
 
   return labels[action] ?? action;

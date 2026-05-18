@@ -1,10 +1,6 @@
 # Datatable Updates
 
-The following is a list of updates and changes made to the datatable component. For this task, please thoroughly review the list and the existing codebase. When you are done, add a section below each named `### Clarifying Questions` and add a list of any questions you have about the request in order to accurately implement the changes if any of the following requests are not clear. If the request is clear and you don't need more information, then in the `### Clarifying Questions` section, write "No clarifying questions at this time." Do NOT implement any of the code changes until you have completed the `### Clarifying Questions` section and I have reviewed your questions. I will then provide answers to your questions and you can proceed with the implementation.
-
-**IMPORTANT NOTE:**
-
-I added the `video-audit` project to this workspace. It's the original version of this app built for browser use. In that repo, the datatable had features that are not implemented in the current version of the `collie-video` app yet, but I need them implemented. I added `video-audit` to this workspace so you can refer to the code in that repo for reference on how to implement the features outlined in the updates below. Please refer to the `video-audit` repo as needed while implementing the changes below. But ONLY make the changes to the datatable in the `collie-video` app and do NOT make any changes to the `video-audit` repo. The `video-audit` repo is only for reference. And ONLY make the changes requested below. So if I didn't explicitly request a change, then do not make that change even if you see it in the `video-audit` repo. Only implement the changes outlined in the updates below.
+The following is a list of updates and changes made to the datatable component.
 
 ## Update 1: File Column Changes
 

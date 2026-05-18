@@ -185,6 +185,8 @@ export interface VideoAuditAppController {
   previewClipResult: PreviewClipResult | null;
   previewClipError: string | null;
   isPreviewClipActive: boolean;
+  isPreviewFrameFetching: boolean;
+  previewFrameError: string | null;
   migrationNewEditedDir: string;
   migrationScan: MigrationScanResult | null;
   migrationScanError: string | null;
@@ -299,6 +301,8 @@ export interface VideoAuditAppController {
   setMediaPreviewScope: (scope: MediaPreviewScope) => void;
   startThumbnailGeneration: () => Promise<void>;
   cancelThumbnailGeneration: () => Promise<void>;
+  clearPreviewFrameError: () => void;
+  getFreshThumbnailsForVideo: (video: VideoRow) => Promise<void>;
   startPreviewClipGeneration: (video: VideoRow, frames: VideoPreviewFrame[]) => Promise<void>;
   cancelPreviewClipGeneration: () => Promise<void>;
   setMigrationNewEditedDir: (value: string) => void;
@@ -396,6 +400,8 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const [previewClipProgress, setPreviewClipProgress] = useState<PreviewClipJobSnapshot | null>(null);
   const [previewClipResult, setPreviewClipResult] = useState<PreviewClipResult | null>(null);
   const [previewClipError, setPreviewClipError] = useState<string | null>(null);
+  const [previewFrameFetchPath, setPreviewFrameFetchPath] = useState<string | null>(null);
+  const [previewFrameError, setPreviewFrameError] = useState<string | null>(null);
   const [migrationNewEditedDir, setMigrationNewEditedDirState] = useState('');
   const [migrationScan, setMigrationScan] = useState<MigrationScanResult | null>(null);
   const [migrationScanError, setMigrationScanError] = useState<string | null>(null);
@@ -2882,6 +2888,67 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     }
   }, [mediaPreviewJobId]);
 
+  const clearPreviewFrameError = useCallback((): void => {
+    setPreviewFrameError(null);
+  }, []);
+
+  const getFreshThumbnailsForVideo = useCallback(
+    async (video: VideoRow): Promise<void> => {
+      if (!auditResult) {
+        setPreviewFrameError('No audit result is available for thumbnail updates.');
+        return;
+      }
+
+      setPreviewFrameFetchPath(video.path);
+      setPreviewFrameError(null);
+
+      try {
+        const response = await window.videoAudit.mediaPreview.generateFrames({
+          video,
+          mode: 'fresh'
+        });
+
+        if (response.status !== 'complete' || !response.result) {
+          setPreviewFrameError(response.message ?? 'Could not get fresh thumbnails.');
+          return;
+        }
+
+        const fallbackThumbnail =
+          video.thumbnail ??
+          response.result.frames.find((frame) => frame.thumbnail.generated)?.thumbnail ?? {
+            generated: false,
+            error: 'No generated thumbnails returned.'
+          };
+        const previewItem: MediaPreviewResultItem = {
+          id: video.id,
+          fileName: video.fileName,
+          path: video.path,
+          absolutePath: video.path,
+          thumbnail: fallbackThumbnail,
+          previewFrames: response.result
+        };
+        const nextRows = mergeMediaPreviewItems(auditResult.videos, [previewItem]);
+        const nextResult = {
+          ...auditResult,
+          videos: nextRows
+        };
+
+        setAuditResult(nextResult);
+        setVideoRows(nextRows);
+        setSelectedVideos((currentSelection) => mergeMediaPreviewItems(currentSelection, [previewItem]));
+        await persistCurrentResult(nextResult);
+        setWorkflowMessage(
+          `Fresh thumbnails ready. ${response.result.summary.returned.toLocaleString()} frame(s) available.`
+        );
+      } catch (error: unknown) {
+        setPreviewFrameError(getErrorMessage(error, 'Could not get fresh thumbnails.'));
+      } finally {
+        setPreviewFrameFetchPath(null);
+      }
+    },
+    [auditResult, persistCurrentResult]
+  );
+
   const startPreviewClipGeneration = useCallback(
     async (video: VideoRow, frames: VideoPreviewFrame[]): Promise<void> => {
       if (!video) {
@@ -3419,6 +3486,8 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     previewClipResult,
     previewClipError,
     isPreviewClipActive,
+    isPreviewFrameFetching: Boolean(previewFrameFetchPath),
+    previewFrameError,
     migrationNewEditedDir,
     migrationScan,
     migrationScanError,
@@ -3528,6 +3597,8 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setMediaPreviewScope,
     startThumbnailGeneration,
     cancelThumbnailGeneration,
+    clearPreviewFrameError,
+    getFreshThumbnailsForVideo,
     startPreviewClipGeneration,
     cancelPreviewClipGeneration,
     setMigrationNewEditedDir,

@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { Button } from 'primereact/button';
 import { Column } from 'primereact/column';
 import { DataTable } from 'primereact/datatable';
@@ -21,7 +21,6 @@ interface VideoResultsTableProps {
   hasSources: boolean;
   selectedFolderCount: number;
   selectedFileCount: number;
-  showThumbnails: boolean;
   auditOptions: AuditOptions;
   auditSummary: AuditSummary | null;
   auditErrors: AuditError[];
@@ -37,11 +36,15 @@ interface VideoResultsTableProps {
   previewClipProgress: PreviewClipJobSnapshot | null;
   previewClipPercent: number | null;
   previewClipError: string | null;
+  isPreviewFrameFetching: boolean;
+  previewFrameError: string | null;
   premiereImportResult: PremiereRequestResponse | null;
   premiereImportError: string | null;
   onSelectedVideosChange: (videos: VideoRow[]) => void;
   onOpenSourceSetup: () => void;
   onRunAudit: () => void;
+  onClearPreviewFrameError: () => void;
+  onGetFreshThumbnails: (video: VideoRow) => void | Promise<void>;
   onStartPreviewClipGeneration: (video: VideoRow, frames: VideoPreviewFrame[]) => void;
   onCancelPreviewClipGeneration: () => void;
   onRevealKnownFile: (item: KnownPathValidationItem) => void;
@@ -75,7 +78,6 @@ export function VideoResultsTable({
   hasSources,
   selectedFolderCount,
   selectedFileCount,
-  showThumbnails,
   auditOptions,
   auditSummary,
   auditErrors,
@@ -91,11 +93,15 @@ export function VideoResultsTable({
   previewClipProgress,
   previewClipPercent,
   previewClipError,
+  isPreviewFrameFetching,
+  previewFrameError,
   premiereImportResult,
   premiereImportError,
   onSelectedVideosChange,
   onOpenSourceSetup,
   onRunAudit,
+  onClearPreviewFrameError,
+  onGetFreshThumbnails,
   onStartPreviewClipGeneration,
   onCancelPreviewClipGeneration,
   onRevealKnownFile
@@ -108,6 +114,12 @@ export function VideoResultsTable({
 
     return (allRows ?? rows).find((row) => row.path === detailPath) ?? null;
   }, [allRows, detailPath, rows]);
+
+  useEffect(() => {
+    if (detailPath) {
+      onClearPreviewFrameError();
+    }
+  }, [detailPath, onClearPreviewFrameError]);
   const emptyState = getEmptyState({
     allRows,
     auditSummary,
@@ -180,7 +192,7 @@ export function VideoResultsTable({
         stripedRows
         size="small"
         scrollable
-        tableStyle={{ minWidth: showThumbnails ? '1320px' : '1220px' }}
+        tableStyle={{ minWidth: '1320px' }}
         emptyMessage={
           <EmptyState
             title={emptyState.title}
@@ -193,9 +205,7 @@ export function VideoResultsTable({
         }
       >
         <Column selectionMode="multiple" headerStyle={{ width: '3rem' }} style={{ width: '3rem' }} />
-        {showThumbnails ? (
-          <Column header="Preview" body={thumbnailTemplate} style={{ width: '6.5rem' }} />
-        ) : null}
+        <Column header="Preview" body={thumbnailTemplate} style={{ width: '6.5rem' }} />
         <Column field="displayFile" header="File" sortable body={fileTemplate} style={{ width: '27rem' }} />
         <Column field="fileType" header="Type" sortable body={typeTemplate} style={{ width: '6.5rem' }} />
         <Column field="sizeMB" header="Size" sortable body={sizeTemplate} style={{ width: '7rem' }} />
@@ -227,6 +237,9 @@ export function VideoResultsTable({
         previewClipPercent={previewClipPercent}
         previewClipError={previewClipError}
         isPreviewClipActive={isPreviewClipActive}
+        isPreviewFrameFetching={isPreviewFrameFetching}
+        previewFrameError={previewFrameError}
+        onGetFreshThumbnails={onGetFreshThumbnails}
         onGeneratePreviewClips={onStartPreviewClipGeneration}
         onCancelPreviewClips={onCancelPreviewClipGeneration}
         onRevealKnownFile={onRevealKnownFile}

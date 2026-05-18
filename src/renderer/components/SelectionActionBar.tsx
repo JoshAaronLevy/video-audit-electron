@@ -12,7 +12,6 @@ interface SelectionActionBarProps {
   isAuditActive: boolean;
   isAutoFixActive: boolean;
   isAutoCropActive: boolean;
-  isMediaPreviewActive: boolean;
   isMigrationActive: boolean;
   isTrashPlanning: boolean;
   isTrashExecuting: boolean;
@@ -23,7 +22,6 @@ interface SelectionActionBarProps {
   isPremiereImportSubmitting: boolean;
   canAutoFixSelected: boolean;
   canOpenCropOptions: boolean;
-  canGenerateThumbnails: boolean;
   canMoveSelectedToTrash: boolean;
   canMoveSelectedToFolder: boolean;
   canArchiveSelectedOriginals: boolean;
@@ -33,7 +31,6 @@ interface SelectionActionBarProps {
   onRestoreRemovedVideos: () => void;
   onOpenAutoFixDialog: () => void;
   onOpenAutoCropDialog: () => void;
-  onOpenThumbnailDialog: () => void;
   onOpenMigrationDialog: () => void;
   onOpenTrashDialog: () => void;
   onOpenMoveDialog: (conflictStrategy?: DestinationConflictStrategy) => void;
@@ -48,7 +45,6 @@ export function SelectionActionBar({
   isAuditActive,
   isAutoFixActive,
   isAutoCropActive,
-  isMediaPreviewActive,
   isMigrationActive,
   isTrashPlanning,
   isTrashExecuting,
@@ -59,7 +55,6 @@ export function SelectionActionBar({
   isPremiereImportSubmitting,
   canAutoFixSelected,
   canOpenCropOptions,
-  canGenerateThumbnails,
   canMoveSelectedToTrash,
   canMoveSelectedToFolder,
   canArchiveSelectedOriginals,
@@ -69,7 +64,6 @@ export function SelectionActionBar({
   onRestoreRemovedVideos,
   onOpenAutoFixDialog,
   onOpenAutoCropDialog,
-  onOpenThumbnailDialog,
   onOpenMigrationDialog,
   onOpenTrashDialog,
   onOpenMoveDialog,
@@ -79,20 +73,11 @@ export function SelectionActionBar({
   const menuRef = useRef<Menu>(null);
   const selectedCount = selectedVideos.length;
   const hasSelection = selectedCount > 0;
-  const hasTableActions = removedVideoCount > 0 || canStartMigration || canGenerateThumbnails;
+  const hasTableActions = removedVideoCount > 0 || canStartMigration;
   const hasOverflowActions = hasSelection || hasTableActions;
   const overflowItems = useMemo<MenuItem[]>(
     () => {
       const items: MenuItem[] = [];
-
-      if (!hasSelection && canGenerateThumbnails) {
-        items.push({
-          label: 'Generate All Thumbnails',
-          icon: 'pi pi-images',
-          disabled: isMediaPreviewActive,
-          command: onOpenThumbnailDialog
-        });
-      }
 
       if (canStartMigration) {
         items.push({
@@ -157,7 +142,6 @@ export function SelectionActionBar({
     },
     [
       canArchiveSelectedOriginals,
-      canGenerateThumbnails,
       canMoveSelectedToFolder,
       canMoveSelectedToTrash,
       canStartMigration,
@@ -165,7 +149,6 @@ export function SelectionActionBar({
       isAuditActive,
       isArchiveExecuting,
       isArchivePlanning,
-      isMediaPreviewActive,
       isMigrationActive,
       isMoveExecuting,
       isMovePlanning,
@@ -174,7 +157,6 @@ export function SelectionActionBar({
       onOpenMigrationDialog,
       onOpenArchiveDialog,
       onOpenMoveDialog,
-      onOpenThumbnailDialog,
       onOpenTrashDialog,
       onRemoveSelectedVideos,
       onRestoreRemovedVideos,
@@ -225,15 +207,6 @@ export function SelectionActionBar({
               disabled={!canOpenCropOptions}
               title={canOpenCropOptions ? 'Open crop options for selected rows.' : getBusyDisabledReason()}
               onClick={onOpenAutoCropDialog}
-            />
-            <Button
-              label="Generate Thumbnails"
-              icon="pi pi-images"
-              severity="info"
-              loading={isMediaPreviewActive}
-              disabled={!canGenerateThumbnails}
-              title={canGenerateThumbnails ? 'Open thumbnail generation options.' : getBusyDisabledReason()}
-              onClick={onOpenThumbnailDialog}
             />
             <Button
               label="Edit in Premiere"
@@ -293,7 +266,7 @@ function getNoSelectionMessage(rowsExist: boolean, removedVideoCount: number, ha
   }
 
   if (rowsExist) {
-    return 'Select rows for Auto-Fix, Crop, thumbnails, or Premiere.';
+    return 'Select rows for Auto-Fix, Crop, or Premiere.';
   }
 
   return 'Run an audit to enable row actions.';

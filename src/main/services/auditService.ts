@@ -20,6 +20,7 @@ import {
 } from './blackBorderAnalysisService';
 import { discoverVideoFiles } from './fileDiscoveryService';
 import { runFfprobe } from './ffprobeService';
+import { generateThumbnails } from './mediaPreviewService';
 
 export const DEFAULT_AUDIT_OPTIONS: AuditOptions = {
   includeSubfolders: true,
@@ -198,7 +199,21 @@ export async function runAudit({
       auditOptions.includeBlackBorderAnalysis && isBlackBorderReviewCandidate(blackBorder);
 
     if (lowResolutionDetected || blackBorderNeedsReview) {
-      flagged.push(row);
+      const rowWithThumbnail = await addPosterThumbnailToFlaggedRow({
+        row,
+        ffmpegPath: ffmpegBinaryPath,
+        signal,
+        onProgress,
+        resolvedDirectory,
+        totalFiles: files.length,
+        processedFiles: index,
+        skippedFiles: discoveryResult.skippedFiles,
+        flagged,
+        errors,
+        file
+      });
+
+      flagged.push(rowWithThumbnail);
     }
 
     emitAnalysisProgress(onProgress, resolvedDirectory, files.length, index + 1, discoveryResult.skippedFiles, flagged, errors, file);
@@ -230,6 +245,67 @@ export async function runAudit({
     videos: flagged,
     errors
   };
+}
+
+async function addPosterThumbnailToFlaggedRow({
+  row,
+  ffmpegPath,
+  signal,
+  onProgress,
+  resolvedDirectory,
+  totalFiles,
+  processedFiles,
+  skippedFiles,
+  flagged,
+  errors,
+  file
+}: {
+  row: VideoRow;
+  ffmpegPath: string;
+  signal?: AbortSignal;
+  onProgress: RunAuditOptions['onProgress'];
+  resolvedDirectory: string | null;
+  totalFiles: number;
+  processedFiles: number;
+  skippedFiles: number;
+  flagged: VideoRow[];
+  errors: AuditError[];
+  file: DiscoveredVideoFile;
+}): Promise<VideoRow> {
+  emitProgress(onProgress, {
+    phase: 'analyzing',
+    resolvedDirectory,
+    totalFiles,
+    processedFiles,
+    skippedFiles,
+    flaggedCount: flagged.length,
+    errorCount: errors.length,
+    currentFile: file.fileName,
+    message: 'Generating thumbnail.'
+  });
+
+  try {
+    const result = await generateThumbnails({
+      videos: [row],
+      ffmpegPath,
+      signal
+    });
+    const thumbnail = result.items.find((item) => (item.path ?? item.absolutePath) === row.path)?.thumbnail;
+
+    return thumbnail ? { ...row, thumbnail } : row;
+  } catch (error: unknown) {
+    if (isAbortError(error)) {
+      throw error;
+    }
+
+    return {
+      ...row,
+      thumbnail: {
+        generated: false,
+        error: getErrorMessage(error)
+      }
+    };
+  }
 }
 
 export function normalizeAuditOptions(options: Partial<AuditOptions> | null | undefined): AuditOptions {
@@ -648,6 +724,10 @@ function throwIfAborted(signal: AbortSignal | undefined): void {
   if (signal?.aborted) {
     throw createAuditCancelError();
   }
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError';
 }
 
 export function createAuditCancelError(): Error {

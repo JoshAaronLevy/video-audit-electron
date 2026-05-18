@@ -1,6 +1,5 @@
 import { useMemo, useRef, type ReactElement } from 'react';
 import { Button } from 'primereact/button';
-import { Checkbox } from 'primereact/checkbox';
 import { InputText } from 'primereact/inputtext';
 import { Menu } from 'primereact/menu';
 import type { MenuItem } from 'primereact/menuitem';
@@ -11,7 +10,6 @@ interface ResultsToolbarProps {
   globalFilter: string;
   resultsViewFilter: ResultsViewFilter;
   resultsViewCounts: ResultsViewCounts;
-  showThumbnails: boolean;
   isAuditActive: boolean;
   isStorageLoading: boolean;
   isCacheClearing: boolean;
@@ -19,7 +17,6 @@ interface ResultsToolbarProps {
   hasAuditData: boolean;
   onGlobalFilterChange: (value: string) => void;
   onResultsViewFilterChange: (value: ResultsViewFilter) => void;
-  onShowThumbnailsChange: (value: boolean) => void;
   onRefreshAudit: () => void;
   onClearData: () => void;
 }
@@ -28,7 +25,6 @@ export function ResultsToolbar({
   globalFilter,
   resultsViewFilter,
   resultsViewCounts,
-  showThumbnails,
   isAuditActive,
   isStorageLoading,
   isCacheClearing,
@@ -36,7 +32,6 @@ export function ResultsToolbar({
   hasAuditData,
   onGlobalFilterChange,
   onResultsViewFilterChange,
-  onShowThumbnailsChange,
   onRefreshAudit,
   onClearData
 }: ResultsToolbarProps): ReactElement {
@@ -98,16 +93,6 @@ export function ResultsToolbar({
         <span className="results-filter-count">
           {activeCount.toLocaleString()} shown
         </span>
-
-        <label className="inline-toggle" htmlFor="show-thumbnails">
-          <Checkbox
-            inputId="show-thumbnails"
-            checked={showThumbnails}
-            disabled={isStorageLoading}
-            onChange={(event) => onShowThumbnailsChange(Boolean(event.checked))}
-          />
-          <span>Thumbnails</span>
-        </label>
 
         <Menu id="results-toolbar-menu" model={overflowItems} popup ref={menuRef} />
         <Button

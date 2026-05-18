@@ -109,7 +109,6 @@ export function App(): ReactElement {
             globalFilter={controller.globalFilter}
             resultsViewFilter={controller.resultsViewFilter}
             resultsViewCounts={controller.resultsViewCounts}
-            showThumbnails={controller.showThumbnails}
             isAuditActive={controller.isAuditActive}
             isStorageLoading={controller.isStorageLoading}
             isCacheClearing={controller.activeAction === 'clearCache'}
@@ -117,7 +116,6 @@ export function App(): ReactElement {
             hasAuditData={hasAuditData}
             onGlobalFilterChange={controller.setGlobalFilter}
             onResultsViewFilterChange={controller.setResultsViewFilter}
-            onShowThumbnailsChange={controller.setShowThumbnails}
             onRefreshAudit={controller.refreshAudit}
             onClearData={controller.clearAuditData}
           />
@@ -131,7 +129,6 @@ export function App(): ReactElement {
             hasSources={hasSources}
             selectedFolderCount={controller.selectedFolders.length}
             selectedFileCount={controller.selectedFiles.length}
-            showThumbnails={controller.showThumbnails}
             auditOptions={controller.auditOptions}
             auditSummary={controller.auditSummary}
             auditErrors={controller.auditErrors}
@@ -147,11 +144,15 @@ export function App(): ReactElement {
             previewClipProgress={controller.previewClipProgress}
             previewClipPercent={controller.previewClipPercent}
             previewClipError={controller.previewClipError}
+            isPreviewFrameFetching={controller.isPreviewFrameFetching}
+            previewFrameError={controller.previewFrameError}
             premiereImportResult={controller.premiereImportResult}
             premiereImportError={controller.premiereImportError}
             onSelectedVideosChange={controller.setSelectedVideos}
             onOpenSourceSetup={() => setIsSourceSetupVisible(true)}
             onRunAudit={controller.runAudit}
+            onClearPreviewFrameError={controller.clearPreviewFrameError}
+            onGetFreshThumbnails={controller.getFreshThumbnailsForVideo}
             onStartPreviewClipGeneration={controller.startPreviewClipGeneration}
             onCancelPreviewClipGeneration={controller.cancelPreviewClipGeneration}
             onRevealKnownFile={controller.revealKnownFile}
@@ -165,7 +166,6 @@ export function App(): ReactElement {
           isAuditActive={controller.isAuditActive}
           isAutoFixActive={controller.isAutoFixActive}
           isAutoCropActive={controller.isAutoCropActive}
-          isMediaPreviewActive={controller.isMediaPreviewActive}
           isMigrationActive={controller.isMigrationActive}
           isTrashPlanning={controller.isTrashPlanning}
           isTrashExecuting={controller.isTrashExecuting}
@@ -176,7 +176,6 @@ export function App(): ReactElement {
           isPremiereImportSubmitting={controller.isPremiereImportSubmitting}
           canAutoFixSelected={controller.canAutoFixSelected}
           canOpenCropOptions={controller.canOpenCropOptions}
-          canGenerateThumbnails={controller.canGenerateThumbnails}
           canMoveSelectedToTrash={controller.canMoveSelectedToTrash}
           canMoveSelectedToFolder={controller.canMoveSelectedToFolder}
           canArchiveSelectedOriginals={controller.canArchiveSelectedOriginals}
@@ -186,7 +185,6 @@ export function App(): ReactElement {
           onRestoreRemovedVideos={controller.restoreRemovedVideos}
           onOpenAutoFixDialog={controller.openAutoFixDialog}
           onOpenAutoCropDialog={controller.openAutoCropDialog}
-          onOpenThumbnailDialog={controller.openThumbnailDialog}
           onOpenMigrationDialog={controller.openMigrationDialog}
           onOpenTrashDialog={controller.openTrashDialog}
           onOpenMoveDialog={controller.openMoveDialog}

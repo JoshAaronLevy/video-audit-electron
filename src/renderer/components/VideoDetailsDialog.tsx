@@ -16,6 +16,9 @@ interface VideoDetailsDialogProps {
   previewClipPercent: number | null;
   previewClipError: string | null;
   isPreviewClipActive: boolean;
+  isPreviewFrameFetching: boolean;
+  previewFrameError: string | null;
+  onGetFreshThumbnails: (video: VideoRow) => void | Promise<void>;
   onGeneratePreviewClips: (video: VideoRow, frames: VideoPreviewFrame[]) => void;
   onCancelPreviewClips: () => void;
   onRevealKnownFile: (item: KnownPathValidationItem) => void;
@@ -29,6 +32,9 @@ export function VideoDetailsDialog({
   previewClipPercent,
   previewClipError,
   isPreviewClipActive,
+  isPreviewFrameFetching,
+  previewFrameError,
+  onGetFreshThumbnails,
   onGeneratePreviewClips,
   onCancelPreviewClips,
   onRevealKnownFile,
@@ -54,6 +60,7 @@ export function VideoDetailsDialog({
   const readyClipCount = frames.filter(hasReadyPreviewClip).length;
   const missingClipCount = frames.length - readyClipCount;
   const canGenerateClips = Boolean(video) && !isPreviewClipActive;
+  const canGetFreshThumbnails = Boolean(video) && !isPreviewFrameFetching && !isPreviewClipActive;
   const progressMessage = previewClipProgress?.message ?? null;
 
   return (
@@ -175,7 +182,8 @@ export function VideoDetailsDialog({
             )}
           </section>
 
-          <section className="preview-clip-actions" aria-label="Preview clip generation">
+          <section className="preview-clip-actions" aria-label="Preview media generation">
+            {previewFrameError ? <Message severity="error" text={previewFrameError} /> : null}
             {previewClipError ? <Message severity="error" text={previewClipError} /> : null}
             {progressMessage ? (
               <div className="preview-clip-progress">
@@ -193,6 +201,17 @@ export function VideoDetailsDialog({
                   onClick={onCancelPreviewClips}
                 />
               ) : null}
+              <Button
+                label="Get Fresh Thumbnails"
+                icon="pi pi-images"
+                severity="success"
+                outlined
+                loading={isPreviewFrameFetching}
+                disabled={!canGetFreshThumbnails}
+                onClick={() => {
+                  void onGetFreshThumbnails(video);
+                }}
+              />
               <Button
                 label={missingClipCount === 1 ? 'Generate Preview Clip' : 'Generate Preview Clips'}
                 icon="pi pi-video"

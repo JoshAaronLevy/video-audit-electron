@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.43.0] - 2026-05-18
+
+### Added
+
+- Added a main-process eager folder-tree scan service that validates a root folder, recursively scans all non-skipped subfolders, computes direct and recursive supported-video counts and sizes, reports progress, records warnings, and supports cancellation.
+
 ## [0.42.2] - 2026-05-18
 
 ### Added

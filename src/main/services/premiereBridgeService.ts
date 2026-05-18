@@ -85,8 +85,8 @@ export async function getPremiereStatus(): Promise<PremiereStatusResponse> {
       bridge: serializeDisconnectedBridge(statusFileResult.reason ?? 'missing_status', statusFileResult),
       message:
         premiere.running === null
-          ? 'Unable to confirm Premiere Pro is running, and the Video Audit bridge plugin is not connected.'
-          : 'Premiere Pro is open, but the Video Audit bridge plugin is not connected.'
+          ? 'Unable to confirm Premiere Pro is running, and the Collie Video bridge plugin is not connected.'
+          : 'Premiere Pro is open, but the Collie Video bridge plugin is not connected.'
     };
   }
 
@@ -112,7 +112,7 @@ export async function getPremiereStatus(): Promise<PremiereStatusResponse> {
       message:
         disconnectedReason === 'premiere_process_unknown'
           ? 'Unable to confirm Premiere Pro is running.'
-          : 'Premiere Pro is open, but the Video Audit bridge plugin is not connected.'
+          : 'Premiere Pro is open, but the Collie Video bridge plugin is not connected.'
     };
   }
 

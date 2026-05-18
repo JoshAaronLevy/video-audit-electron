@@ -56,7 +56,7 @@ The target main layout should be:
 
 ```txt
 ┌──────────────────────────────────────────────────────────────┐
-│ Video Audit                         Status     Settings ⚙    │
+│ Collie Video                        Status     Settings ⚙    │
 ├──────────────────────────────────────────────────────────────┤
 │ Source summary / quick actions                              │
 │ [Choose Sources] [Run Audit]                                │
@@ -102,7 +102,7 @@ Do not overuse gradients or saturated button colors. A utility app should feel p
 
 Contains:
 
-* app name: `Video Audit`
+* app name: `Collie Video`
 * current audit/result summary
 * compact status indicators
 * settings button
@@ -111,7 +111,7 @@ Contains:
 Example:
 
 ```txt
-Video Audit      142 videos • 38 flagged • 2 errors      Premiere Ready   Settings
+Collie Video     142 videos • 38 flagged • 2 errors      Premiere Ready   Settings
 ```
 
 ### 2. Source Summary Bar

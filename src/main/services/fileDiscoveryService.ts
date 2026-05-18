@@ -19,9 +19,9 @@ const SYSTEM_DIRECTORY_NAMES = new Set([
   'System Volume Information',
   '.git',
   'node_modules',
-  '.video-audit-temp',
-  '.video-audit-trash',
-  '.video-audit-cleanup-runs',
+  '.collie-video-temp',
+  '.collie-video-trash',
+  '.collie-video-cleanup-runs',
   'Archive',
   'archived-files'
 ]);

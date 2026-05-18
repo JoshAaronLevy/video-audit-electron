@@ -27,7 +27,7 @@ import {
   resolveDestinationPath
 } from '../utils/fileNameConflicts';
 
-const ARCHIVE_FOLDER_NAME = '.video-audit-archive';
+const ARCHIVE_FOLDER_NAME = '.collie-video-archive';
 const archivePlans = new Map<string, ArchiveOperationPlan>();
 
 export async function createArchivePlan(

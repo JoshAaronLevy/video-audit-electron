@@ -1,6 +1,6 @@
 import type { AuditRequest, AuditResult } from '../../shared/types/audit';
 
-const DATABASE_NAME = 'video-audit-electron';
+const DATABASE_NAME = 'collie-video';
 const DATABASE_VERSION = 1;
 const STORE_NAME = 'audit-results';
 const CURRENT_AUDIT_KEY = 'current';

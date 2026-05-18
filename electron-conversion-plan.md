@@ -6,7 +6,7 @@ Build a private macOS Electron version of the existing `video-audit` app.
 
 The legacy app lives in a sibling workspace folder named `video-audit`.
 
-The new app lives in this repo, `video-audit-electron`.
+The new app lives in this repo, `collie-video`.
 
 The legacy app may be inspected for behavior, schemas, UI patterns, ffprobe parsing, ffmpeg commands, black-border analysis, thumbnails, migration behavior, and Premiere bridge behavior.
 
@@ -42,7 +42,7 @@ The new app must be standalone.
 ## Target Architecture
 
 ```txt
-video-audit-electron/
+collie-video/
 ├─ src/
 │  ├─ main/
 │  │  ├─ main.ts
@@ -123,7 +123,7 @@ Thumbnail generation may remain in `thumbnailService.ts`, but the implementation
 
 ## Global Rules for Every Stage
 
-1. Only modify files inside `video-audit-electron`.
+1. Only modify files inside `collie-video`.
 2. You may inspect sibling `video-audit` for reference.
 3. Do not modify sibling `video-audit`.
 4. Do not import from sibling `video-audit`.
@@ -153,7 +153,7 @@ Important legacy behaviors to preserve or adapt:
 * Optional low-resolution analysis.
 * Optional black-border analysis.
 * Detect video files by extension.
-* Skip macOS/system folders like `.Spotlight-V100`, `.Trashes`, `.fseventsd`, `.TemporaryItems`, `.git`, `node_modules`, `.video-audit-temp`, `.video-audit-trash`, `.video-audit-cleanup-runs`, `Archive`, and `archived-files`.
+* Skip macOS/system folders like `.Spotlight-V100`, `.Trashes`, `.fseventsd`, `.TemporaryItems`, `.git`, `node_modules`, `.collie-video-temp`, `.collie-video-trash`, `.collie-video-cleanup-runs`, `Archive`, and `archived-files`.
 * Use `ffprobe` to inspect video metadata.
 * Flag low-resolution videos.
 * Flag videos that are not 16:9.
@@ -216,7 +216,7 @@ This stage should not implement real video auditing yet.
 * Use TypeScript.
 * Use PrimeReact and PrimeFlex.
 * App launches with `npm run dev`.
-* Renderer displays a simple Video Audit home screen.
+* Renderer displays a simple Collie Video home screen.
 * Main process creates the browser window.
 * Preload exposes a small typed API.
 * Renderer can call the preload API to get app/version/platform info.
@@ -255,7 +255,7 @@ The exact scripts may vary depending on the scaffold, but the repo should suppor
 
 * `npm install` succeeds.
 * `npm run dev` launches a macOS Electron window.
-* The renderer shows a Video Audit landing screen.
+* The renderer shows a Collie Video landing screen.
 * The renderer displays basic app/platform info returned through preload.
 * No renderer file directly imports `fs`, `path`, `child_process`, or Electron main-process APIs.
 

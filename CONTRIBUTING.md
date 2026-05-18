@@ -4,7 +4,7 @@ This is a private macOS Electron app for personal use. The project is intentiona
 
 The legacy reference app lives in a sibling workspace folder named `video-audit`.
 
-The new Electron app lives in this repo, `video-audit-electron`.
+The new Electron app lives in this repo, `collie-video`.
 
 ## Project Goals
 
@@ -315,7 +315,7 @@ Each conversion-plan task should follow this pattern:
 2. Read `CONTRIBUTING.md`.
 3. Read the relevant stage in `electron-conversion-plan.md`.
 4. Inspect the legacy `video-audit` repo only as needed.
-5. Implement changes only in `video-audit-electron`.
+5. Implement changes only in `collie-video`.
 6. Keep the new app standalone.
 7. Run reasonable verification commands if available.
 8. Update `CHANGELOG.md`.

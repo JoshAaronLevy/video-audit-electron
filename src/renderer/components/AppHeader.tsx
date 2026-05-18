@@ -29,7 +29,7 @@ export function AppHeader({
   return (
     <header className="app-header">
       <div>
-        <p className="eyebrow">Video Audit</p>
+        <p className="eyebrow">Collie Video</p>
         <h1>Results Workspace</h1>
       </div>
 

@@ -516,8 +516,8 @@ Example:
 
 ```txt
 foo.mp4
-foo (video-audit 1).mp4
-foo (video-audit 2).mp4
+foo (collie-video 1).mp4
+foo (collie-video 2).mp4
 ```
 
 Do not overwrite unless a future stage explicitly adds confirmed overwrite support.
@@ -561,14 +561,14 @@ Implement archive planning and execution.
 Default archive strategy:
 
 ```txt
-<source directory>/.video-audit-archive/<YYYY-MM-DD>/
+<source directory>/.collie-video-archive/<YYYY-MM-DD>/
 ```
 
 Example:
 
 ```txt
 /Videos/Game/foo.mov
-/Videos/Game/.video-audit-archive/2026-05-17/foo.mov
+/Videos/Game/.collie-video-archive/2026-05-17/foo.mov
 ```
 
 Support:

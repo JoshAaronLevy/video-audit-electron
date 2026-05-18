@@ -502,7 +502,7 @@ async function getOutputPath({
 }
 
 async function createUniqueRunFolder(outputRootDir: string): Promise<string> {
-  const baseRunId = `video-audit-crop-${timestampForRunId()}`;
+  const baseRunId = `collie-video-crop-${timestampForRunId()}`;
 
   for (let index = 0; index < 100; index += 1) {
     const runId = index === 0 ? baseRunId : `${baseRunId}-${index + 1}`;

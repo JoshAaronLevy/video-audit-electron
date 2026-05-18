@@ -54,7 +54,7 @@ export function SettingsPanel({
       <div className="settings-hero">
         <div>
           <p className="eyebrow">Preferences</p>
-          <h2>Video Audit Settings</h2>
+          <h2>Collie Video Settings</h2>
           <span>Changes save as you update each setting.</span>
         </div>
         <div className="settings-hero-actions">
@@ -183,7 +183,7 @@ export function SettingsPanel({
             description="Relative archive pattern reserved for archive workflows."
             value={settings.defaultArchiveFolderPattern}
             disabled={isSavingSettings}
-            onSave={(value) => onUpdateSettingsField('defaultArchiveFolderPattern', value ?? '.video-audit-archive/{YYYY-MM-DD}')}
+            onSave={(value) => onUpdateSettingsField('defaultArchiveFolderPattern', value ?? '.collie-video-archive/{YYYY-MM-DD}')}
           />
           <ToggleSetting
             label="Show post-conversion dialog"

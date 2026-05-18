@@ -26,9 +26,9 @@ import type {
 } from '../../shared/types/migration';
 
 const EXCLUDED_DIRECTORY_NAMES = new Set([
-  '.video-audit-temp',
-  '.video-audit-trash',
-  '.video-audit-cleanup-runs',
+  '.collie-video-temp',
+  '.collie-video-trash',
+  '.collie-video-cleanup-runs',
   'Archive',
   'archived-files',
   'node_modules'
@@ -165,7 +165,7 @@ export async function executeMigrationPlan({
   await mkdir(plan.archiveRunDir, { recursive: false });
 
   const archivedFilesDir = join(plan.archiveRunDir, 'archived-files');
-  const tempRunDir = join(plan.destinationRoot, '.video-audit-temp', plan.migrationId);
+  const tempRunDir = join(plan.destinationRoot, '.collie-video-temp', plan.migrationId);
   const manifestInProgressPath = join(plan.archiveRunDir, 'manifest.in-progress.json');
   const manifestPath = join(plan.archiveRunDir, 'manifest.json');
   const operationLogPath = join(plan.archiveRunDir, 'operation.log');
@@ -929,7 +929,7 @@ function shouldSkipFileName(fileName: string): boolean {
 }
 
 function createMigrationId(date = new Date()): string {
-  return `video-audit-migration-${timestampForRunId(date)}`;
+  return `collie-video-migration-${timestampForRunId(date)}`;
 }
 
 function timestampForRunId(date: Date): string {

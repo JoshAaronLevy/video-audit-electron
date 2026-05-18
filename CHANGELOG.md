@@ -67,7 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added a safe Archive Originals workflow that moves selected source videos into `.video-audit-archive/YYYY-MM-DD` folders beside their source directories.
+- Added a safe Archive Originals workflow that moves selected source videos into `.collie-video-archive/YYYY-MM-DD` folders beside their source directories.
 - Added main-process archive planning and execution with conflict detection, rename-with-suffix handling, per-file partial-failure reporting, and operation history records.
 - Added typed preload and IPC methods plus renderer confirmation/result dialogs for archive operations, including a Reveal Archive action.
 
@@ -257,7 +257,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Added a local macOS app packaging script through `npm run build:mac`.
-- Added Electron Builder configuration for producing an unsigned local `Video Audit.app` directory build.
+- Added Electron Builder configuration for producing an unsigned local `Collie Video.app` directory build.
 - Added README instructions for creating and finding the local macOS app output.
 
 ## [0.16.0] - 2026-05-17

@@ -84,7 +84,7 @@ export function DiagnosticsDialog({
             <InfoRow label="Active job" value={getRuntimeStatus(auditProgress, activeAction)} />
             <InfoRow label="Audit message" value={auditProgress?.message ?? 'None'} />
             <InfoRow label="Saved audit" value={storageSavedAt ? formatDateTime(storageSavedAt) : 'Unsaved'} />
-            <InfoRow label="Results cache" value="IndexedDB video-audit-electron / audit-results / current" />
+            <InfoRow label="Results cache" value="IndexedDB collie-video / audit-results / current" />
             <InfoRow label="Output folder" value={outputFolder ?? 'Not set'} />
           </dl>
         </section>

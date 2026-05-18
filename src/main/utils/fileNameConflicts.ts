@@ -35,7 +35,7 @@ export async function resolveDestinationPath({
   const baseName = extension ? fileName.slice(0, -extension.length) : fileName;
 
   for (let index = 1; index <= 9999; index += 1) {
-    const candidatePath = join(destinationDirectory, `${baseName} (video-audit ${index})${extension}`);
+    const candidatePath = join(destinationDirectory, `${baseName} (collie-video ${index})${extension}`);
 
     if (!reservedDestinations.has(candidatePath) && !(await pathExists(candidatePath))) {
       return {

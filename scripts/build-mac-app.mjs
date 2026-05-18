@@ -1,9 +1,10 @@
 import { spawnSync } from 'node:child_process';
 
+run('npm', ['run', 'icons']);
 run('npm', ['run', 'build']);
 run('npx', ['electron-builder', '--mac', 'dir']);
 
-console.log('\nLocal macOS app build complete. Check the release/ directory for Video Audit.app.');
+console.log('\nLocal macOS app build complete. Check the release/ directory for Collie Video.app.');
 
 function run(command, args) {
   const result = spawnSync(command, args, {

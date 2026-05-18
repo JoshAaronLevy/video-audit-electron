@@ -74,5 +74,5 @@ Manual review now exposes only currently executable choices: Replace Original, K
 ## Residual Notes
 
 - Archive-original replacement disposition is still a persisted preference for future archive-capable replacement execution. Current replacement execution supports moving originals to macOS Trash only.
-- The archive folder pattern setting is persisted and safely normalized, while archive execution still uses the current `.video-audit-archive/YYYY-MM-DD` folder shape.
+- The archive folder pattern setting is persisted and safely normalized, while archive execution still uses the current `.collie-video-archive/YYYY-MM-DD` folder shape.
 - Operation history is JSON-backed and capped to recent records. It is suitable for a private desktop workflow, not for multi-user audit trails.

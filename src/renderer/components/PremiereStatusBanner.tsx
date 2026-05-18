@@ -96,7 +96,7 @@ function getStatusDetail(status: PremiereStatusResponse | null, error: string | 
   }
 
   if (!status) {
-    return 'Open Premiere Pro and load the Video Audit bridge plugin before editing selected videos.';
+    return 'Open Premiere Pro and load the Collie Video bridge plugin before editing selected videos.';
   }
 
   if (status.status === 'ready') {

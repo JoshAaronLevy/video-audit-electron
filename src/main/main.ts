@@ -35,7 +35,7 @@ async function createMainWindow(): Promise<void> {
     y: windowOptions.y,
     minWidth: 920,
     minHeight: 620,
-    title: 'Video Audit',
+    title: 'Collie Video',
     ...(appIconPath ? { icon: appIconPath } : {}),
     backgroundColor: '#f8fafc',
     webPreferences: {

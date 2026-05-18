@@ -1,4 +1,4 @@
-# video-audit-electron
+# Collie Video
 
 Private standalone macOS Electron app for auditing local video libraries.
 
@@ -41,10 +41,10 @@ npm run build
 Produce a local macOS `.app` for manual use:
 
 ```sh
-npm run build:mac
+npm run deploy
 ```
 
-The local app is written under `release/mac-arm64/Video Audit.app` on Apple Silicon Macs. This build is intentionally unsigned and unnotarized; it is for local private use only.
+The local app is written under `release/mac-arm64/Collie Video.app` on Apple Silicon Macs. This build is intentionally unsigned and unnotarized; it is for local private use only.
 
 ## App Icon
 
@@ -92,7 +92,7 @@ The current app includes:
 - `contextIsolation: true`
 - `nodeIntegration: false`
 - typed preload API at `window.videoAudit`
-- local macOS `.app` packaging through `npm run build:mac`
+- local macOS `.app` packaging through `npm run deploy`
 - native folder selection through Electron dialogs
 - native video-file selection through Electron dialogs
 - native output-folder selection through Electron dialogs

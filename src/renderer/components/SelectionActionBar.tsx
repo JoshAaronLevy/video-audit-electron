@@ -2,6 +2,7 @@ import { useMemo, useRef, type ReactElement } from 'react';
 import { Button } from 'primereact/button';
 import { Menu } from 'primereact/menu';
 import type { MenuItem } from 'primereact/menuitem';
+import type { DestinationConflictStrategy } from '../../shared/types/fileOperations';
 import type { VideoRow } from '../../shared/types/video';
 
 interface SelectionActionBarProps {
@@ -15,11 +16,14 @@ interface SelectionActionBarProps {
   isMigrationActive: boolean;
   isTrashPlanning: boolean;
   isTrashExecuting: boolean;
+  isMovePlanning: boolean;
+  isMoveExecuting: boolean;
   isPremiereImportSubmitting: boolean;
   canAutoFixSelected: boolean;
   canOpenCropOptions: boolean;
   canGenerateThumbnails: boolean;
   canMoveSelectedToTrash: boolean;
+  canMoveSelectedToFolder: boolean;
   canStartMigration: boolean;
   canEditSelectedInPremiere: boolean;
   onRemoveSelectedVideos: () => void;
@@ -29,6 +33,7 @@ interface SelectionActionBarProps {
   onOpenThumbnailDialog: () => void;
   onOpenMigrationDialog: () => void;
   onOpenTrashDialog: () => void;
+  onOpenMoveDialog: (conflictStrategy?: DestinationConflictStrategy) => void;
   onEditSelectedInPremiere: () => void;
 }
 
@@ -43,11 +48,14 @@ export function SelectionActionBar({
   isMigrationActive,
   isTrashPlanning,
   isTrashExecuting,
+  isMovePlanning,
+  isMoveExecuting,
   isPremiereImportSubmitting,
   canAutoFixSelected,
   canOpenCropOptions,
   canGenerateThumbnails,
   canMoveSelectedToTrash,
+  canMoveSelectedToFolder,
   canStartMigration,
   canEditSelectedInPremiere,
   onRemoveSelectedVideos,
@@ -57,6 +65,7 @@ export function SelectionActionBar({
   onOpenThumbnailDialog,
   onOpenMigrationDialog,
   onOpenTrashDialog,
+  onOpenMoveDialog,
   onEditSelectedInPremiere
 }: SelectionActionBarProps): ReactElement | null {
   const menuRef = useRef<Menu>(null);
@@ -92,6 +101,20 @@ export function SelectionActionBar({
 
       if (hasSelection) {
         items.push({
+          label: `Move to Folder (${selectedCount.toLocaleString()})`,
+          icon: 'pi pi-folder-open',
+          disabled: !canMoveSelectedToFolder || isMovePlanning || isMoveExecuting,
+          command: () => onOpenMoveDialog('skip')
+        });
+
+        items.push({
+          label: 'Move to Folder (Rename Conflicts)',
+          icon: 'pi pi-copy',
+          disabled: !canMoveSelectedToFolder || isMovePlanning || isMoveExecuting,
+          command: () => onOpenMoveDialog('rename-with-suffix')
+        });
+
+        items.push({
           label: `Move to Trash (${selectedCount.toLocaleString()})`,
           icon: 'pi pi-trash',
           disabled: !canMoveSelectedToTrash || isTrashPlanning || isTrashExecuting,
@@ -119,15 +142,19 @@ export function SelectionActionBar({
     },
     [
       canGenerateThumbnails,
+      canMoveSelectedToFolder,
       canMoveSelectedToTrash,
       canStartMigration,
       hasSelection,
       isAuditActive,
       isMediaPreviewActive,
       isMigrationActive,
+      isMoveExecuting,
+      isMovePlanning,
       isTrashExecuting,
       isTrashPlanning,
       onOpenMigrationDialog,
+      onOpenMoveDialog,
       onOpenThumbnailDialog,
       onOpenTrashDialog,
       onRemoveSelectedVideos,

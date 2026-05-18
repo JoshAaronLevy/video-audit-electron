@@ -145,11 +145,14 @@ export function App(): ReactElement {
           isMigrationActive={controller.isMigrationActive}
           isTrashPlanning={controller.isTrashPlanning}
           isTrashExecuting={controller.isTrashExecuting}
+          isMovePlanning={controller.isMovePlanning}
+          isMoveExecuting={controller.isMoveExecuting}
           isPremiereImportSubmitting={controller.isPremiereImportSubmitting}
           canAutoFixSelected={controller.canAutoFixSelected}
           canOpenCropOptions={controller.canOpenCropOptions}
           canGenerateThumbnails={controller.canGenerateThumbnails}
           canMoveSelectedToTrash={controller.canMoveSelectedToTrash}
+          canMoveSelectedToFolder={controller.canMoveSelectedToFolder}
           canStartMigration={controller.canStartMigration}
           canEditSelectedInPremiere={controller.canEditSelectedInPremiere}
           onRemoveSelectedVideos={controller.removeSelectedVideos}
@@ -159,6 +162,7 @@ export function App(): ReactElement {
           onOpenThumbnailDialog={controller.openThumbnailDialog}
           onOpenMigrationDialog={controller.openMigrationDialog}
           onOpenTrashDialog={controller.openTrashDialog}
+          onOpenMoveDialog={controller.openMoveDialog}
           onEditSelectedInPremiere={controller.editSelectedInPremiere}
         />
       </section>
@@ -333,6 +337,11 @@ export function App(): ReactElement {
       <FileOperationConfirmDialog
         visible={controller.isTrashConfirmDialogVisible}
         plan={controller.trashPlan}
+        title="Move to Trash"
+        description="Review the selected files before moving recoverable items to macOS Trash."
+        confirmLabel="Move to Trash"
+        confirmIcon="pi pi-trash"
+        confirmSeverity="danger"
         error={controller.trashPlanError}
         isSubmitting={controller.isTrashExecuting}
         onConfirm={controller.executeTrashPlan}
@@ -342,8 +351,33 @@ export function App(): ReactElement {
       <FileOperationResultDialog
         visible={controller.isTrashResultDialogVisible}
         result={controller.trashResult}
+        title="Move to Trash Result"
+        description="Review what was moved to macOS Trash and what needs attention."
         error={controller.trashResultError}
         onHide={controller.closeTrashResultDialog}
+      />
+
+      <FileOperationConfirmDialog
+        visible={controller.isMoveConfirmDialogVisible}
+        plan={controller.movePlan}
+        title="Move Files"
+        description="Review the selected files before moving eligible items to the destination folder."
+        confirmLabel="Move Files"
+        confirmIcon="pi pi-folder-open"
+        confirmSeverity="success"
+        error={controller.movePlanError}
+        isSubmitting={controller.isMoveExecuting}
+        onConfirm={controller.executeMovePlan}
+        onHide={controller.closeMoveDialog}
+      />
+
+      <FileOperationResultDialog
+        visible={controller.isMoveResultDialogVisible}
+        result={controller.moveResult}
+        title="Move Files Result"
+        description="Review what was moved and what needs attention."
+        error={controller.moveResultError}
+        onHide={controller.closeMoveResultDialog}
       />
     </main>
   );

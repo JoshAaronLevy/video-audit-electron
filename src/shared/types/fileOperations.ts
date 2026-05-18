@@ -56,6 +56,8 @@ export type ReplacementFileAction =
   | 'replace-original-with-output'
   | 'move-output-to-source-directory';
 
+export type DestinationConflictStrategy = 'skip' | 'rename-with-suffix';
+
 export interface FileIdentity {
   path: string;
   fileName: string;
@@ -184,6 +186,7 @@ export interface TrashOperationPlan extends FileOperationPlan {
 export interface MoveOperationPlan extends FileOperationPlan {
   type: 'move';
   destinationDirectory: string;
+  conflictStrategy: DestinationConflictStrategy;
 }
 
 export interface CopyOperationPlan extends FileOperationPlan {
@@ -226,6 +229,7 @@ export interface CreateMoveOperationPlanRequest {
   operationType: 'move';
   items: KnownFileOperationItem[];
   destinationDirectory: string;
+  conflictStrategy?: DestinationConflictStrategy;
 }
 
 export interface CreateCopyOperationPlanRequest {
@@ -310,6 +314,23 @@ export interface ExecuteTrashOperationPlanRequest {
 }
 
 export interface ExecuteTrashOperationPlanResponse {
+  status: 'complete' | 'partial' | 'failed' | 'not_found' | 'invalid_request' | 'error';
+  result?: FileOperationResult;
+  message?: string;
+}
+
+export interface CreateMoveOperationPlanResponse {
+  status: 'planned' | 'invalid_request' | 'error';
+  plan?: MoveOperationPlan;
+  message?: string;
+}
+
+export interface ExecuteMoveOperationPlanRequest {
+  planId: string;
+  confirmed: boolean;
+}
+
+export interface ExecuteMoveOperationPlanResponse {
   status: 'complete' | 'partial' | 'failed' | 'not_found' | 'invalid_request' | 'error';
   result?: FileOperationResult;
   message?: string;

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-05-18
+
+### Added
+
+- Added a two-step Move Files workflow for selected known video rows with destination folder selection, plan review, execution results, and operation history records.
+- Added main-process move planning and execution with source/destination revalidation, default overwrite blocking, per-file partial-failure reporting, and optional rename-with-suffix conflict handling.
+- Added typed preload and IPC methods for creating and executing move plans without exposing arbitrary filesystem APIs to the renderer.
+
 ## [0.33.0] - 2026-05-18
 
 ### Added

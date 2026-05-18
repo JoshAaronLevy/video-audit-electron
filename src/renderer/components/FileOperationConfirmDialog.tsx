@@ -4,12 +4,20 @@ import { Dialog } from 'primereact/dialog';
 import { InputText } from 'primereact/inputtext';
 import { Message } from 'primereact/message';
 import { Tag } from 'primereact/tag';
-import type { TrashOperationPlan } from '../../shared/types/fileOperations';
+import type { MoveOperationPlan, TrashOperationPlan } from '../../shared/types/fileOperations';
 import { DialogFooter, DialogHeader } from './DialogChrome';
+
+type ConfirmableFileOperationPlan = MoveOperationPlan | TrashOperationPlan;
+type ConfirmButtonSeverity = 'secondary' | 'success' | 'info' | 'warning' | 'danger' | 'help' | 'contrast';
 
 interface FileOperationConfirmDialogProps {
   visible: boolean;
-  plan: TrashOperationPlan | null;
+  plan: ConfirmableFileOperationPlan | null;
+  title: string;
+  description: string;
+  confirmLabel: string;
+  confirmIcon: string;
+  confirmSeverity?: ConfirmButtonSeverity;
   error: string | null;
   isSubmitting: boolean;
   onConfirm: (typedConfirmation: string | null) => void;
@@ -19,6 +27,11 @@ interface FileOperationConfirmDialogProps {
 export function FileOperationConfirmDialog({
   visible,
   plan,
+  title,
+  description,
+  confirmLabel,
+  confirmIcon,
+  confirmSeverity = 'success',
   error,
   isSubmitting,
   onConfirm,
@@ -26,8 +39,9 @@ export function FileOperationConfirmDialog({
 }: FileOperationConfirmDialogProps): ReactElement {
   const [typedConfirmation, setTypedConfirmation] = useState('');
   const executableCount = plan ? plan.summary.ready + plan.summary.warning : 0;
-  const typedConfirmationMatches = typedConfirmation === plan?.confirmation.phrase;
-  const canConfirm = Boolean(plan && executableCount > 0 && (!plan.confirmation.isRequired || typedConfirmationMatches));
+  const confirmation = plan && 'confirmation' in plan ? plan.confirmation : null;
+  const typedConfirmationMatches = confirmation ? typedConfirmation === confirmation.phrase : true;
+  const canConfirm = Boolean(plan && executableCount > 0 && (!confirmation?.isRequired || typedConfirmationMatches));
   const attentionItems = useMemo(
     () => plan?.items.filter((item) => item.status !== 'ready').slice(0, 6) ?? [],
     [plan]
@@ -44,8 +58,8 @@ export function FileOperationConfirmDialog({
       header={
         <DialogHeader
           eyebrow="File Management"
-          title="Move to Trash"
-          description="Review the selected files before moving recoverable items to macOS Trash."
+          title={title}
+          description={description}
         />
       }
       footer={
@@ -54,12 +68,12 @@ export function FileOperationConfirmDialog({
         >
           <Button label="Cancel" icon="pi pi-times" severity="secondary" outlined onClick={onHide} />
           <Button
-            label="Move to Trash"
-            icon="pi pi-trash"
-            severity="danger"
+            label={confirmLabel}
+            icon={confirmIcon}
+            severity={confirmSeverity}
             loading={isSubmitting}
             disabled={!canConfirm}
-            onClick={() => onConfirm(plan?.confirmation.isRequired ? typedConfirmation : null)}
+            onClick={() => onConfirm(confirmation?.isRequired ? typedConfirmation : null)}
           />
         </DialogFooter>
       }
@@ -73,7 +87,7 @@ export function FileOperationConfirmDialog({
         {error ? <Message severity="error" text={error} /> : null}
         {plan ? (
           <>
-            <section className="file-operation-summary-grid" aria-label="Trash plan summary">
+            <section className="file-operation-summary-grid" aria-label={`${title} plan summary`}>
               <Metric label="Selected" value={plan.summary.total.toLocaleString()} />
               <Metric label="Ready" value={plan.summary.ready.toLocaleString()} />
               <Metric label="Warnings" value={plan.summary.warning.toLocaleString()} />
@@ -81,19 +95,28 @@ export function FileOperationConfirmDialog({
               <Metric label="Size" value={formatBytes(plan.summary.totalSizeBytes)} />
             </section>
 
-            {plan.confirmation.reasons.length > 0 ? (
+            {plan.type === 'move' ? (
+              <section className="file-operation-path-panel" aria-label="Move destination">
+                <span>Destination</span>
+                <code title={plan.destinationDirectory}>{plan.destinationDirectory}</code>
+                <span>Conflicts</span>
+                <strong>{getConflictStrategyLabel(plan.conflictStrategy)}</strong>
+              </section>
+            ) : null}
+
+            {confirmation?.reasons.length ? (
               <Message
                 severity="warn"
-                text={`Extra confirmation required: ${plan.confirmation.reasons.join(' ')}`}
+                text={`Extra confirmation required: ${confirmation.reasons.join(' ')}`}
               />
             ) : null}
 
-            {plan.confirmation.isRequired ? (
+            {confirmation?.isRequired ? (
               <label className="typed-confirmation-row">
-                <span>Type {plan.confirmation.phrase} to confirm</span>
+                <span>Type {confirmation.phrase} to confirm</span>
                 <InputText
                   value={typedConfirmation}
-                  placeholder={plan.confirmation.phrase}
+                  placeholder={confirmation.phrase}
                   onChange={(event) => setTypedConfirmation(event.target.value)}
                 />
               </label>
@@ -129,6 +152,10 @@ function Metric({ label, value }: { label: string; value: string }): ReactElemen
       <strong>{value}</strong>
     </div>
   );
+}
+
+function getConflictStrategyLabel(strategy: MoveOperationPlan['conflictStrategy']): string {
+  return strategy === 'rename-with-suffix' ? 'Rename with suffix' : 'Block existing files';
 }
 
 function formatBytes(bytes: number): string {

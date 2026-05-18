@@ -29,8 +29,12 @@ import type {
 import type { PathSelectionResult, RevealPathResult } from '../shared/types/dialog';
 import type { ToolDiagnosticsResult } from '../shared/types/diagnostics';
 import type {
+  CreateMoveOperationPlanRequest,
+  CreateMoveOperationPlanResponse,
   CreateTrashOperationPlanRequest,
   CreateTrashOperationPlanResponse,
+  ExecuteMoveOperationPlanRequest,
+  ExecuteMoveOperationPlanResponse,
   ExecuteTrashOperationPlanRequest,
   ExecuteTrashOperationPlanResponse,
   KnownPathValidationRequest,
@@ -82,6 +86,7 @@ export interface VideoAuditApi {
     chooseFolders: () => Promise<PathSelectionResult>;
     chooseVideoFiles: () => Promise<PathSelectionResult>;
     chooseOutputFolder: () => Promise<PathSelectionResult>;
+    chooseMoveDestinationFolder: () => Promise<PathSelectionResult>;
   };
   shell: {
     revealPath: (path: string) => Promise<RevealPathResult>;
@@ -92,6 +97,8 @@ export interface VideoAuditApi {
     validateKnownPaths: (request: KnownPathValidationRequest) => Promise<KnownPathValidationResponse>;
     createTrashPlan: (request: CreateTrashOperationPlanRequest) => Promise<CreateTrashOperationPlanResponse>;
     executeTrashPlan: (request: ExecuteTrashOperationPlanRequest) => Promise<ExecuteTrashOperationPlanResponse>;
+    createMovePlan: (request: CreateMoveOperationPlanRequest) => Promise<CreateMoveOperationPlanResponse>;
+    executeMovePlan: (request: ExecuteMoveOperationPlanRequest) => Promise<ExecuteMoveOperationPlanResponse>;
   };
   settings: {
     get: () => Promise<AppSettings>;
@@ -175,7 +182,8 @@ export const videoAuditApi: VideoAuditApi = {
   dialog: {
     chooseFolders: () => ipcRenderer.invoke(IPC_CHANNELS.dialogChooseFolders),
     chooseVideoFiles: () => ipcRenderer.invoke(IPC_CHANNELS.dialogChooseVideoFiles),
-    chooseOutputFolder: () => ipcRenderer.invoke(IPC_CHANNELS.dialogChooseOutputFolder)
+    chooseOutputFolder: () => ipcRenderer.invoke(IPC_CHANNELS.dialogChooseOutputFolder),
+    chooseMoveDestinationFolder: () => ipcRenderer.invoke(IPC_CHANNELS.dialogChooseMoveDestinationFolder)
   },
   shell: {
     revealPath: (path: string) => ipcRenderer.invoke(IPC_CHANNELS.shellRevealPath, path)
@@ -190,7 +198,11 @@ export const videoAuditApi: VideoAuditApi = {
     createTrashPlan: (request: CreateTrashOperationPlanRequest) =>
       ipcRenderer.invoke(IPC_CHANNELS.fileOperationCreateTrashPlan, request),
     executeTrashPlan: (request: ExecuteTrashOperationPlanRequest) =>
-      ipcRenderer.invoke(IPC_CHANNELS.fileOperationExecuteTrashPlan, request)
+      ipcRenderer.invoke(IPC_CHANNELS.fileOperationExecuteTrashPlan, request),
+    createMovePlan: (request: CreateMoveOperationPlanRequest) =>
+      ipcRenderer.invoke(IPC_CHANNELS.fileOperationCreateMovePlan, request),
+    executeMovePlan: (request: ExecuteMoveOperationPlanRequest) =>
+      ipcRenderer.invoke(IPC_CHANNELS.fileOperationExecuteMovePlan, request)
   },
   settings: {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.settingsGet),

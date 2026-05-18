@@ -57,6 +57,19 @@ export function registerDialogIpcHandlers(): void {
     }
   );
 
+  ipcMain.handle(
+    IPC_CHANNELS.dialogChooseMoveDestinationFolder,
+    async (event): Promise<PathSelectionResult> => {
+      const browserWindow = BrowserWindow.fromWebContents(event.sender) ?? undefined;
+      const result = await showDialog(browserWindow, {
+        title: 'Choose a destination folder',
+        properties: ['openDirectory', 'createDirectory']
+      });
+
+      return buildSelectionResult(result.canceled, result.filePaths, 'directory');
+    }
+  );
+
   ipcMain.handle(IPC_CHANNELS.shellRevealPath, async (_event, path: string): Promise<RevealPathResult> => {
     if (typeof path !== 'string' || path.trim().length === 0) {
       return {

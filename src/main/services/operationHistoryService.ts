@@ -304,7 +304,7 @@ function summarizeHistoryItems(
 }
 
 function summarizeCompletionStatus(summary: OperationHistorySummary): OperationHistoryStatus {
-  if (summary.failed > 0) {
+  if (summary.failed > 0 || summary.skipped > 0) {
     return summary.succeeded > 0 || summary.skipped > 0 ? 'partial' : 'failed';
   }
 

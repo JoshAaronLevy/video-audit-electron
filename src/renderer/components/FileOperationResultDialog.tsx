@@ -9,6 +9,8 @@ import { DialogFooter, DialogHeader } from './DialogChrome';
 interface FileOperationResultDialogProps {
   visible: boolean;
   result: FileOperationResult | null;
+  title: string;
+  description: string;
   error: string | null;
   onHide: () => void;
 }
@@ -16,6 +18,8 @@ interface FileOperationResultDialogProps {
 export function FileOperationResultDialog({
   visible,
   result,
+  title,
+  description,
   error,
   onHide
 }: FileOperationResultDialogProps): ReactElement {
@@ -27,8 +31,8 @@ export function FileOperationResultDialog({
       header={
         <DialogHeader
           eyebrow="File Management"
-          title="Move to Trash Result"
-          description="Review what was moved to macOS Trash and what needs attention."
+          title={title}
+          description={description}
         />
       }
       footer={
@@ -46,8 +50,8 @@ export function FileOperationResultDialog({
         {error ? <Message severity="error" text={error} /> : null}
         {result ? (
           <>
-            <section className="file-operation-summary-grid" aria-label="Trash result summary">
-              <Metric label="Moved" value={result.summary.succeeded.toLocaleString()} />
+            <section className="file-operation-summary-grid" aria-label={`${title} summary`}>
+              <Metric label={getSuccessMetricLabel(result.type)} value={result.summary.succeeded.toLocaleString()} />
               <Metric label="Skipped" value={result.summary.skipped.toLocaleString()} />
               <Metric label="Failed" value={result.summary.failed.toLocaleString()} />
               <Metric label="Size" value={formatBytes(result.summary.totalSizeBytes)} />
@@ -57,7 +61,7 @@ export function FileOperationResultDialog({
             {result.summary.succeeded > 0 ? (
               <Message
                 severity="success"
-                text={`${result.summary.succeeded.toLocaleString()} file(s) moved to Trash.`}
+                text={getSuccessMessage(result)}
               />
             ) : null}
 
@@ -71,7 +75,7 @@ export function FileOperationResultDialog({
                         <strong title={item.sourcePath}>{item.fileName}</strong>
                         <Tag value={item.status} severity={item.status === 'failed' ? 'danger' : 'warning'} />
                       </div>
-                      <small>{item.error ?? 'Item was not moved to Trash.'}</small>
+                      <small>{item.error ?? getAttentionFallback(result.type)}</small>
                     </li>
                   ))}
                 </ul>
@@ -95,6 +99,22 @@ function Metric({ label, value }: { label: string; value: string }): ReactElemen
 
 function getStatusLabel(status: FileOperationResult['status']): string {
   return status === 'complete-with-failures' ? 'Partial' : status;
+}
+
+function getSuccessMetricLabel(type: FileOperationResult['type']): string {
+  return type === 'trash' ? 'Trashed' : 'Moved';
+}
+
+function getSuccessMessage(result: FileOperationResult): string {
+  if (result.type === 'trash') {
+    return `${result.summary.succeeded.toLocaleString()} file(s) moved to Trash.`;
+  }
+
+  return `${result.summary.succeeded.toLocaleString()} file(s) moved.`;
+}
+
+function getAttentionFallback(type: FileOperationResult['type']): string {
+  return type === 'trash' ? 'Item was not moved to Trash.' : 'Item was not moved.';
 }
 
 function formatBytes(bytes: number): string {

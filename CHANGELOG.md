@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-05-18
+
+### Added
+
+- Added main-process replacement execution for stored replacement plans, including per-item revalidation, macOS Trash disposal for originals, output moves into source folders, and partial-failure results.
+- Added replacement execution IPC, preload APIs, progress events, cancellation before item boundaries, and operation-history records.
+- Added renderer replacement progress and result UI after post-conversion cleanup confirmation.
+
 ## [0.37.0] - 2026-05-18
 
 ### Added

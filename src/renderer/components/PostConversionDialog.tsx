@@ -3,8 +3,10 @@ import { Button } from 'primereact/button';
 import { Dialog } from 'primereact/dialog';
 import { InputText } from 'primereact/inputtext';
 import { Message } from 'primereact/message';
+import { ProgressBar } from 'primereact/progressbar';
 import { Tag } from 'primereact/tag';
 import type {
+  ReplacementExecutionJobSnapshot,
   ReplacementPlan,
   ReplacementPlanItem
 } from '../../shared/types/replacementWorkflow';
@@ -24,7 +26,11 @@ interface PostConversionDialogProps {
   error: string | null;
   message: string | null;
   isPlanning: boolean;
+  isExecuting: boolean;
+  progress: ReplacementExecutionJobSnapshot | null;
+  percent: number | null;
   onReplaceOriginals: (typedConfirmation: string | null) => void;
+  onCancelExecution: () => void;
   onReviewManually: () => void;
   onLeaveOutputs: () => void;
   onBackToChoices: () => void;
@@ -39,7 +45,11 @@ export function PostConversionDialog({
   error,
   message,
   isPlanning,
+  isExecuting,
+  progress,
+  percent,
   onReplaceOriginals,
+  onCancelExecution,
   onReviewManually,
   onLeaveOutputs,
   onBackToChoices,
@@ -48,9 +58,12 @@ export function PostConversionDialog({
   const [typedConfirmation, setTypedConfirmation] = useState('');
   const highRiskReasons = useMemo(() => (plan ? getHighRiskReasons(plan) : []), [plan]);
   const requiresConfirmation = highRiskReasons.length > 0;
+  const executableCount = plan?.items.filter(isExecutableReplacementItem).length ?? 0;
+  const isBusy = isPlanning || isExecuting;
   const canReplace = Boolean(
     plan &&
-      plan.summary.ready > 0 &&
+      executableCount > 0 &&
+      !isBusy &&
       (!requiresConfirmation || typedConfirmation === REPLACE_CONFIRMATION)
   );
   const reviewItems = plan?.items.slice(0, 12) ?? [];
@@ -75,44 +88,87 @@ export function PostConversionDialog({
         />
       }
       footer={
-        <DialogFooter>
-          {mode === 'manual-review' ? (
-            <Button label="Back" icon="pi pi-arrow-left" severity="secondary" outlined onClick={onBackToChoices} />
-          ) : null}
-          <Button
-            label="Leave Files Where They Are"
-            icon="pi pi-check"
-            severity="secondary"
-            outlined
-            onClick={onLeaveOutputs}
-          />
-          {mode === 'choices' ? (
+        isExecuting ? (
+          <DialogFooter>
             <Button
-              label="Review Manually"
-              icon="pi pi-list-check"
-              severity="info"
-              outlined
-              disabled={!plan}
-              onClick={onReviewManually}
+              label="Cancel Replacement"
+              icon="pi pi-times"
+              severity="danger"
+              onClick={onCancelExecution}
             />
-          ) : null}
-          <Button
-            label="Replace Originals"
-            icon="pi pi-sync"
-            severity="danger"
-            disabled={!canReplace}
-            onClick={() => onReplaceOriginals(requiresConfirmation ? typedConfirmation : null)}
-          />
-        </DialogFooter>
+          </DialogFooter>
+        ) : (
+          <DialogFooter>
+            {mode === 'manual-review' ? (
+              <Button label="Back" icon="pi pi-arrow-left" severity="secondary" outlined onClick={onBackToChoices} />
+            ) : null}
+            <Button
+              label="Leave Files Where They Are"
+              icon="pi pi-check"
+              severity="secondary"
+              outlined
+              disabled={isBusy}
+              onClick={onLeaveOutputs}
+            />
+            {mode === 'choices' ? (
+              <Button
+                label="Review Manually"
+                icon="pi pi-list-check"
+                severity="info"
+                outlined
+                disabled={!plan || isBusy}
+                onClick={onReviewManually}
+              />
+            ) : null}
+            <Button
+              label="Replace Originals"
+              icon="pi pi-sync"
+              severity="danger"
+              disabled={!canReplace}
+              loading={isExecuting}
+              onClick={() => onReplaceOriginals(requiresConfirmation ? typedConfirmation : null)}
+            />
+          </DialogFooter>
+        )
       }
       visible={visible}
       modal
       draggable={false}
       className="app-dialog post-conversion-dialog"
-      onHide={onHide}
+      onHide={() => {
+        if (!isBusy) {
+          onHide();
+        }
+      }}
     >
       <div className="post-conversion-content">
         {isPlanning ? <Message severity="info" text="Preparing replacement plan..." /> : null}
+        {isExecuting ? (
+          <section className="replacement-progress" aria-label="Replacement progress">
+            <ProgressBar value={percent ?? 0} />
+            <p>{progress?.message ?? 'Replacing originals with converted files...'}</p>
+            <div className="replacement-progress-counts">
+              <Tag
+                value={`${(progress?.processedItems ?? 0).toLocaleString()} / ${(progress?.totalItems ?? executableCount).toLocaleString()}`}
+              />
+              <Tag value={`${(progress?.succeededCount ?? 0).toLocaleString()} replaced`} severity="success" />
+              <Tag value={`${(progress?.skippedCount ?? 0).toLocaleString()} skipped`} severity="warning" />
+              <Tag value={`${(progress?.failedCount ?? 0).toLocaleString()} failed`} severity="danger" />
+            </div>
+            <div className="replacement-summary-grid">
+              <div>
+                <span>Current</span>
+                <strong title={progress?.currentFile ?? 'Preparing'}>
+                  {progress?.currentFile ?? 'Preparing'}
+                </strong>
+              </div>
+              <div>
+                <span>Phase</span>
+                <strong>{progress?.phase ?? 'pending'}</strong>
+              </div>
+            </div>
+          </section>
+        ) : null}
         {error ? <Message severity="error" text={error} /> : null}
         {message ? <Message severity="info" text={message} /> : null}
 
@@ -123,12 +179,22 @@ export function PostConversionDialog({
             {mode === 'choices' ? (
               <>
                 <section className="post-conversion-option-grid" aria-label="Post-conversion actions">
-                  <button type="button" className="post-conversion-option" onClick={onReviewManually}>
+                  <button
+                    type="button"
+                    className="post-conversion-option"
+                    disabled={isBusy}
+                    onClick={onReviewManually}
+                  >
                     <span>Review manually</span>
                     <strong>{plan.summary.warning + plan.summary.blocked > 0 ? 'Recommended' : 'Inspect plan'}</strong>
                     <small>Open the itemized plan before deciding what to replace.</small>
                   </button>
-                  <button type="button" className="post-conversion-option" onClick={onLeaveOutputs}>
+                  <button
+                    type="button"
+                    className="post-conversion-option"
+                    disabled={isBusy}
+                    onClick={onLeaveOutputs}
+                  >
                     <span>Leave files where they are</span>
                     <strong>No file changes</strong>
                     <small>Keep converted videos in the output folder.</small>
@@ -137,7 +203,7 @@ export function PostConversionDialog({
 
                 <Message
                   severity={plan.summary.blocked > 0 ? 'warn' : 'info'}
-                  text="Replace originals with converted files moves original files to Trash or archive, then moves converted files into the original source folders."
+                  text="Replace originals with converted files moves original files to macOS Trash, then moves converted files into the original source folders."
                 />
 
                 {highRiskReasons.length > 0 ? (
@@ -179,18 +245,26 @@ export function PostConversionDialog({
   );
 }
 
+function isExecutableReplacementItem(item: ReplacementPlanItem): boolean {
+  return (
+    item.selectedAction === 'replace-original' &&
+    (item.status === 'ready' || item.status === 'warning')
+  );
+}
+
 function getHighRiskReasons(plan: ReplacementPlan): string[] {
   const reasons: string[] = [];
+  const executableItems = plan.items.filter(isExecutableReplacementItem);
 
-  if (plan.summary.ready > 10) {
+  if (executableItems.length > 10) {
     reasons.push('More than 10 files are ready to replace.');
   }
 
-  if (plan.summary.totalOriginalSizeBytes > TEN_GB_BYTES) {
+  if (executableItems.reduce((total, item) => total + (item.originalSizeBytes ?? 0), 0) > TEN_GB_BYTES) {
     reasons.push('Original files total more than 10 GB.');
   }
 
-  if (plan.summary.warning > 0) {
+  if (executableItems.some((item) => item.warnings.length > 0)) {
     reasons.push('One or more replacement items has warnings.');
   }
 
@@ -198,11 +272,11 @@ function getHighRiskReasons(plan: ReplacementPlan): string[] {
     reasons.push('One or more destination conflicts was detected.');
   }
 
-  if (plan.items.some((item) => isExternalPath(item.originalPath) || isExternalPath(item.outputPath))) {
+  if (executableItems.some((item) => isExternalPath(item.originalPath) || isExternalPath(item.outputPath))) {
     reasons.push('One or more paths appears to be on an external volume.');
   }
 
-  if (plan.items.some((item) => item.warningCodes.includes('extension-changed'))) {
+  if (executableItems.some((item) => item.warningCodes.includes('extension-changed'))) {
     reasons.push('One or more converted extensions differs from the original.');
   }
 

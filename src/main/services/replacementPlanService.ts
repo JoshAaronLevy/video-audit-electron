@@ -34,6 +34,7 @@ const REPLACEMENT_ACTIONS: ReplacementAction[] = [
   'archive-original',
   'skip'
 ];
+const replacementPlans = new Map<string, ReplacementPlan>();
 
 export async function createReplacementPlan(
   request: Partial<CreateReplacementPlanRequest> | null | undefined
@@ -62,10 +63,20 @@ export async function createReplacementPlan(
     summary: summarizeReplacementPlanItems(items)
   };
 
+  replacementPlans.set(plan.id, plan);
+
   return {
     status: 'planned',
     plan
   };
+}
+
+export function getStoredReplacementPlan(planId: string): ReplacementPlan | null {
+  return replacementPlans.get(planId) ?? null;
+}
+
+export function deleteStoredReplacementPlan(planId: string): void {
+  replacementPlans.delete(planId);
 }
 
 async function buildReplacementPlanItem(

@@ -27,7 +27,7 @@ export function FileOperationResultDialog({
 }: FileOperationResultDialogProps): ReactElement {
   const attentionItems =
     result?.items.filter((item) => item.status === 'failed' || item.status === 'skipped') ?? [];
-  const revealArchivePath = getRevealArchivePath(result);
+  const revealAction = getRevealAction(result);
 
   return (
     <Dialog
@@ -40,13 +40,13 @@ export function FileOperationResultDialog({
       }
       footer={
         <DialogFooter>
-          {revealArchivePath && onRevealPath ? (
+          {revealAction && onRevealPath ? (
             <Button
-              label="Reveal Archive"
+              label={revealAction.label}
               icon="pi pi-folder-open"
               severity="secondary"
               outlined
-              onClick={() => onRevealPath(revealArchivePath)}
+              onClick={() => onRevealPath(revealAction.path)}
             />
           ) : null}
           <Button label="Close" icon="pi pi-check" onClick={onHide} />
@@ -114,6 +114,10 @@ function getStatusLabel(status: FileOperationResult['status']): string {
 }
 
 function getSuccessMetricLabel(type: FileOperationResult['type']): string {
+  if (type === 'replace-original-with-output') {
+    return 'Replaced';
+  }
+
   if (type === 'archive') {
     return 'Archived';
   }
@@ -122,6 +126,10 @@ function getSuccessMetricLabel(type: FileOperationResult['type']): string {
 }
 
 function getSuccessMessage(result: FileOperationResult): string {
+  if (result.type === 'replace-original-with-output') {
+    return `${result.summary.succeeded.toLocaleString()} original(s) replaced with converted files.`;
+  }
+
   if (result.type === 'trash') {
     return `${result.summary.succeeded.toLocaleString()} file(s) moved to Trash.`;
   }
@@ -134,6 +142,10 @@ function getSuccessMessage(result: FileOperationResult): string {
 }
 
 function getAttentionFallback(type: FileOperationResult['type']): string {
+  if (type === 'replace-original-with-output') {
+    return 'Item was not replaced.';
+  }
+
   if (type === 'archive') {
     return 'Item was not archived.';
   }
@@ -141,12 +153,22 @@ function getAttentionFallback(type: FileOperationResult['type']): string {
   return type === 'trash' ? 'Item was not moved to Trash.' : 'Item was not moved.';
 }
 
-function getRevealArchivePath(result: FileOperationResult | null): string | null {
-  if (!result || result.type !== 'archive') {
+function getRevealAction(result: FileOperationResult | null): { label: string; path: string } | null {
+  if (!result) {
     return null;
   }
 
-  return result.items.find((item) => item.status === 'success')?.archivePath ?? null;
+  if (result.type === 'archive') {
+    const archivePath = result.items.find((item) => item.status === 'success')?.archivePath ?? null;
+    return archivePath ? { label: 'Reveal Archive', path: archivePath } : null;
+  }
+
+  if (result.type === 'replace-original-with-output') {
+    const destinationPath = result.items.find((item) => item.status === 'success')?.destinationPath ?? null;
+    return destinationPath ? { label: 'Reveal Replaced File', path: destinationPath } : null;
+  }
+
+  return null;
 }
 
 function formatBytes(bytes: number): string {

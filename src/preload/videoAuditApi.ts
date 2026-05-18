@@ -70,7 +70,11 @@ import type {
 } from '../shared/types/operationHistory';
 import type {
   CreateReplacementPlanRequest,
-  CreateReplacementPlanResponse
+  CreateReplacementPlanResponse,
+  ExecuteReplacementPlanRequest,
+  ReplacementExecutionJobSnapshot,
+  ReplacementExecutionResultResponse,
+  ReplacementExecutionStartResponse
 } from '../shared/types/replacementWorkflow';
 import type {
   MigrationExecuteRequest,
@@ -167,6 +171,10 @@ export interface VideoAuditApi {
   };
   replacement: {
     createPlan: (request: CreateReplacementPlanRequest) => Promise<CreateReplacementPlanResponse>;
+    executePlan: (request: ExecuteReplacementPlanRequest) => Promise<ReplacementExecutionStartResponse>;
+    cancelExecution: (jobId: string) => Promise<ReplacementExecutionJobSnapshot>;
+    getExecutionResult: (jobId: string) => Promise<ReplacementExecutionResultResponse>;
+    onProgress: (callback: (progress: ReplacementExecutionJobSnapshot) => void) => () => void;
   };
   premiere: {
     getStatus: () => Promise<PremiereStatusResponse>;
@@ -368,7 +376,24 @@ export const videoAuditApi: VideoAuditApi = {
   },
   replacement: {
     createPlan: (request: CreateReplacementPlanRequest) =>
-      ipcRenderer.invoke(IPC_CHANNELS.replacementCreatePlan, request)
+      ipcRenderer.invoke(IPC_CHANNELS.replacementCreatePlan, request),
+    executePlan: (request: ExecuteReplacementPlanRequest) =>
+      ipcRenderer.invoke(IPC_CHANNELS.replacementExecuteStart, request),
+    cancelExecution: (jobId: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.replacementExecuteCancel, jobId),
+    getExecutionResult: (jobId: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.replacementExecuteGetResult, jobId),
+    onProgress: (callback: (progress: ReplacementExecutionJobSnapshot) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, progress: ReplacementExecutionJobSnapshot): void => {
+        callback(progress);
+      };
+
+      ipcRenderer.on(IPC_CHANNELS.replacementExecuteProgress, listener);
+
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.replacementExecuteProgress, listener);
+      };
+    }
   },
   premiere: {
     getStatus: () => ipcRenderer.invoke(IPC_CHANNELS.premiereGetStatus),

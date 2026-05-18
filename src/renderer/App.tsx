@@ -304,7 +304,11 @@ export function App(): ReactElement {
         error={controller.postConversionError}
         message={controller.postConversionMessage}
         isPlanning={controller.isReplacementPlanning}
+        isExecuting={controller.isReplacementExecuting}
+        progress={controller.replacementProgress}
+        percent={controller.replacementPercent}
         onReplaceOriginals={controller.replacePostConversionOriginals}
+        onCancelExecution={controller.cancelReplacementExecution}
         onReviewManually={controller.reviewPostConversionPlan}
         onLeaveOutputs={controller.leavePostConversionOutputs}
         onBackToChoices={controller.backToPostConversionChoices}
@@ -422,6 +426,16 @@ export function App(): ReactElement {
         error={controller.archiveResultError}
         onRevealPath={controller.revealPath}
         onHide={controller.closeArchiveResultDialog}
+      />
+
+      <FileOperationResultDialog
+        visible={controller.isReplacementResultDialogVisible}
+        result={controller.replacementResult}
+        title="Replacement Result"
+        description="Review replaced originals, moved converted outputs, and any items that need attention."
+        error={controller.replacementResultError}
+        onRevealPath={controller.revealPath}
+        onHide={controller.closeReplacementResultDialog}
       />
     </main>
   );

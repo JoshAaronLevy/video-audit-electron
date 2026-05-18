@@ -1,6 +1,7 @@
 import type { AutoCropResult, AutoCropResultItem } from './autoCrop';
 import type { AutoFixResult, AutoFixResultItem } from './autoFix';
-import type { FileIdentity } from './fileOperations';
+import type { FileIdentity, FileOperationResult } from './fileOperations';
+import type { JobStatus } from './jobs';
 
 export type ReplacementPlanSource = 'auto-fix-result' | 'auto-crop-result' | 'items';
 
@@ -112,6 +113,46 @@ export interface CreateReplacementPlanResponse {
   status: 'planned' | 'invalid_request' | 'error';
   plan?: ReplacementPlan;
   message?: string;
+}
+
+export type ReplacementOriginalDisposition = 'move-original-to-trash';
+
+export interface ExecuteReplacementPlanRequest {
+  planId: string;
+  confirmed: boolean;
+  typedConfirmation?: string | null;
+  originalDisposition?: ReplacementOriginalDisposition;
+}
+
+export interface ReplacementExecutionStartResponse {
+  jobId?: string;
+  planId?: string;
+  status: 'started' | 'invalid_request' | 'not_found' | 'error' | string;
+  message?: string;
+  totalItems?: number;
+}
+
+export interface ReplacementExecutionJobSnapshot {
+  jobId: string | null;
+  planId: string | null;
+  status: JobStatus;
+  phase: string | null;
+  totalItems: number | null;
+  processedItems: number;
+  succeededCount: number;
+  skippedCount: number;
+  failedCount: number;
+  currentFile: string | null;
+  message: string | null;
+  error?: string | null;
+  result?: FileOperationResult;
+}
+
+export interface ReplacementExecutionResultResponse {
+  jobId?: string;
+  status: FileOperationResult['status'] | 'not_found' | 'not_ready' | 'error' | string;
+  message?: string;
+  result?: FileOperationResult;
 }
 
 export type ReplacementConversionResultItem = AutoFixResultItem | AutoCropResultItem;

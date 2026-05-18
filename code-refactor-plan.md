@@ -2,9 +2,7 @@
 
 ## Project Context
 
-This plan starts after the Electron conversion plan and UI improvement plan are complete.
-
-At this point, the app is a standalone private macOS Electron utility with a results-first UI. The app can audit local videos, detect low-resolution/wrong-aspect-ratio videos, analyze black borders, run auto-fix/auto-crop workflows, generate thumbnails/preview clips, interact with the Premiere bridge, persist settings/state, and present a polished UI.
+At this point, the app is a standalone private macOS Electron utility with a results-first UI. The app can audit local videos, detect low-resolution/wrong-aspect-ratio videos, analyze black borders, run auto-fix/auto-crop workflows, generate thumbnails/preview clips, interact with the Premiere bridge, persist settings/state, perform system file management tasks, and is presented with a polished UI.
 
 The current implementation works, but some renderer/controller code has grown too large. In particular, `src/renderer/hooks/useVideoAuditAppController.ts` is approximately 2,500 lines long and likely owns too many responsibilities.
 

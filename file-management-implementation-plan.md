@@ -8,6 +8,10 @@ This plan adds safe file-management workflows focused on post-conversion cleanup
 
 The goal is not to build a full Finder replacement. The goal is to let the app safely manage files it already understands: audited source videos, generated ffmpeg outputs, converted videos, thumbnails/previews, and related operation artifacts.
 
+**NOTE:** For this plan, you are allowed to open the app in Electron if it helps you visualize the user workflows better than just the code. But only if it helps. And do so ***briefly*** and ***sparingly***.
+
+**IMPORTANT:** We just finished a major refactor of the UI (`ui-improvement-plan.md`), resolving a lot of visual and usability issues. For any additional features or UI changes related to this file management implementation plan, please integrate into the existing UI patterns and designs, in order to remain consistent and avoid new UI/UX issues.
+
 ## Primary User Workflows
 
 The app should support:

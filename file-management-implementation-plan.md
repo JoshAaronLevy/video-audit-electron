@@ -4,7 +4,7 @@
 
 At this point, the app is a standalone private macOS Electron app. It can audit local videos, generate thumbnails/preview clips, run ffprobe/ffmpeg workflows, auto-fix/auto-crop selected videos, and persist local app state.
 
-This plan adds safe file-management workflows focused on post-conversion cleanup.
+This plan adds safe file-management workflows focused on post-conversion cleanup, so the user does not have to manually manage the original files after conversion.
 
 The goal is not to build a full Finder replacement. The goal is to let the app safely manage files it already understands: audited source videos, generated ffmpeg outputs, converted videos, thumbnails/previews, and related operation artifacts.
 

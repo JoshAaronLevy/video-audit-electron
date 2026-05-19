@@ -1,16 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { AppInfo } from '../../shared/types/app';
 import type { AppCommand } from '../../shared/types/appCommands';
 import type {
   AuditJobSnapshot,
   AuditOptions,
-  AuditRequest,
   AuditResult,
   AuditSummary,
   FileDiscoveryJobSnapshot,
-  FileDiscoveryRequest,
-  FfprobeMetadataJobSnapshot,
-  FfprobeMetadataRequest
+  FfprobeMetadataJobSnapshot
 } from '../../shared/types/audit';
 import type { AutoCropJobSnapshot, AutoCropResult } from '../../shared/types/autoCrop';
 import type { ToolDiagnosticsResult } from '../../shared/types/diagnostics';
@@ -53,12 +50,9 @@ import type { AppSettings } from '../../shared/types/settings';
 import type { FfprobeResult, VideoPreviewFrame, VideoRow } from '../../shared/types/video';
 import { dedupeOverlappingFolderPaths } from '../../shared/utils/folderPathSelection';
 import * as appClient from '../api/appClient';
-import * as auditClient from '../api/auditClient';
 import * as autoCropClient from '../api/autoCropClient';
 import * as autoFixClient from '../api/autoFixClient';
 import * as dialogClient from '../api/dialogClient';
-import * as discoveryClient from '../api/discoveryClient';
-import * as ffprobeClient from '../api/ffprobeClient';
 import * as fileOperationsClient from '../api/fileOperationsClient';
 import * as mediaPreviewClient from '../api/mediaPreviewClient';
 import * as migrationClient from '../api/migrationClient';
@@ -83,8 +77,11 @@ import {
 } from '../helpers/replacementPlan';
 import type { ResultsViewCounts, ResultsViewFilter } from '../types/resultsView';
 import { useAuditResults } from './useAuditResults';
+import { useAuditWorkflow, type AuditStartOutcome, type AuditWorkflowActiveAction } from './useAuditWorkflow';
 import { useAppBootstrap } from './useAppBootstrap';
 import { useDiagnosticsWorkflow } from './useDiagnosticsWorkflow';
+import { useDiscoveryWorkflow, type DiscoveryWorkflowActiveAction } from './useDiscoveryWorkflow';
+import { useFfprobeWorkflow, type FfprobeWorkflowActiveAction } from './useFfprobeWorkflow';
 import { usePathReveal, type PathRevealActiveAction } from './usePathReveal';
 import { useResultFilters } from './useResultFilters';
 import { useSelectionState } from './useSelectionState';
@@ -123,7 +120,6 @@ type ActiveAction =
   | null;
 
 type PostConversionDialogMode = 'choices' | 'manual-review';
-type AuditStartOutcome = 'started' | 'not_started';
 
 export interface VideoAuditAppController {
   appInfo: AppInfo | null;
@@ -425,8 +421,6 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setSelectionMessage: setPathRevealSelectionMessage,
     setActiveAction: setPathRevealActiveAction
   });
-  const [auditJobId, setAuditJobId] = useState<string | null>(null);
-  const [auditProgress, setAuditProgress] = useState<AuditJobSnapshot | null>(null);
   const {
     selectedVideos,
     setSelectedVideos,
@@ -470,10 +464,71 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setGlobalFilter,
     setResultsViewFilter
   } = useResultFilters(visibleVideoRows);
-  const [discoveryJobId, setDiscoveryJobId] = useState<string | null>(null);
-  const [discoveryProgress, setDiscoveryProgress] = useState<FileDiscoveryJobSnapshot | null>(null);
-  const [ffprobeJobId, setFfprobeJobId] = useState<string | null>(null);
-  const [ffprobeProgress, setFfprobeProgress] = useState<FfprobeMetadataJobSnapshot | null>(null);
+  const applyRefreshAuditSources = useCallback((selection: {
+    selectedFolders: string[];
+    selectedFiles: string[];
+  }): void => {
+    applySourceSelectionState({
+      selectedFolders: selection.selectedFolders,
+      selectedFolderSummary: null,
+      selectedFiles: selection.selectedFiles
+    });
+  }, [applySourceSelectionState]);
+  const setAuditWorkflowActiveAction = useCallback((action: AuditWorkflowActiveAction): void => {
+    setActiveAction(action);
+  }, []);
+  const {
+    auditProgress,
+    auditPercent,
+    runAudit,
+    refreshAudit,
+    cancelAudit,
+    resetAuditWorkflow
+  } = useAuditWorkflow({
+    selectedFolders,
+    selectedFiles,
+    auditOptions,
+    lastAuditRequest,
+    applyAuditResult,
+    resetResultStateForAuditStart,
+    applyRefreshSourceSelection: applyRefreshAuditSources,
+    setAuditOptions,
+    setWorkflowMessage,
+    setActiveAction: setAuditWorkflowActiveAction
+  });
+  const setDiscoveryWorkflowActiveAction = useCallback((action: DiscoveryWorkflowActiveAction): void => {
+    setActiveAction(action);
+  }, []);
+  const {
+    discoveryProgress,
+    discoveryPercent,
+    discoveredPaths,
+    startDiscovery,
+    cancelDiscovery,
+    resetDiscoveryWorkflow
+  } = useDiscoveryWorkflow({
+    selectedFolders,
+    selectedFiles,
+    includeSubfolders: auditOptions.includeSubfolders,
+    setWorkflowMessage,
+    setActiveAction: setDiscoveryWorkflowActiveAction
+  });
+  const setFfprobeWorkflowActiveAction = useCallback((action: FfprobeWorkflowActiveAction): void => {
+    setActiveAction(action);
+  }, []);
+  const {
+    ffprobeProgress,
+    ffprobePercent,
+    metadataItems,
+    startFfprobe,
+    cancelFfprobe,
+    resetFfprobeWorkflow
+  } = useFfprobeWorkflow({
+    discoveredPaths,
+    ffprobePathOverride: settings?.ffprobePathOverride ?? null,
+    setWorkflowMessage,
+    setActiveAction: setFfprobeWorkflowActiveAction
+  });
   const [autoFixJobId, setAutoFixJobId] = useState<string | null>(null);
   const [autoFixProgress, setAutoFixProgress] = useState<AutoFixJobSnapshot | null>(null);
   const [autoFixResult, setAutoFixResult] = useState<AutoFixResult | null>(null);
@@ -545,7 +600,6 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const [isPremiereImportSubmitting, setIsPremiereImportSubmitting] = useState(false);
   const [premiereImportResult, setPremiereImportResult] = useState<PremiereRequestResponse | null>(null);
   const [premiereImportError, setPremiereImportError] = useState<string | null>(null);
-  const pendingAuditRequestRef = useRef<AuditRequest | null>(null);
 
   const refreshPremiereStatus = useCallback(async (): Promise<void> => {
     setIsPremiereStatusLoading(true);
@@ -674,70 +728,6 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     loadStoredAuditResultState
   ]);
 
-  useEffect(() => {
-    return auditClient.subscribeToAuditProgress((progress) => {
-      setAuditProgress(progress);
-
-      if (progress.jobId) {
-        setAuditJobId(progress.jobId);
-      }
-
-      if (progress.status === 'complete') {
-        setActiveAction(null);
-        setWorkflowMessage(progress.message ?? 'Audit complete.');
-      }
-
-      if (progress.status === 'error' || progress.status === 'canceled') {
-        setActiveAction(null);
-        setWorkflowMessage(progress.message ?? 'Audit stopped.');
-      }
-
-      if (progress.result) {
-        void applyAuditResult(progress.result, pendingAuditRequestRef.current, { persist: true });
-      }
-    });
-  }, [applyAuditResult]);
-
-  useEffect(() => {
-    return discoveryClient.subscribeToDiscoveryProgress((progress) => {
-      setDiscoveryProgress(progress);
-
-      if (progress.jobId) {
-        setDiscoveryJobId(progress.jobId);
-      }
-
-      if (progress.status === 'complete') {
-        setActiveAction(null);
-        setWorkflowMessage(progress.message ?? 'File discovery complete.');
-      }
-
-      if (progress.status === 'error' || progress.status === 'canceled') {
-        setActiveAction(null);
-        setWorkflowMessage(progress.message ?? 'File discovery stopped.');
-      }
-    });
-  }, []);
-
-  useEffect(() => {
-    return ffprobeClient.subscribeToFfprobeProgress((progress) => {
-      setFfprobeProgress(progress);
-
-      if (progress.jobId) {
-        setFfprobeJobId(progress.jobId);
-      }
-
-      if (progress.status === 'complete') {
-        setActiveAction(null);
-        setWorkflowMessage(progress.message ?? 'Metadata extraction complete.');
-      }
-
-      if (progress.status === 'error' || progress.status === 'canceled') {
-        setActiveAction(null);
-        setWorkflowMessage(progress.message ?? 'Metadata extraction stopped.');
-      }
-    });
-  }, []);
-
   const auditedRootDirectory = useMemo(
     () => getAuditedRootDirectory(lastAuditRequest, auditSummary),
     [auditSummary, lastAuditRequest]
@@ -778,12 +768,6 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     replacementProgress,
     isPremiereImportSubmitting
   });
-  const auditPercent = getProgressPercent(auditProgress?.processedFiles, auditProgress?.totalFiles);
-  const discoveryPercent = getProgressPercent(
-    discoveryProgress?.processedFiles,
-    discoveryProgress?.totalFiles
-  );
-  const ffprobePercent = getProgressPercent(ffprobeProgress?.processedFiles, ffprobeProgress?.totalFiles);
   const autoFixPercent = getProgressPercent(autoFixProgress?.processedVideos, autoFixProgress?.totalVideos);
   const autoCropPercent = getProgressPercent(autoCropProgress?.processedFiles, autoCropProgress?.totalFiles);
   const mediaPreviewPercent = getProgressPercent(
@@ -799,8 +783,6 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     replacementProgress?.processedItems,
     replacementProgress?.totalItems
   );
-  const discoveredPaths = discoveryProgress?.result?.files.map((file) => file.path) ?? [];
-  const metadataItems = ffprobeProgress?.result?.items ?? [];
   const autoFixOutputDirectory = outputFolder ?? settings?.defaultAutoFixDestinationRoot ?? null;
   const autoCropOutputRootDir = outputFolder ?? settings?.defaultOutputDirectory ?? null;
   const {
@@ -876,91 +858,6 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     });
     setAuditOptions(settingsToAuditOptions(reset));
   }, [applySourceSelectionState, resetStoredSettings]);
-
-  const startAuditRequest = useCallback(async (request: AuditRequest): Promise<AuditStartOutcome> => {
-    setWorkflowMessage(null);
-    setAuditProgress(null);
-    resetResultStateForAuditStart(request);
-    setActiveAction(null);
-    pendingAuditRequestRef.current = request;
-
-    const response = await auditClient.startAudit(request);
-
-    if (response.status !== 'started' || !response.jobId) {
-      setWorkflowMessage(response.message ?? 'Could not start audit.');
-      return 'not_started';
-    }
-
-    setAuditJobId(response.jobId);
-    setWorkflowMessage(response.message ?? 'Audit started.');
-    return 'started';
-  }, [resetResultStateForAuditStart]);
-
-  const runAudit = useCallback(async (): Promise<AuditStartOutcome> => {
-    const request = {
-      folderPaths: dedupeOverlappingFolderPaths(selectedFolders),
-      filePaths: selectedFiles,
-      options: auditOptions
-    };
-
-    if (request.folderPaths.length === 0 && request.filePaths.length === 0) {
-      setWorkflowMessage('Choose at least one folder or video file before running an audit.');
-      return 'not_started';
-    }
-
-    if (!request.options.includeLowResolutionAnalysis && !request.options.includeBlackBorderAnalysis) {
-      setWorkflowMessage('At least one audit option must be selected.');
-      return 'not_started';
-    }
-
-    try {
-      return await startAuditRequest(request);
-    } catch (error: unknown) {
-      setWorkflowMessage(getErrorMessage(error, 'Could not start audit.'));
-      return 'not_started';
-    }
-  }, [auditOptions, selectedFiles, selectedFolders, startAuditRequest]);
-
-  const refreshAudit = useCallback(async (): Promise<void> => {
-    if (!lastAuditRequest) {
-      setWorkflowMessage('No saved audit request is available.');
-      return;
-    }
-
-    const dedupedFolderPaths = dedupeOverlappingFolderPaths(lastAuditRequest.folderPaths);
-    const request = {
-      ...lastAuditRequest,
-      folderPaths: dedupedFolderPaths
-    };
-
-    applySourceSelectionState({
-      selectedFolders: dedupedFolderPaths,
-      selectedFolderSummary: null,
-      selectedFiles: lastAuditRequest.filePaths
-    });
-    setAuditOptions(lastAuditRequest.options);
-
-    try {
-      await startAuditRequest(request);
-    } catch (error: unknown) {
-      setWorkflowMessage(getErrorMessage(error, 'Could not refresh audit.'));
-    }
-  }, [applySourceSelectionState, lastAuditRequest, startAuditRequest]);
-
-  const cancelAudit = useCallback(async (): Promise<void> => {
-    if (!auditJobId) {
-      return;
-    }
-
-    try {
-      const progress = await auditClient.cancelAudit(auditJobId);
-      setAuditProgress(progress);
-      setWorkflowMessage(progress.message ?? 'Audit canceled.');
-      setActiveAction(null);
-    } catch (error: unknown) {
-      setWorkflowMessage(getErrorMessage(error, 'Could not cancel audit.'));
-    }
-  }, [auditJobId]);
 
   const loadOperationHistory = useCallback(async (): Promise<void> => {
     setOperationHistoryError(null);
@@ -1922,14 +1819,11 @@ export function useVideoAuditAppController(): VideoAuditAppController {
         selectionMessage: null
       });
       setAuditOptions(settingsToAuditOptions(updatedSettings));
-      setAuditJobId(null);
-      setAuditProgress(null);
+      resetAuditWorkflow();
       setGlobalFilter('');
       setResultsViewFilter('all');
-      setDiscoveryJobId(null);
-      setDiscoveryProgress(null);
-      setFfprobeJobId(null);
-      setFfprobeProgress(null);
+      resetDiscoveryWorkflow();
+      resetFfprobeWorkflow();
       setAutoFixJobId(null);
       setAutoFixProgress(null);
       setAutoFixResult(null);
@@ -1991,7 +1885,6 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       setPremiereImportResult(null);
       setPremiereImportError(null);
       setIsPremiereImportSubmitting(false);
-      pendingAuditRequestRef.current = null;
       resetAuditResults({
         storageMessage: historyMetadataError
           ? `Cache cleared. Scan history metadata could not be saved: ${historyMetadataError}`
@@ -2010,106 +1903,12 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     clearStoredAuditResultState,
     outputFolder,
     resetAuditResults,
+    resetAuditWorkflow,
+    resetDiscoveryWorkflow,
+    resetFfprobeWorkflow,
     saveSettingsSilently,
     setStorageMessage
   ]);
-
-  const startDiscovery = useCallback(async (): Promise<void> => {
-    const request: FileDiscoveryRequest = {
-      folderPaths: dedupeOverlappingFolderPaths(selectedFolders),
-      filePaths: selectedFiles,
-      includeSubfolders: auditOptions.includeSubfolders
-    };
-
-    setWorkflowMessage(null);
-    setDiscoveryProgress(null);
-
-    if (request.folderPaths.length === 0 && request.filePaths.length === 0) {
-      setWorkflowMessage('Choose at least one folder or video file before scanning.');
-      return;
-    }
-
-    setActiveAction('discovery');
-
-    try {
-      const response = await discoveryClient.startDiscovery(request);
-
-      if (response.status !== 'started' || !response.jobId) {
-        setActiveAction(null);
-        setWorkflowMessage(response.message ?? 'Could not start file discovery.');
-        return;
-      }
-
-      setDiscoveryJobId(response.jobId);
-      setWorkflowMessage(response.message ?? 'File discovery started.');
-    } catch (error: unknown) {
-      setActiveAction(null);
-      setWorkflowMessage(getErrorMessage(error, 'Could not start file discovery.'));
-    }
-  }, [auditOptions.includeSubfolders, selectedFiles, selectedFolders]);
-
-  const cancelDiscovery = useCallback(async (): Promise<void> => {
-    if (!discoveryJobId) {
-      return;
-    }
-
-    try {
-      const progress = await discoveryClient.cancelDiscovery(discoveryJobId);
-      setDiscoveryProgress(progress);
-      setWorkflowMessage(progress.message ?? 'File discovery canceled.');
-      setActiveAction(null);
-    } catch (error: unknown) {
-      setWorkflowMessage(getErrorMessage(error, 'Could not cancel file discovery.'));
-    }
-  }, [discoveryJobId]);
-
-  const startFfprobe = useCallback(async (): Promise<void> => {
-    const request: FfprobeMetadataRequest = {
-      filePaths: discoveredPaths,
-      ffprobePathOverride: settings?.ffprobePathOverride ?? null
-    };
-
-    setWorkflowMessage(null);
-    setFfprobeProgress(null);
-
-    if (request.filePaths.length === 0) {
-      setWorkflowMessage('Scan files before running metadata extraction.');
-      return;
-    }
-
-    setActiveAction('ffprobe');
-
-    try {
-      const response = await ffprobeClient.startFfprobe(request);
-
-      if (response.status !== 'started' || !response.jobId) {
-        setActiveAction(null);
-        setWorkflowMessage(response.message ?? 'Could not start metadata extraction.');
-        return;
-      }
-
-      setFfprobeJobId(response.jobId);
-      setWorkflowMessage(response.message ?? 'Metadata extraction started.');
-    } catch (error: unknown) {
-      setActiveAction(null);
-      setWorkflowMessage(getErrorMessage(error, 'Could not start metadata extraction.'));
-    }
-  }, [discoveredPaths, settings?.ffprobePathOverride]);
-
-  const cancelFfprobe = useCallback(async (): Promise<void> => {
-    if (!ffprobeJobId) {
-      return;
-    }
-
-    try {
-      const progress = await ffprobeClient.cancelFfprobe(ffprobeJobId);
-      setFfprobeProgress(progress);
-      setWorkflowMessage(progress.message ?? 'Metadata extraction canceled.');
-      setActiveAction(null);
-    } catch (error: unknown) {
-      setWorkflowMessage(getErrorMessage(error, 'Could not cancel metadata extraction.'));
-    }
-  }, [ffprobeJobId]);
 
   const openAutoFixDialog = useCallback((): void => {
     setAutoFixError(null);

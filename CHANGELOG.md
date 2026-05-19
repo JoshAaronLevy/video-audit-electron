@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.10] - 2026-05-19
+
+### Changed
+
+- Extracted audit, file-discovery, and ffprobe workflow lifecycle state, progress subscriptions, start handlers, cancel handlers, and progress-derived data into focused renderer hooks.
+
 ## [0.50.9] - 2026-05-19
 
 ### Changed

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.22] - 2026-05-19
+
+### Added
+
+- Added renderer architecture documentation and a manual refactor verification checklist covering workflow ownership, persistence, progress subscriptions, future file-availability integration points, and end-to-end manual checks.
+
 ## [0.50.21] - 2026-05-19
 
 ### Changed

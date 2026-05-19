@@ -1,0 +1,11 @@
+# New Features and Updates
+
+## Drive Presence Check Updates
+
+### Context
+
+Replace the specific check and alert for the Sandisk drive with one that checks if the all the database table files are still in the source directory they originally were (and the app thinks they are). So when the app starts, if there is data in the datatable, it will check if the files are still in the same location. If not, it will alert the user that the following files are missing (with a list of the missing files), and a dialog asking them if they want to remove them from the datatable or dismiss the alert. If they choose to dismiss the alert, the checkboxes for those files will be disabled, and the file names will be prefixed with a red exclamation mark to indicate that they are missing. If they choose to remove them from the datatable, the files will be removed from the datatable (and the local storage strategy wwe're using will be updated to reflect that change). We need to think of a good strategy for implementing this. It should check fairly frequently.
+
+## New Feature: Scan New Files
+
+If a user has run the audit scan and is viewing the datatable, and the folder(s) that they originally scanned has new files added to it, we should have a way to alert the user that there are new files in the folder that they haven't scanned yet. We will have a function in a service that checks the source folder(s) for new files every 5 minutes (or some reasonable interval). If it finds new files, it will alert the user with an alert or toast at the top that says "New files have been added to the current source folder(s). Would you like to run an audit scan on those files now?" with options to "Scan Now" or "Dismiss". If they choose to scan now, it will run the audit scan again for *just the files that are new* and update the datatable with any of the files found that are flagged. If they choose to dismiss, it will just close the dialog and continue checking for new files at the next interval. But if they dismiss, it needs to update the app's state of the source folder(s) to essentially make the new current folder(s) the one to check against for the drive presence check. That way, the users won't be constantly notified about the same new files every time the check runs. It will only notify them about new files that are added after they dismiss the alert.

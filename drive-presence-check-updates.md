@@ -1,5 +1,0 @@
-# Drive Presence Check Updates
-
-## Context
-
-Replace the specific check and alert for the Sandisk drive with one that checks if the all the database table files are still in the source directory they originally were (and the app thinks they are). So when the app starts, if there is data in the datatable, it will check if the files are still in the same location. If not, it will alert the user that the following files are missing (with a list of the missing files), and a dialog asking them if they want to remove them from the datatable or dismiss the alert. If they choose to dismiss the alert, the checkboxes for those files will be disabled, and the file names will be prefixed with a red exclamation mark to indicate that they are missing. If they choose to remove them from the datatable, the files will be removed from the datatable (and the local storage strategy wwe're using will be updated to reflect that change).

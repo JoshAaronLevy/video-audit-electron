@@ -1,36 +1,27 @@
 import type { VideoRow } from '../../shared/types/video';
-import { getResultsViewCounts, matchesResultsViewFilter } from '../helpers/resultFilters';
+import {
+  getActiveRows,
+  getRemovedRowCount,
+  getResultsViewCounts,
+  getSearchedRows,
+  getSelectedPaths,
+  getSelectedRows,
+  getSelectedSummary,
+  getVideoRowId,
+  getVisibleRowsForResultView
+} from '../helpers/resultFilters';
+import type { SelectedRowsSummary } from '../helpers/resultFilters';
 import type { ResultsViewCounts } from '../types/resultsView';
 import type { VideoResultsStoreState } from './useVideoResultsStore';
 
-export function getVideoRowId(row: VideoRow): string {
-  return row.id ?? row.path;
-}
-
-export function getActiveRows(rows: VideoRow[]): VideoRow[] {
-  return rows.filter((row) => row.visible !== false);
-}
-
-export function getRemovedRows(rows: VideoRow[]): VideoRow[] {
-  return rows.filter((row) => row.visible === false);
-}
-
-export function getRemovedRowCount(rows: VideoRow[]): number {
-  return getRemovedRows(rows).length;
-}
-
-export function getSelectedRows(rows: VideoRow[], selectedRowIds: string[]): VideoRow[] {
-  if (selectedRowIds.length === 0) {
-    return [];
-  }
-
-  const selectedIdSet = new Set(selectedRowIds);
-
-  return rows.filter((row) => selectedIdSet.has(getVideoRowId(row)));
-}
+export { getVideoRowId };
 
 export function selectActiveRows(state: VideoResultsStoreState): VideoRow[] {
   return getActiveRows(state.rows);
+}
+
+export function selectSearchedRows(state: VideoResultsStoreState): VideoRow[] {
+  return getSearchedRows(selectActiveRows(state), state.searchQuery);
 }
 
 export function selectRemovedRowCount(state: VideoResultsStoreState): number {
@@ -38,19 +29,25 @@ export function selectRemovedRowCount(state: VideoResultsStoreState): number {
 }
 
 export function selectResultsViewCounts(state: VideoResultsStoreState): ResultsViewCounts {
-  return getResultsViewCounts(selectActiveRows(state));
+  return getResultsViewCounts(selectSearchedRows(state));
+}
+
+export function selectVisibleRowsForResultView(state: VideoResultsStoreState): VideoRow[] {
+  return getVisibleRowsForResultView(selectSearchedRows(state), state.activeViewFilter);
 }
 
 export function selectRowsForActiveView(state: VideoResultsStoreState): VideoRow[] {
-  return selectActiveRows(state).filter((row) =>
-    matchesResultsViewFilter(row, state.activeViewFilter)
-  );
+  return selectVisibleRowsForResultView(state);
 }
 
 export function selectSelectedRows(state: VideoResultsStoreState): VideoRow[] {
-  return getSelectedRows(state.rows, state.selectedRowIds);
+  return getSelectedRows(selectActiveRows(state), state.selectedRowIds);
 }
 
 export function selectSelectedPaths(state: VideoResultsStoreState): string[] {
-  return selectSelectedRows(state).map((row) => row.path);
+  return getSelectedPaths(selectActiveRows(state), state.selectedRowIds);
+}
+
+export function selectSelectedSummary(state: VideoResultsStoreState): SelectedRowsSummary {
+  return getSelectedSummary(selectActiveRows(state), state.selectedRowIds);
 }

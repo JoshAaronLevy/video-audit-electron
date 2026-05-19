@@ -2,6 +2,12 @@ import type { AuditRequest, AuditSummary } from '../../shared/types/audit';
 import type { VideoRow } from '../../shared/types/video';
 import type { ResultsViewCounts, ResultsViewFilter } from '../types/resultsView';
 
+export interface SelectedRowsSummary {
+  count: number;
+  paths: string[];
+  totalSizeMB: number;
+}
+
 export function getAuditedRootDirectory(
   request: AuditRequest | null,
   summary: AuditSummary | null
@@ -23,6 +29,32 @@ export function getAuditedRootDirectory(
   return summaryPath;
 }
 
+export function getVideoRowId(row: VideoRow): string {
+  return row.id ?? row.path;
+}
+
+export function getActiveRows(rows: VideoRow[]): VideoRow[] {
+  return rows.filter((row) => row.visible !== false);
+}
+
+export function getRemovedRows(rows: VideoRow[]): VideoRow[] {
+  return rows.filter((row) => row.visible === false);
+}
+
+export function getRemovedRowCount(rows: VideoRow[]): number {
+  return getRemovedRows(rows).length;
+}
+
+export function getSearchedRows(rows: VideoRow[], searchQuery: string): VideoRow[] {
+  const normalizedQuery = normalizeSearchValue(searchQuery);
+
+  if (!normalizedQuery) {
+    return rows;
+  }
+
+  return rows.filter((row) => matchesResultSearch(row, normalizedQuery));
+}
+
 export function getResultsViewCounts(rows: VideoRow[]): ResultsViewCounts {
   return {
     all: rows.length,
@@ -31,6 +63,37 @@ export function getResultsViewCounts(rows: VideoRow[]): ResultsViewCounts {
     aspect: rows.filter((row) => row.isWrongAspectRatio).length,
     crop: rows.filter(hasCropIssue).length,
     errors: rows.filter(hasRowError).length
+  };
+}
+
+export function getVisibleRowsForResultView(
+  rows: VideoRow[],
+  filter: ResultsViewFilter
+): VideoRow[] {
+  return rows.filter((row) => matchesResultsViewFilter(row, filter));
+}
+
+export function getSelectedRows(rows: VideoRow[], selectedRowIds: string[]): VideoRow[] {
+  if (selectedRowIds.length === 0) {
+    return [];
+  }
+
+  const selectedIdSet = new Set(selectedRowIds);
+
+  return rows.filter((row) => selectedIdSet.has(getVideoRowId(row)));
+}
+
+export function getSelectedPaths(rows: VideoRow[], selectedRowIds: string[]): string[] {
+  return getSelectedRows(rows, selectedRowIds).map((row) => row.path);
+}
+
+export function getSelectedSummary(rows: VideoRow[], selectedRowIds: string[]): SelectedRowsSummary {
+  const selectedRows = getSelectedRows(rows, selectedRowIds);
+
+  return {
+    count: selectedRows.length,
+    paths: selectedRows.map((row) => row.path),
+    totalSizeMB: selectedRows.reduce((total, row) => total + (row.sizeMB ?? 0), 0)
   };
 }
 
@@ -84,4 +147,33 @@ export function hasRowError(row: VideoRow): boolean {
     blackBorder?.classification === 'analysis_error' ||
     row.reasons.toLowerCase().includes('error')
   );
+}
+
+function matchesResultSearch(row: VideoRow, normalizedQuery: string): boolean {
+  return getSearchableResultValues(row).some((value) =>
+    normalizeSearchValue(value).includes(normalizedQuery)
+  );
+}
+
+function getSearchableResultValues(row: VideoRow): Array<string | null | undefined> {
+  const blackBorder = row.adjustments?.blackBorder;
+
+  return [
+    row.displayFile,
+    row.fileName,
+    row.displayDirectory,
+    row.directory,
+    row.fileType,
+    row.resolution,
+    row.displayAspectRatio,
+    blackBorder?.classification,
+    blackBorder?.confidence,
+    blackBorder?.recommendedFix?.reason,
+    row.reasons,
+    row.status
+  ];
+}
+
+function normalizeSearchValue(value: string | null | undefined): string {
+  return (value ?? '').trim().toLowerCase();
 }

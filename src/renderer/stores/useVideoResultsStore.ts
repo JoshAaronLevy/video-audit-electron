@@ -6,8 +6,8 @@ import type {
 } from '../../shared/types/mediaPreview';
 import type { VideoRow } from '../../shared/types/video';
 import { mergeMediaPreviewItems, mergePreviewClipItems } from '../helpers/mediaPreviewRows';
+import { getVideoRowId } from '../helpers/resultFilters';
 import type { ResultsViewFilter } from '../types/resultsView';
-import { getVideoRowId } from './videoResultsSelectors';
 
 export type VideoResultsWorkspaceSource = 'empty' | 'audit' | 'stored-audit';
 

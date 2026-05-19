@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.25] - 2026-05-19
+
+### Added
+
+- Added shared result pipeline helpers and store selectors for active rows, searched rows, searched result counts, active-view rows, selected rows, selected paths, and selected summaries.
+
 ## [0.50.24] - 2026-05-19
 
 ### Added

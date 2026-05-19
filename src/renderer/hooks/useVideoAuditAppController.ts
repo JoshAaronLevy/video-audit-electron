@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { AppInfo } from '../../shared/types/app';
-import type { AppCommand } from '../../shared/types/appCommands';
 import type {
   AuditJobSnapshot,
   AuditOptions,
@@ -43,7 +42,6 @@ import type {
 import type { AppSettings } from '../../shared/types/settings';
 import type { FfprobeResult, VideoPreviewFrame, VideoRow } from '../../shared/types/video';
 import { dedupeOverlappingFolderPaths } from '../../shared/utils/folderPathSelection';
-import * as appClient from '../api/appClient';
 import * as mediaPreviewClient from '../api/mediaPreviewClient';
 import { DEFAULT_AUDIT_OPTIONS, settingsToAuditOptions } from '../helpers/auditOptions';
 import { getErrorMessage } from '../helpers/errors';
@@ -51,6 +49,7 @@ import { getPersistedFolderTreeSourcePaths } from '../helpers/folderTreeSource';
 import { getAuditedRootDirectory } from '../helpers/resultFilters';
 import { getWorkflowCapabilities } from '../helpers/workflowCapabilities';
 import type { ResultsViewCounts, ResultsViewFilter } from '../types/resultsView';
+import { useAppCommands } from '../app/useAppCommands';
 import { useAuditResults } from './useAuditResults';
 import { useAuditWorkflow, type AuditStartOutcome, type AuditWorkflowActiveAction } from './useAuditWorkflow';
 import { useAppBootstrap } from './useAppBootstrap';
@@ -339,7 +338,6 @@ export interface VideoAuditAppController {
 }
 
 export function useVideoAuditAppController(): VideoAuditAppController {
-  const [settingsOpenRequestCount, setSettingsOpenRequestCount] = useState(0);
   const [workflowMessage, setWorkflowMessage] = useState<string | null>(null);
   const [activeAction, setActiveAction] = useState<ActiveAction>(null);
   const [auditOptions, setAuditOptions] = useState<AuditOptions>(DEFAULT_AUDIT_OPTIONS);
@@ -1050,198 +1048,54 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setStorageMessage
   ]);
 
-  const cancelActiveWork = useCallback(async (): Promise<void> => {
-    if (isAuditActive) {
-      await cancelAudit();
-      return;
-    }
-
-    if (isAutoFixActive) {
-      await cancelAutoFix();
-      return;
-    }
-
-    if (isAutoCropActive) {
-      await cancelAutoCrop();
-      return;
-    }
-
-    if (isMediaPreviewActive) {
-      await cancelThumbnailGeneration();
-      return;
-    }
-
-    if (isPreviewClipActive) {
-      await cancelPreviewClipGeneration();
-      return;
-    }
-
-    if (isMigrationScanDialogVisible) {
-      closeMigrationDialog();
-      return;
-    }
-
-    if (isMigrationResultDialogVisible) {
-      closeMigrationResultDialog();
-      return;
-    }
-
-    if (isReplacementExecuting) {
-      await cancelReplacementExecution();
-      return;
-    }
-
-    if (isReplacementResultDialogVisible) {
-      closeReplacementResultDialog();
-      return;
-    }
-
-    if (isOperationHistoryVisible) {
-      closeOperationHistory();
-      return;
-    }
-
-    if (isTrashConfirmDialogVisible) {
-      closeTrashDialog();
-      return;
-    }
-
-    if (isTrashResultDialogVisible) {
-      closeTrashResultDialog();
-      return;
-    }
-
-    if (isMoveConfirmDialogVisible) {
-      closeMoveDialog();
-      return;
-    }
-
-    if (isMoveResultDialogVisible) {
-      closeMoveResultDialog();
-      return;
-    }
-
-    if (isArchiveConfirmDialogVisible) {
-      closeArchiveDialog();
-      return;
-    }
-
-    if (isArchiveResultDialogVisible) {
-      closeArchiveResultDialog();
-      return;
-    }
-
-    if (isPostConversionDialogVisible) {
-      closePostConversionDialog();
-      return;
-    }
-
-    if (isThumbnailDialogVisible) {
-      closeThumbnailDialog();
-      return;
-    }
-
-    if (isAutoCropDialogVisible) {
-      closeAutoCropDialog();
-      return;
-    }
-
-    if (isAutoFixDialogVisible) {
-      closeAutoFixDialog();
-    }
-  }, [
+  const { settingsOpenRequestCount } = useAppCommands({
+    requestFolderTreeOpen,
+    chooseFiles,
+    refreshAudit,
+    setSettingsMessage,
     cancelAudit,
-    cancelAutoCrop,
     cancelAutoFix,
-    cancelReplacementExecution,
-    cancelPreviewClipGeneration,
+    cancelAutoCrop,
     cancelThumbnailGeneration,
-    closeArchiveDialog,
-    closeArchiveResultDialog,
-    closeAutoCropDialog,
-    closeAutoFixDialog,
+    cancelPreviewClipGeneration,
+    cancelReplacementExecution,
     closeMigrationDialog,
     closeMigrationResultDialog,
-    closeMoveDialog,
-    closeMoveResultDialog,
-    closeOperationHistory,
-    closePostConversionDialog,
     closeReplacementResultDialog,
+    closeOperationHistory,
     closeTrashDialog,
     closeTrashResultDialog,
+    closeMoveDialog,
+    closeMoveResultDialog,
+    closeArchiveDialog,
+    closeArchiveResultDialog,
+    closePostConversionDialog,
     closeThumbnailDialog,
-    isAuditActive,
-    isArchiveConfirmDialogVisible,
-    isArchiveResultDialogVisible,
-    isAutoCropActive,
-    isAutoCropDialogVisible,
-    isAutoFixActive,
-    isAutoFixDialogVisible,
-    isMediaPreviewActive,
-    isMigrationResultDialogVisible,
-    isMigrationScanDialogVisible,
-    isMoveConfirmDialogVisible,
-    isMoveResultDialogVisible,
-    isOperationHistoryVisible,
-    isPostConversionDialogVisible,
-    isPreviewClipActive,
-    isReplacementExecuting,
-    isReplacementResultDialogVisible,
-    isTrashConfirmDialogVisible,
-    isTrashResultDialogVisible,
-    isThumbnailDialogVisible
-  ]);
-
-  const handleAppCommand = useCallback(
-    async (command: AppCommand): Promise<void> => {
-      if (command === 'choose-folder') {
-        requestFolderTreeOpen();
-        return;
-      }
-
-      if (command === 'choose-files') {
-        await chooseFiles();
-        return;
-      }
-
-      if (command === 'refresh-audit') {
-        await refreshAudit();
-        return;
-      }
-
-      if (command === 'cancel-active') {
-        await cancelActiveWork();
-        return;
-      }
-
-      if (command === 'open-settings') {
-        setSettingsOpenRequestCount((count) => count + 1);
-        setSettingsMessage(null);
-      }
-    },
-    [cancelActiveWork, chooseFiles, refreshAudit, requestFolderTreeOpen]
-  );
-
-  useEffect(() => appClient.subscribeToAppCommands((command) => {
-    void handleAppCommand(command);
-  }), [handleAppCommand]);
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent): void => {
-      if (event.key !== 'Escape') {
-        return;
-      }
-
-      event.preventDefault();
-      void handleAppCommand('cancel-active');
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [handleAppCommand]);
+    closeAutoCropDialog,
+    closeAutoFixDialog,
+    activeState: {
+      isAuditActive,
+      isAutoFixActive,
+      isAutoCropActive,
+      isMediaPreviewActive,
+      isPreviewClipActive,
+      isMigrationScanDialogVisible,
+      isMigrationResultDialogVisible,
+      isReplacementExecuting,
+      isReplacementResultDialogVisible,
+      isOperationHistoryVisible,
+      isTrashConfirmDialogVisible,
+      isTrashResultDialogVisible,
+      isMoveConfirmDialogVisible,
+      isMoveResultDialogVisible,
+      isArchiveConfirmDialogVisible,
+      isArchiveResultDialogVisible,
+      isPostConversionDialogVisible,
+      isThumbnailDialogVisible,
+      isAutoCropDialogVisible,
+      isAutoFixDialogVisible
+    }
+  });
 
   return {
     appInfo,

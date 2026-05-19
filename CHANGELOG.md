@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.18] - 2026-05-19
+
+### Changed
+
+- Extracted app menu command handling, Escape-key handling, settings-open request state, and active-work cancel/close priority orchestration into a focused renderer app hook.
+
 ## [0.50.17] - 2026-05-19
 
 ### Changed

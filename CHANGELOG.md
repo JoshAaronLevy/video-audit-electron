@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.14] - 2026-05-19
+
+### Changed
+
+- Extracted Auto-Fix and Auto-Crop dialog state, progress subscriptions, start/cancel behavior, errors, row hiding, and post-conversion handoff into focused renderer hooks.
+
 ## [0.50.13] - 2026-05-19
 
 ### Changed

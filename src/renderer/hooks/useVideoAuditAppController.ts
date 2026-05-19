@@ -49,8 +49,6 @@ import type { AppSettings } from '../../shared/types/settings';
 import type { FfprobeResult, VideoPreviewFrame, VideoRow } from '../../shared/types/video';
 import { dedupeOverlappingFolderPaths } from '../../shared/utils/folderPathSelection';
 import * as appClient from '../api/appClient';
-import * as autoCropClient from '../api/autoCropClient';
-import * as autoFixClient from '../api/autoFixClient';
 import * as dialogClient from '../api/dialogClient';
 import * as mediaPreviewClient from '../api/mediaPreviewClient';
 import * as migrationClient from '../api/migrationClient';
@@ -66,6 +64,8 @@ import type { ResultsViewCounts, ResultsViewFilter } from '../types/resultsView'
 import { useAuditResults } from './useAuditResults';
 import { useAuditWorkflow, type AuditStartOutcome, type AuditWorkflowActiveAction } from './useAuditWorkflow';
 import { useAppBootstrap } from './useAppBootstrap';
+import { useAutoCropWorkflow, type AutoCropWorkflowActiveAction } from './useAutoCropWorkflow';
+import { useAutoFixWorkflow, type AutoFixWorkflowActiveAction } from './useAutoFixWorkflow';
 import { useDiagnosticsWorkflow } from './useDiagnosticsWorkflow';
 import { useDiscoveryWorkflow, type DiscoveryWorkflowActiveAction } from './useDiscoveryWorkflow';
 import { useFfprobeWorkflow, type FfprobeWorkflowActiveAction } from './useFfprobeWorkflow';
@@ -521,16 +521,6 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setWorkflowMessage,
     setActiveAction: setFfprobeWorkflowActiveAction
   });
-  const [autoFixJobId, setAutoFixJobId] = useState<string | null>(null);
-  const [autoFixProgress, setAutoFixProgress] = useState<AutoFixJobSnapshot | null>(null);
-  const [autoFixResult, setAutoFixResult] = useState<AutoFixResult | null>(null);
-  const [autoFixError, setAutoFixError] = useState<string | null>(null);
-  const [isAutoFixDialogVisible, setIsAutoFixDialogVisible] = useState(false);
-  const [autoCropJobId, setAutoCropJobId] = useState<string | null>(null);
-  const [autoCropProgress, setAutoCropProgress] = useState<AutoCropJobSnapshot | null>(null);
-  const [autoCropResult, setAutoCropResult] = useState<AutoCropResult | null>(null);
-  const [autoCropError, setAutoCropError] = useState<string | null>(null);
-  const [isAutoCropDialogVisible, setIsAutoCropDialogVisible] = useState(false);
   const [mediaPreviewJobId, setMediaPreviewJobId] = useState<string | null>(null);
   const [mediaPreviewProgress, setMediaPreviewProgress] = useState<MediaPreviewJobSnapshot | null>(null);
   const [mediaPreviewResult, setMediaPreviewResult] = useState<MediaPreviewResult | null>(null);
@@ -600,6 +590,57 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     openOperationHistory,
     setWorkflowMessage,
     setActiveAction: setPostConversionActiveAction,
+    busyState: {
+      activeAction
+    }
+  });
+  const autoFixOutputDirectory = outputFolder ?? settings?.defaultAutoFixDestinationRoot ?? null;
+  const autoCropOutputRootDir = outputFolder ?? settings?.defaultOutputDirectory ?? null;
+  const setAutoFixActiveAction = useCallback((action: AutoFixWorkflowActiveAction): void => {
+    setActiveAction(action);
+  }, []);
+  const {
+    autoFixProgress,
+    autoFixPercent,
+    autoFixResult,
+    autoFixError,
+    isAutoFixDialogVisible,
+    openAutoFixDialog,
+    closeAutoFixDialog,
+    startAutoFix,
+    cancelAutoFix,
+    resetAutoFixWorkflow
+  } = useAutoFixWorkflow({
+    selectedVideos,
+    autoFixOutputDirectory,
+    hideVideoPathsFromTable,
+    createPostConversionPlan,
+    setWorkflowMessage,
+    setActiveAction: setAutoFixActiveAction,
+    busyState: {
+      activeAction
+    }
+  });
+  const setAutoCropActiveAction = useCallback((action: AutoCropWorkflowActiveAction): void => {
+    setActiveAction(action);
+  }, []);
+  const {
+    autoCropProgress,
+    autoCropPercent,
+    autoCropResult,
+    autoCropError,
+    isAutoCropDialogVisible,
+    openAutoCropDialog,
+    closeAutoCropDialog,
+    startAutoCrop,
+    cancelAutoCrop,
+    resetAutoCropWorkflow
+  } = useAutoCropWorkflow({
+    selectedVideos,
+    autoCropOutputRootDir,
+    createPostConversionPlan,
+    setWorkflowMessage,
+    setActiveAction: setAutoCropActiveAction,
     busyState: {
       activeAction
     }
@@ -830,8 +871,6 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       isArchiveExecuting
     }
   });
-  const autoFixPercent = getProgressPercent(autoFixProgress?.processedVideos, autoFixProgress?.totalVideos);
-  const autoCropPercent = getProgressPercent(autoCropProgress?.processedFiles, autoCropProgress?.totalFiles);
   const mediaPreviewPercent = getProgressPercent(
     mediaPreviewProgress?.processedVideos,
     mediaPreviewProgress?.totalVideos
@@ -841,8 +880,6 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     previewClipProgress?.totalClips
   );
   const migrationPercent = getProgressPercent(migrationProgress?.processedFiles, migrationProgress?.totalFiles);
-  const autoFixOutputDirectory = outputFolder ?? settings?.defaultAutoFixDestinationRoot ?? null;
-  const autoCropOutputRootDir = outputFolder ?? settings?.defaultOutputDirectory ?? null;
   const {
     canRunAudit,
     canRefreshAudit,
@@ -916,101 +953,6 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     });
     setAuditOptions(settingsToAuditOptions(reset));
   }, [applySourceSelectionState, resetStoredSettings]);
-
-  useEffect(() => {
-    return autoFixClient.subscribeToAutoFixProgress((progress) => {
-      setAutoFixProgress(progress);
-
-      if (progress.jobId) {
-        setAutoFixJobId(progress.jobId);
-      }
-
-      if (progress.status === 'running' || progress.status === 'starting') {
-        setActiveAction('autoFix');
-      }
-
-      if (progress.status === 'complete' && progress.result) {
-        setActiveAction(null);
-        setAutoFixResult(progress.result);
-        setAutoFixError(null);
-
-        const succeededPaths = progress.result.items
-          .filter((item) => item.status === 'success' && item.sourcePath)
-          .map((item) => item.sourcePath as string);
-
-        void hideVideoPathsFromTable(succeededPaths).then((hiddenCount) => {
-          const removedText =
-            hiddenCount > 0 ? ` ${hiddenCount.toLocaleString()} video(s) were removed from the table.` : '';
-          setWorkflowMessage(`Auto-Fix complete.${removedText}`);
-          void createPostConversionPlan({
-            sourceLabel: 'Auto-Fix',
-            autoFixResult: progress.result
-          }).then((opened) => {
-            if (opened) {
-              setIsAutoFixDialogVisible(false);
-            }
-          });
-        });
-      }
-
-      if (progress.status === 'error') {
-        setActiveAction(null);
-        setAutoFixError(progress.error ?? progress.message ?? 'Auto-Fix failed.');
-        setWorkflowMessage(progress.message ?? 'Auto-Fix failed.');
-      }
-
-      if (progress.status === 'canceled') {
-        setActiveAction(null);
-        setAutoFixError(null);
-        setWorkflowMessage(progress.message ?? 'Auto-Fix canceled.');
-      }
-    });
-  }, [createPostConversionPlan, hideVideoPathsFromTable]);
-
-  useEffect(() => {
-    return autoCropClient.subscribeToAutoCropProgress((progress) => {
-      setAutoCropProgress(progress);
-
-      if (progress.jobId) {
-        setAutoCropJobId(progress.jobId);
-      }
-
-      if (progress.status === 'running' || progress.status === 'starting') {
-        setActiveAction('autoCrop');
-      }
-
-      if (progress.status === 'complete' && progress.result) {
-        setActiveAction(null);
-        setAutoCropResult(progress.result);
-        setAutoCropError(null);
-        const croppedCount = progress.result.summary.succeeded;
-        const croppedLabel = croppedCount === 1 ? 'cropped copy' : 'cropped copies';
-        setWorkflowMessage(
-          `Auto-Crop complete. ${croppedCount.toLocaleString()} ${croppedLabel} created.`
-        );
-        void createPostConversionPlan({
-          sourceLabel: 'Auto-Crop',
-          autoCropResult: progress.result
-        }).then((opened) => {
-          if (opened) {
-            setIsAutoCropDialogVisible(false);
-          }
-        });
-      }
-
-      if (progress.status === 'error') {
-        setActiveAction(null);
-        setAutoCropError(progress.error ?? progress.message ?? 'Auto-Crop failed.');
-        setWorkflowMessage(progress.message ?? 'Auto-Crop failed.');
-      }
-
-      if (progress.status === 'canceled') {
-        setActiveAction(null);
-        setAutoCropError(null);
-        setWorkflowMessage(progress.message ?? 'Auto-Crop canceled.');
-      }
-    });
-  }, [createPostConversionPlan]);
 
   useEffect(() => {
     return mediaPreviewClient.subscribeToMediaPreviewProgress((progress) => {
@@ -1183,16 +1125,8 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       setResultsViewFilter('all');
       resetDiscoveryWorkflow();
       resetFfprobeWorkflow();
-      setAutoFixJobId(null);
-      setAutoFixProgress(null);
-      setAutoFixResult(null);
-      setAutoFixError(null);
-      setIsAutoFixDialogVisible(false);
-      setAutoCropJobId(null);
-      setAutoCropProgress(null);
-      setAutoCropResult(null);
-      setAutoCropError(null);
-      setIsAutoCropDialogVisible(false);
+      resetAutoFixWorkflow();
+      resetAutoCropWorkflow();
       setMediaPreviewJobId(null);
       setMediaPreviewProgress(null);
       setMediaPreviewResult(null);
@@ -1236,6 +1170,8 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     outputFolder,
     resetAuditResults,
     resetAuditWorkflow,
+    resetAutoCropWorkflow,
+    resetAutoFixWorkflow,
     resetDiscoveryWorkflow,
     resetFileOperationsWorkflow,
     resetFfprobeWorkflow,
@@ -1243,176 +1179,6 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     saveSettingsSilently,
     setStorageMessage
   ]);
-
-  const openAutoFixDialog = useCallback((): void => {
-    setAutoFixError(null);
-    setAutoFixResult(null);
-    setAutoFixProgress(null);
-    setIsAutoFixDialogVisible(true);
-
-    if (!autoFixOutputDirectory) {
-      setAutoFixError('Choose an output folder before running Auto-Fix.');
-    }
-  }, [autoFixOutputDirectory]);
-
-  const closeAutoFixDialog = useCallback((): void => {
-    if (isAutoFixActive) {
-      return;
-    }
-
-    setIsAutoFixDialogVisible(false);
-    setAutoFixError(null);
-  }, [isAutoFixActive]);
-
-  const startAutoFix = useCallback(async (): Promise<void> => {
-    if (selectedVideoCount === 0) {
-      setAutoFixError('Select at least one video before running Auto-Fix.');
-      return;
-    }
-
-    if (!autoFixOutputDirectory) {
-      setAutoFixError('Choose an output folder before running Auto-Fix.');
-      return;
-    }
-
-    setAutoFixError(null);
-    setAutoFixResult(null);
-    setAutoFixProgress({
-      jobId: null,
-      status: 'starting',
-      phase: 'validating',
-      totalVideos: selectedVideoCount,
-      processedVideos: 0,
-      currentFile: null,
-      currentProfile: null,
-      currentAction: null,
-      message: 'Starting Auto-Fix.',
-      succeeded: 0,
-      failed: 0,
-      outputDirectory: autoFixOutputDirectory,
-      error: null
-    });
-    setActiveAction('autoFix');
-
-    try {
-      const response = await autoFixClient.startAutoFix({
-        videos: selectedVideos,
-        outputDirectory: autoFixOutputDirectory
-      });
-
-      if (response.status !== 'started' || !response.jobId) {
-        setActiveAction(null);
-        setAutoFixError(response.message ?? 'Could not start Auto-Fix.');
-        return;
-      }
-
-      setAutoFixJobId(response.jobId);
-      setWorkflowMessage(response.message ?? 'Auto-Fix started.');
-    } catch (error: unknown) {
-      setActiveAction(null);
-      setAutoFixError(getErrorMessage(error, 'Could not start Auto-Fix.'));
-    }
-  }, [autoFixOutputDirectory, selectedVideoCount, selectedVideos]);
-
-  const cancelAutoFix = useCallback(async (): Promise<void> => {
-    if (!autoFixJobId) {
-      return;
-    }
-
-    try {
-      const progress = await autoFixClient.cancelAutoFix(autoFixJobId);
-      setAutoFixProgress(progress);
-      setWorkflowMessage(progress.message ?? 'Auto-Fix canceled.');
-      setActiveAction(null);
-    } catch (error: unknown) {
-      setAutoFixError(getErrorMessage(error, 'Could not cancel Auto-Fix.'));
-    }
-  }, [autoFixJobId]);
-
-  const openAutoCropDialog = useCallback((): void => {
-    setAutoCropError(null);
-    setAutoCropResult(null);
-    setAutoCropProgress(null);
-    setIsAutoCropDialogVisible(true);
-
-    if (!autoCropOutputRootDir) {
-      setAutoCropError('Choose an output folder before running Auto-Crop.');
-    }
-  }, [autoCropOutputRootDir]);
-
-  const closeAutoCropDialog = useCallback((): void => {
-    if (isAutoCropActive) {
-      return;
-    }
-
-    setIsAutoCropDialogVisible(false);
-    setAutoCropError(null);
-  }, [isAutoCropActive]);
-
-  const startAutoCrop = useCallback(async (): Promise<void> => {
-    if (selectedVideoCount === 0) {
-      setAutoCropError('Select at least one video before running Auto-Crop.');
-      return;
-    }
-
-    if (!autoCropOutputRootDir) {
-      setAutoCropError('Choose an output folder before running Auto-Crop.');
-      return;
-    }
-
-    setAutoCropError(null);
-    setAutoCropResult(null);
-    setAutoCropProgress({
-      jobId: null,
-      status: 'starting',
-      phase: 'validating',
-      outputRootDir: autoCropOutputRootDir,
-      outputDir: null,
-      totalFiles: selectedVideoCount,
-      processedFiles: 0,
-      succeededCount: 0,
-      skippedCount: 0,
-      errorCount: 0,
-      currentFile: null,
-      message: 'Starting Auto-Crop.',
-      error: null
-    });
-    setActiveAction('autoCrop');
-
-    try {
-      const response = await autoCropClient.startAutoCrop({
-        videos: selectedVideos,
-        outputRootDir: autoCropOutputRootDir
-      });
-
-      if (response.status !== 'started' || !response.jobId) {
-        setActiveAction(null);
-        setAutoCropError(response.message ?? 'Could not start Auto-Crop.');
-        return;
-      }
-
-      setAutoCropJobId(response.jobId);
-      setWorkflowMessage(response.message ?? 'Auto-Crop started.');
-    } catch (error: unknown) {
-      setActiveAction(null);
-      setAutoCropError(getErrorMessage(error, 'Could not start Auto-Crop.'));
-    }
-  }, [autoCropOutputRootDir, selectedVideoCount, selectedVideos]);
-
-  const cancelAutoCrop = useCallback(async (): Promise<void> => {
-    if (!autoCropJobId) {
-      return;
-    }
-
-    try {
-      const progress = await autoCropClient.cancelAutoCrop(autoCropJobId);
-      setAutoCropProgress(progress);
-      setWorkflowMessage(progress.message ?? 'Auto-Crop canceled.');
-      setActiveAction(null);
-    } catch (error: unknown) {
-      setAutoCropError(getErrorMessage(error, 'Could not cancel Auto-Crop.'));
-    }
-  }, [autoCropJobId]);
 
   const openThumbnailDialog = useCallback((): void => {
     if (visibleVideoRows.length === 0) {

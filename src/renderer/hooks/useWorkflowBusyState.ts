@@ -36,7 +36,6 @@ export interface UseWorkflowBusyStateValue {
   isReplacementPlanning: boolean;
   isReplacementActionUpdating: boolean;
   isReplacementExecuting: boolean;
-  isOperationHistoryLoading: boolean;
   isPremiereImportActive: boolean;
   isAnyBlockingWorkflowActive: boolean;
 }
@@ -73,7 +72,6 @@ export function useWorkflowBusyState({
   const isReplacementPlanning = activeAction === 'replacementPlan';
   const isReplacementActionUpdating = activeAction === 'replacementUpdate';
   const isReplacementExecuting = activeAction === 'replacementExecute' || isRunningProgress(replacementProgress);
-  const isOperationHistoryLoading = activeAction === 'operationHistory';
   const isPremiereImportActive = activeAction === 'premiereImport' || isPremiereImportSubmitting;
   const isAnyBlockingWorkflowActive =
     isAuditActive ||
@@ -115,7 +113,6 @@ export function useWorkflowBusyState({
     isReplacementPlanning,
     isReplacementActionUpdating,
     isReplacementExecuting,
-    isOperationHistoryLoading,
     isPremiereImportActive,
     isAnyBlockingWorkflowActive
   };

@@ -56,7 +56,6 @@ import * as dialogClient from '../api/dialogClient';
 import * as fileOperationsClient from '../api/fileOperationsClient';
 import * as mediaPreviewClient from '../api/mediaPreviewClient';
 import * as migrationClient from '../api/migrationClient';
-import * as operationHistoryClient from '../api/operationHistoryClient';
 import * as premiereClient from '../api/premiereClient';
 import * as replacementClient from '../api/replacementClient';
 import { DEFAULT_AUDIT_OPTIONS, settingsToAuditOptions } from '../helpers/auditOptions';
@@ -82,6 +81,7 @@ import { useAppBootstrap } from './useAppBootstrap';
 import { useDiagnosticsWorkflow } from './useDiagnosticsWorkflow';
 import { useDiscoveryWorkflow, type DiscoveryWorkflowActiveAction } from './useDiscoveryWorkflow';
 import { useFfprobeWorkflow, type FfprobeWorkflowActiveAction } from './useFfprobeWorkflow';
+import { useOperationHistory, type OperationHistoryActiveAction } from './useOperationHistory';
 import { usePathReveal, type PathRevealActiveAction } from './usePathReveal';
 import { useResultFilters } from './useResultFilters';
 import { useSelectionState } from './useSelectionState';
@@ -589,10 +589,22 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const [replacementResult, setReplacementResult] = useState<FileOperationResult | null>(null);
   const [replacementResultError, setReplacementResultError] = useState<string | null>(null);
   const [isReplacementResultDialogVisible, setIsReplacementResultDialogVisible] = useState(false);
-  const [operationHistoryRecords, setOperationHistoryRecords] = useState<OperationHistoryRecord[]>([]);
-  const [selectedOperationHistoryRecord, setSelectedOperationHistoryRecord] = useState<OperationHistoryRecord | null>(null);
-  const [operationHistoryError, setOperationHistoryError] = useState<string | null>(null);
-  const [isOperationHistoryVisible, setIsOperationHistoryVisible] = useState(false);
+  const setOperationHistoryActiveAction = useCallback((action: OperationHistoryActiveAction): void => {
+    setActiveAction(action);
+  }, []);
+  const {
+    operationHistoryRecords,
+    selectedOperationHistoryRecord,
+    operationHistoryError,
+    isOperationHistoryVisible,
+    isOperationHistoryLoading,
+    openOperationHistory,
+    closeOperationHistory,
+    refreshOperationHistory,
+    selectOperationHistoryRecord
+  } = useOperationHistory({
+    setActiveAction: setOperationHistoryActiveAction
+  });
   const [premiereStatus, setPremiereStatus] = useState<PremiereStatusResponse | null>(null);
   const [premiereStatusError, setPremiereStatusError] = useState<string | null>(null);
   const [premiereLaunchMessage, setPremiereLaunchMessage] = useState<string | null>(null);
@@ -752,7 +764,6 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     isReplacementPlanning,
     isReplacementActionUpdating,
     isReplacementExecuting,
-    isOperationHistoryLoading,
     isPremiereImportActive,
     isAnyBlockingWorkflowActive
   } = useWorkflowBusyState({
@@ -858,76 +869,6 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     });
     setAuditOptions(settingsToAuditOptions(reset));
   }, [applySourceSelectionState, resetStoredSettings]);
-
-  const loadOperationHistory = useCallback(async (): Promise<void> => {
-    setOperationHistoryError(null);
-    setActiveAction('operationHistory');
-
-    try {
-      const response = await operationHistoryClient.listRecentOperations({
-        limit: 50
-      });
-
-      if (response.status !== 'success') {
-        setOperationHistoryError(response.message ?? 'Could not load operation history.');
-        return;
-      }
-
-      setOperationHistoryRecords(response.records);
-      setSelectedOperationHistoryRecord((current) => {
-        if (current && response.records.some((record) => record.id === current.id)) {
-          return current;
-        }
-
-        return response.records[0] ?? null;
-      });
-    } catch (error: unknown) {
-      setOperationHistoryError(getErrorMessage(error, 'Could not load operation history.'));
-    } finally {
-      setActiveAction(null);
-    }
-  }, []);
-
-  const openOperationHistory = useCallback(async (): Promise<void> => {
-    setIsOperationHistoryVisible(true);
-    await loadOperationHistory();
-  }, [loadOperationHistory]);
-
-  const closeOperationHistory = useCallback((): void => {
-    if (isOperationHistoryLoading) {
-      return;
-    }
-
-    setIsOperationHistoryVisible(false);
-    setOperationHistoryError(null);
-  }, [isOperationHistoryLoading]);
-
-  const refreshOperationHistory = useCallback(async (): Promise<void> => {
-    await loadOperationHistory();
-  }, [loadOperationHistory]);
-
-  const selectOperationHistoryRecord = useCallback(async (operationId: string): Promise<void> => {
-    setOperationHistoryError(null);
-    setActiveAction('operationHistory');
-
-    try {
-      const response = await operationHistoryClient.getOperationDetails(operationId);
-
-      if (response.status !== 'success' || !response.record) {
-        setOperationHistoryError(response.message ?? 'Could not load operation details.');
-        return;
-      }
-
-      setSelectedOperationHistoryRecord(response.record);
-      setOperationHistoryRecords((records) =>
-        records.map((record) => (record.id === response.record?.id ? response.record : record))
-      );
-    } catch (error: unknown) {
-      setOperationHistoryError(getErrorMessage(error, 'Could not load operation details.'));
-    } finally {
-      setActiveAction(null);
-    }
-  }, []);
 
   const openTrashDialog = useCallback(async (): Promise<void> => {
     if (selectedVideoCount === 0) {

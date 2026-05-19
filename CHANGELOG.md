@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.11] - 2026-05-19
+
+### Changed
+
+- Extracted operation-history dialog state, loading state, recent-record loading, refresh, record selection, and error handling into a focused renderer hook.
+
 ## [0.50.10] - 2026-05-19
 
 ### Changed

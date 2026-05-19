@@ -1,346 +1,40 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { AppInfo } from '../../shared/types/app';
-import type {
-  AuditJobSnapshot,
-  AuditOptions,
-  AuditResult,
-  AuditSummary,
-  FileDiscoveryJobSnapshot,
-  FfprobeMetadataJobSnapshot
-} from '../../shared/types/audit';
-import type { AutoCropJobSnapshot, AutoCropResult } from '../../shared/types/autoCrop';
-import type { ToolDiagnosticsResult } from '../../shared/types/diagnostics';
-import type { AutoFixJobSnapshot, AutoFixResult } from '../../shared/types/autoFix';
-import type {
-  ArchiveOperationPlan,
-  DestinationConflictStrategy,
-  FileOperationResult,
-  KnownPathValidationItem,
-  MoveOperationPlan,
-  TrashOperationPlan
-} from '../../shared/types/fileOperations';
-import type {
-  MediaPreviewJobSnapshot,
-  MediaPreviewResult,
-  MediaPreviewScope,
-  PreviewClipJobSnapshot,
-  PreviewClipResult
-} from '../../shared/types/mediaPreview';
-import type { SelectedFolderSummary } from '../../shared/types/folderTree';
-import type {
-  PremiereRequestResponse,
-  PremiereStatusResponse
-} from '../../shared/types/premiere';
-import type { MigrationJobSnapshot, MigrationResult, MigrationScanResult } from '../../shared/types/migration';
-import type { OperationHistoryRecord } from '../../shared/types/operationHistory';
-import type {
-  ReplacementAction,
-  ReplacementExecutionJobSnapshot,
-  ReplacementPlan,
-  ReplacementPlanBulkAction
-} from '../../shared/types/replacementWorkflow';
-import type { AppSettings } from '../../shared/types/settings';
-import type { FfprobeResult, VideoPreviewFrame, VideoRow } from '../../shared/types/video';
-import { dedupeOverlappingFolderPaths } from '../../shared/utils/folderPathSelection';
-import { DEFAULT_AUDIT_OPTIONS, settingsToAuditOptions } from '../helpers/auditOptions';
-import { getErrorMessage } from '../helpers/errors';
-import { getPersistedFolderTreeSourcePaths } from '../helpers/folderTreeSource';
+import { useCallback, useMemo, useState } from 'react';
 import { getAuditedRootDirectory } from '../helpers/resultFilters';
 import { getWorkflowCapabilities } from '../helpers/workflowCapabilities';
-import type { ResultsViewCounts, ResultsViewFilter } from '../types/resultsView';
 import { useAppCommands } from '../app/useAppCommands';
+import type { ActiveAction, VideoAuditAppController } from '../types/videoAuditAppController';
 import { useAuditResults } from './useAuditResults';
-import { useAuditWorkflow, type AuditStartOutcome, type AuditWorkflowActiveAction } from './useAuditWorkflow';
+import { useAuditSourceController } from './useAuditSourceController';
+import { useAuditWorkflow } from './useAuditWorkflow';
 import { useAppBootstrap } from './useAppBootstrap';
-import { useAutoCropWorkflow, type AutoCropWorkflowActiveAction } from './useAutoCropWorkflow';
-import { useAutoFixWorkflow, type AutoFixWorkflowActiveAction } from './useAutoFixWorkflow';
-import { useClearAuditDataWorkflow, type ClearAuditDataActiveAction } from './useClearAuditDataWorkflow';
+import { useAutoCropWorkflow } from './useAutoCropWorkflow';
+import { useAutoFixWorkflow } from './useAutoFixWorkflow';
+import { useClearAuditDataWorkflow } from './useClearAuditDataWorkflow';
 import { useDiagnosticsWorkflow } from './useDiagnosticsWorkflow';
-import { useDiscoveryWorkflow, type DiscoveryWorkflowActiveAction } from './useDiscoveryWorkflow';
-import { useFfprobeWorkflow, type FfprobeWorkflowActiveAction } from './useFfprobeWorkflow';
-import { useFileOperationsWorkflow, type FileOperationsWorkflowActiveAction } from './useFileOperationsWorkflow';
-import { useMediaPreviewWorkflow, type MediaPreviewWorkflowActiveAction } from './useMediaPreviewWorkflow';
-import { useMigrationWorkflow, type MigrationWorkflowActiveAction } from './useMigrationWorkflow';
-import { useOperationHistory, type OperationHistoryActiveAction } from './useOperationHistory';
-import { usePathReveal, type PathRevealActiveAction } from './usePathReveal';
-import { usePremiereBridge, type PremiereBridgeActiveAction } from './usePremiereBridge';
-import {
-  usePostConversionWorkflow,
-  type PostConversionDialogMode,
-  type PostConversionWorkflowActiveAction
-} from './usePostConversionWorkflow';
+import { useDiscoveryWorkflow } from './useDiscoveryWorkflow';
+import { useFfprobeWorkflow } from './useFfprobeWorkflow';
+import { useFileOperationsWorkflow } from './useFileOperationsWorkflow';
+import { useInitialVideoAuditState } from './useInitialVideoAuditState';
+import { useMediaPreviewWorkflow } from './useMediaPreviewWorkflow';
+import { useMigrationWorkflow } from './useMigrationWorkflow';
+import { useOperationHistory } from './useOperationHistory';
+import { usePathReveal } from './usePathReveal';
+import { usePremiereBridge } from './usePremiereBridge';
+import { usePostConversionWorkflow } from './usePostConversionWorkflow';
 import { useResultFilters } from './useResultFilters';
+import { useSelectedVideoActions } from './useSelectedVideoActions';
 import { useSelectionState } from './useSelectionState';
 import { useSettingsController } from './useSettingsController';
-import { useSourceSelection, type SourceSelectionActiveAction } from './useSourceSelection';
 import { useWorkflowBusyState } from './useWorkflowBusyState';
 
-type ActiveAction =
-  | 'folders'
-  | 'files'
-  | 'output'
-  | 'settings'
-  | 'reveal'
-  | 'discovery'
-  | 'ffprobe'
-  | 'autoFix'
-  | 'autoCrop'
-  | 'mediaPreview'
-  | 'previewClip'
-  | 'migrationScan'
-  | 'migrationExecute'
-  | 'trashPlan'
-  | 'trashExecute'
-  | 'movePlan'
-  | 'moveExecute'
-  | 'archivePlan'
-  | 'archiveExecute'
-  | 'replacementPlan'
-  | 'replacementUpdate'
-  | 'replacementExecute'
-  | 'operationHistory'
-  | 'premiereStatus'
-  | 'premiereLaunch'
-  | 'premiereImport'
-  | 'clearCache'
-  | null;
-
-export interface VideoAuditAppController {
-  appInfo: AppInfo | null;
-  appInfoMessage: string | null;
-  settings: AppSettings | null;
-  settingsMessage: string | null;
-  settingsOpenRequestCount: number;
-  folderTreeOpenRequestCount: number;
-  toolDiagnostics: ToolDiagnosticsResult | null;
-  toolDiagnosticsError: string | null;
-  isToolDiagnosticsLoading: boolean;
-  selectionMessage: string | null;
-  workflowMessage: string | null;
-  activeAction: ActiveAction;
-  selectedFolders: string[];
-  selectedFolderSummary: SelectedFolderSummary | null;
-  folderTreeRootPath: string | null;
-  folderTreeLastScannedAt: string | null;
-  selectedFiles: string[];
-  outputFolder: string | null;
-  auditOptions: AuditOptions;
-  auditProgress: AuditJobSnapshot | null;
-  auditPercent: number | null;
-  auditSummary: AuditSummary | null;
-  auditErrors: AuditResult['errors'];
-  videoRows: VideoRow[] | null;
-  visibleVideoRows: VideoRow[];
-  filteredVideoRows: VideoRow[];
-  removedVideoCount: number;
-  selectedVideos: VideoRow[];
-  globalFilter: string;
-  resultsViewFilter: ResultsViewFilter;
-  resultsViewCounts: ResultsViewCounts;
-  showThumbnails: boolean;
-  isAuditActive: boolean;
-  isDiscoveryActive: boolean;
-  isFfprobeActive: boolean;
-  canRunAudit: boolean;
-  canRefreshAudit: boolean;
-  isStorageLoading: boolean;
-  storageMessage: string | null;
-  storageSavedAt: string | null;
-  discoveryProgress: FileDiscoveryJobSnapshot | null;
-  discoveryPercent: number | null;
-  discoveredPaths: string[];
-  metadataItems: FfprobeResult[];
-  ffprobeProgress: FfprobeMetadataJobSnapshot | null;
-  ffprobePercent: number | null;
-  autoFixProgress: AutoFixJobSnapshot | null;
-  autoFixPercent: number | null;
-  autoFixResult: AutoFixResult | null;
-  autoFixError: string | null;
-  isAutoFixDialogVisible: boolean;
-  isAutoFixActive: boolean;
-  canAutoFixSelected: boolean;
-  autoFixOutputDirectory: string | null;
-  autoCropProgress: AutoCropJobSnapshot | null;
-  autoCropPercent: number | null;
-  autoCropResult: AutoCropResult | null;
-  autoCropError: string | null;
-  isAutoCropDialogVisible: boolean;
-  isAutoCropActive: boolean;
-  canOpenCropOptions: boolean;
-  autoCropOutputRootDir: string | null;
-  mediaPreviewProgress: MediaPreviewJobSnapshot | null;
-  mediaPreviewPercent: number | null;
-  mediaPreviewResult: MediaPreviewResult | null;
-  mediaPreviewError: string | null;
-  mediaPreviewScope: MediaPreviewScope;
-  isThumbnailDialogVisible: boolean;
-  isMediaPreviewActive: boolean;
-  previewClipProgress: PreviewClipJobSnapshot | null;
-  previewClipPercent: number | null;
-  previewClipResult: PreviewClipResult | null;
-  previewClipError: string | null;
-  isPreviewClipActive: boolean;
-  isPreviewFrameFetching: boolean;
-  previewFrameError: string | null;
-  migrationNewEditedDir: string;
-  migrationScan: MigrationScanResult | null;
-  migrationScanError: string | null;
-  migrationProgress: MigrationJobSnapshot | null;
-  migrationPercent: number | null;
-  migrationResult: MigrationResult | null;
-  migrationResultError: string | null;
-  auditedRootDirectory: string | null;
-  isMigrationScanDialogVisible: boolean;
-  isMigrationResultDialogVisible: boolean;
-  isMigrationScanning: boolean;
-  isMigrationExecuting: boolean;
-  isMigrationActive: boolean;
-  trashPlan: TrashOperationPlan | null;
-  trashPlanError: string | null;
-  trashResult: FileOperationResult | null;
-  trashResultError: string | null;
-  isTrashConfirmDialogVisible: boolean;
-  isTrashResultDialogVisible: boolean;
-  isTrashPlanning: boolean;
-  isTrashExecuting: boolean;
-  canMoveSelectedToTrash: boolean;
-  movePlan: MoveOperationPlan | null;
-  movePlanError: string | null;
-  moveResult: FileOperationResult | null;
-  moveResultError: string | null;
-  isMoveConfirmDialogVisible: boolean;
-  isMoveResultDialogVisible: boolean;
-  isMovePlanning: boolean;
-  isMoveExecuting: boolean;
-  canMoveSelectedToFolder: boolean;
-  archivePlan: ArchiveOperationPlan | null;
-  archivePlanError: string | null;
-  archiveResult: FileOperationResult | null;
-  archiveResultError: string | null;
-  isArchiveConfirmDialogVisible: boolean;
-  isArchiveResultDialogVisible: boolean;
-  isArchivePlanning: boolean;
-  isArchiveExecuting: boolean;
-  canArchiveSelectedOriginals: boolean;
-  postConversionPlan: ReplacementPlan | null;
-  postConversionSourceLabel: string | null;
-  postConversionMode: PostConversionDialogMode;
-  postConversionError: string | null;
-  postConversionMessage: string | null;
-  isPostConversionDialogVisible: boolean;
-  isReplacementPlanning: boolean;
-  isReplacementActionUpdating: boolean;
-  replacementProgress: ReplacementExecutionJobSnapshot | null;
-  replacementPercent: number | null;
-  replacementResult: FileOperationResult | null;
-  replacementResultError: string | null;
-  isReplacementExecuting: boolean;
-  isReplacementResultDialogVisible: boolean;
-  operationHistoryRecords: OperationHistoryRecord[];
-  selectedOperationHistoryRecord: OperationHistoryRecord | null;
-  operationHistoryError: string | null;
-  isOperationHistoryVisible: boolean;
-  isOperationHistoryLoading: boolean;
-  canStartMigration: boolean;
-  premiereStatus: PremiereStatusResponse | null;
-  premiereStatusError: string | null;
-  premiereLaunchMessage: string | null;
-  isPremiereStatusLoading: boolean;
-  isPremiereImportSubmitting: boolean;
-  premiereImportResult: PremiereRequestResponse | null;
-  premiereImportError: string | null;
-  canEditSelectedInPremiere: boolean;
-  canGenerateThumbnails: boolean;
-  applyFolderTreeSelection: (
-    folderPaths: string[],
-    rootPath: string,
-    summary: SelectedFolderSummary,
-    lastScannedAt: string | null
-  ) => Promise<void>;
-  chooseFolders: () => Promise<void>;
-  chooseFiles: () => Promise<void>;
-  chooseOutputFolder: () => Promise<void>;
-  chooseRecentFolder: (path: string) => Promise<void>;
-  clearSelectedSources: () => void;
-  revealPath: (path: string) => Promise<void>;
-  revealKnownFile: (item: KnownPathValidationItem) => Promise<void>;
-  revealKnownFolder: (item: KnownPathValidationItem) => Promise<void>;
-  updateAuditOption: <Key extends keyof AuditOptions>(key: Key, value: AuditOptions[Key]) => Promise<void>;
-  updateSettingsField: <Key extends keyof AppSettings>(key: Key, value: AppSettings[Key]) => Promise<void>;
-  resetSettings: () => Promise<void>;
-  runToolDiagnostics: () => Promise<void>;
-  runAudit: () => Promise<AuditStartOutcome>;
-  refreshAudit: () => Promise<void>;
-  cancelAudit: () => Promise<void>;
-  clearAuditData: () => Promise<void>;
-  removeSelectedVideos: () => Promise<void>;
-  restoreRemovedVideos: () => Promise<void>;
-  setSelectedVideos: (videos: VideoRow[]) => void;
-  setGlobalFilter: (value: string) => void;
-  setResultsViewFilter: (value: ResultsViewFilter) => void;
-  setShowThumbnails: (value: boolean) => Promise<void>;
-  startDiscovery: () => Promise<void>;
-  cancelDiscovery: () => Promise<void>;
-  startFfprobe: () => Promise<void>;
-  cancelFfprobe: () => Promise<void>;
-  openAutoFixDialog: () => void;
-  closeAutoFixDialog: () => void;
-  startAutoFix: () => Promise<void>;
-  cancelAutoFix: () => Promise<void>;
-  openAutoCropDialog: () => void;
-  closeAutoCropDialog: () => void;
-  startAutoCrop: () => Promise<void>;
-  cancelAutoCrop: () => Promise<void>;
-  openThumbnailDialog: () => void;
-  closeThumbnailDialog: () => void;
-  setMediaPreviewScope: (scope: MediaPreviewScope) => void;
-  startThumbnailGeneration: () => Promise<void>;
-  cancelThumbnailGeneration: () => Promise<void>;
-  clearPreviewFrameError: () => void;
-  getFreshThumbnailsForVideo: (video: VideoRow) => Promise<void>;
-  startPreviewClipGeneration: (video: VideoRow, frames: VideoPreviewFrame[]) => Promise<void>;
-  cancelPreviewClipGeneration: () => Promise<void>;
-  setMigrationNewEditedDir: (value: string) => void;
-  openMigrationDialog: () => void;
-  closeMigrationDialog: () => void;
-  selectMigrationFolder: () => Promise<void>;
-  startMigrationScan: () => Promise<void>;
-  executeMigration: () => Promise<void>;
-  closeMigrationResultDialog: () => void;
-  openTrashDialog: () => Promise<void>;
-  closeTrashDialog: () => void;
-  executeTrashPlan: (typedConfirmation: string | null) => Promise<void>;
-  closeTrashResultDialog: () => void;
-  openMoveDialog: (conflictStrategy?: DestinationConflictStrategy) => Promise<void>;
-  closeMoveDialog: () => void;
-  executeMovePlan: () => Promise<void>;
-  closeMoveResultDialog: () => void;
-  openArchiveDialog: () => Promise<void>;
-  closeArchiveDialog: () => void;
-  executeArchivePlan: () => Promise<void>;
-  closeArchiveResultDialog: () => void;
-  changePostConversionPlanAction: (itemId: string, selectedAction: ReplacementAction) => Promise<void>;
-  applyPostConversionPlanBulkAction: (action: ReplacementPlanBulkAction) => Promise<void>;
-  replacePostConversionOriginals: (typedConfirmation: string | null) => Promise<void>;
-  reviewPostConversionPlan: () => void;
-  leavePostConversionOutputs: () => void;
-  backToPostConversionChoices: () => void;
-  closePostConversionDialog: () => void;
-  cancelReplacementExecution: () => Promise<void>;
-  closeReplacementResultDialog: () => void;
-  openOperationHistory: () => Promise<void>;
-  closeOperationHistory: () => void;
-  refreshOperationHistory: () => Promise<void>;
-  selectOperationHistoryRecord: (operationId: string) => Promise<void>;
-  refreshPremiereStatus: () => Promise<void>;
-  openPremiereBridgeApps: () => Promise<void>;
-  editSelectedInPremiere: () => Promise<void>;
-}
+export type { VideoAuditAppController };
 
 export function useVideoAuditAppController(): VideoAuditAppController {
   const [workflowMessage, setWorkflowMessage] = useState<string | null>(null);
   const [activeAction, setActiveAction] = useState<ActiveAction>(null);
-  const [auditOptions, setAuditOptions] = useState<AuditOptions>(DEFAULT_AUDIT_OPTIONS);
+  const setWorkflowActiveAction = useCallback((action: ActiveAction): void => {
+    setActiveAction(action);
+  }, []);
   const { appInfo, appInfoMessage } = useAppBootstrap();
   const handleSettingsActiveChange = useCallback((isActive: boolean): void => {
     setActiveAction(isActive ? 'settings' : null);
@@ -363,10 +57,11 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     isToolDiagnosticsLoading,
     runToolDiagnostics
   } = useDiagnosticsWorkflow({ setSettingsMessage });
-  const setSourceSelectionActiveAction = useCallback((action: SourceSelectionActiveAction): void => {
-    setActiveAction(action);
-  }, []);
   const {
+    auditOptions,
+    setAuditOptions,
+    updateAuditOption,
+    resetSettings,
     selectedFolders,
     selectedFolderSummary,
     folderTreeRootPath,
@@ -383,26 +78,23 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     chooseOutputFolder,
     chooseRecentFolder,
     clearSelectedSources
-  } = useSourceSelection({
+  } = useAuditSourceController({
     settings,
-    includeSubfolders: auditOptions.includeSubfolders,
     persistSettings,
+    resetStoredSettings,
     setWorkflowMessage,
-    setActiveAction: setSourceSelectionActiveAction
+    setActiveAction: setWorkflowActiveAction
   });
   const setPathRevealSelectionMessage = useCallback((message: string | null): void => {
     applySourceSelectionState({ selectionMessage: message });
   }, [applySourceSelectionState]);
-  const setPathRevealActiveAction = useCallback((action: PathRevealActiveAction): void => {
-    setActiveAction(action);
-  }, []);
   const {
     revealPath,
     revealKnownFile,
     revealKnownFolder
   } = usePathReveal({
     setSelectionMessage: setPathRevealSelectionMessage,
-    setActiveAction: setPathRevealActiveAction
+    setActiveAction: setWorkflowActiveAction
   });
   const {
     selectedVideos,
@@ -457,9 +149,6 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       selectedFiles: selection.selectedFiles
     });
   }, [applySourceSelectionState]);
-  const setAuditWorkflowActiveAction = useCallback((action: AuditWorkflowActiveAction): void => {
-    setActiveAction(action);
-  }, []);
   const {
     auditProgress,
     auditPercent,
@@ -477,11 +166,8 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     applyRefreshSourceSelection: applyRefreshAuditSources,
     setAuditOptions,
     setWorkflowMessage,
-    setActiveAction: setAuditWorkflowActiveAction
+    setActiveAction: setWorkflowActiveAction
   });
-  const setDiscoveryWorkflowActiveAction = useCallback((action: DiscoveryWorkflowActiveAction): void => {
-    setActiveAction(action);
-  }, []);
   const {
     discoveryProgress,
     discoveryPercent,
@@ -494,11 +180,8 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     selectedFiles,
     includeSubfolders: auditOptions.includeSubfolders,
     setWorkflowMessage,
-    setActiveAction: setDiscoveryWorkflowActiveAction
+    setActiveAction: setWorkflowActiveAction
   });
-  const setFfprobeWorkflowActiveAction = useCallback((action: FfprobeWorkflowActiveAction): void => {
-    setActiveAction(action);
-  }, []);
   const {
     ffprobeProgress,
     ffprobePercent,
@@ -510,11 +193,8 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     discoveredPaths,
     ffprobePathOverride: settings?.ffprobePathOverride ?? null,
     setWorkflowMessage,
-    setActiveAction: setFfprobeWorkflowActiveAction
+    setActiveAction: setWorkflowActiveAction
   });
-  const setMediaPreviewActiveAction = useCallback((action: MediaPreviewWorkflowActiveAction): void => {
-    setActiveAction(action);
-  }, []);
   const {
     mediaPreviewProgress,
     mediaPreviewPercent,
@@ -548,14 +228,11 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     mergeMediaPreviewItemsIntoRows,
     mergePreviewClipResult,
     setWorkflowMessage,
-    setActiveAction: setMediaPreviewActiveAction,
+    setActiveAction: setWorkflowActiveAction,
     busyState: {
       activeAction
     }
   });
-  const setOperationHistoryActiveAction = useCallback((action: OperationHistoryActiveAction): void => {
-    setActiveAction(action);
-  }, []);
   const {
     operationHistoryRecords,
     selectedOperationHistoryRecord,
@@ -567,11 +244,8 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     refreshOperationHistory,
     selectOperationHistoryRecord
   } = useOperationHistory({
-    setActiveAction: setOperationHistoryActiveAction
+    setActiveAction: setWorkflowActiveAction
   });
-  const setPostConversionActiveAction = useCallback((action: PostConversionWorkflowActiveAction): void => {
-    setActiveAction(action);
-  }, []);
   const {
     postConversionPlan,
     postConversionSourceLabel,
@@ -600,16 +274,13 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     hideVideoPathsFromTable,
     openOperationHistory,
     setWorkflowMessage,
-    setActiveAction: setPostConversionActiveAction,
+    setActiveAction: setWorkflowActiveAction,
     busyState: {
       activeAction
     }
   });
   const autoFixOutputDirectory = outputFolder ?? settings?.defaultAutoFixDestinationRoot ?? null;
   const autoCropOutputRootDir = outputFolder ?? settings?.defaultOutputDirectory ?? null;
-  const setAutoFixActiveAction = useCallback((action: AutoFixWorkflowActiveAction): void => {
-    setActiveAction(action);
-  }, []);
   const {
     autoFixProgress,
     autoFixPercent,
@@ -627,14 +298,11 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     hideVideoPathsFromTable,
     createPostConversionPlan,
     setWorkflowMessage,
-    setActiveAction: setAutoFixActiveAction,
+    setActiveAction: setWorkflowActiveAction,
     busyState: {
       activeAction
     }
   });
-  const setAutoCropActiveAction = useCallback((action: AutoCropWorkflowActiveAction): void => {
-    setActiveAction(action);
-  }, []);
   const {
     autoCropProgress,
     autoCropPercent,
@@ -651,14 +319,11 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     autoCropOutputRootDir,
     createPostConversionPlan,
     setWorkflowMessage,
-    setActiveAction: setAutoCropActiveAction,
+    setActiveAction: setWorkflowActiveAction,
     busyState: {
       activeAction
     }
   });
-  const setPremiereBridgeActiveAction = useCallback((action: PremiereBridgeActiveAction): void => {
-    setActiveAction(action);
-  }, []);
   const {
     premiereStatus,
     premiereStatusError,
@@ -676,94 +341,26 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     selectedPaths,
     hideVideoPathsFromTable,
     setWorkflowMessage,
-    setActiveAction: setPremiereBridgeActiveAction,
+    setActiveAction: setWorkflowActiveAction,
     busyState: {
       activeAction
     }
   });
 
-  useEffect(() => {
-    let isMounted = true;
-
-    async function loadInitialState(): Promise<void> {
-      try {
-        const storedAudit = await loadStoredAuditResultState();
-        const loadedSettings = await loadSettings();
-
-        if (!isMounted) {
-          return;
-        }
-
-        const restoredFolderTreeSource = loadedSettings.latestFolderTreeSource;
-        const restoredFolderTreePaths = restoredFolderTreeSource
-          ? getPersistedFolderTreeSourcePaths(restoredFolderTreeSource)
-          : [];
-
-        if (storedAudit) {
-          const restoredSelectedFolders =
-            restoredFolderTreePaths.length > 0
-              ? restoredFolderTreePaths
-              : dedupeOverlappingFolderPaths(storedAudit.request.folderPaths);
-          applySourceSelectionState({
-            outputFolder: loadedSettings.defaultOutputDirectory,
-            folderTreeRootPath: restoredFolderTreeSource?.rootPath ?? null,
-            folderTreeLastScannedAt: restoredFolderTreeSource?.lastScannedAt ?? null,
-            selectedFolders: restoredSelectedFolders,
-            selectedFolderSummary: restoredFolderTreeSource?.selectedFolderSummary ?? null,
-            selectedFiles: storedAudit.request.filePaths
-          });
-          setAuditOptions({
-            ...storedAudit.request.options,
-            includeSubfolders:
-              restoredFolderTreeSource?.includeSubfolders ?? storedAudit.request.options.includeSubfolders
-          });
-          await applyStoredAuditResult(storedAudit);
-        } else {
-          const restoredAuditOptions = settingsToAuditOptions(loadedSettings);
-          applySourceSelectionState({
-            outputFolder: loadedSettings.defaultOutputDirectory,
-            folderTreeRootPath: restoredFolderTreeSource?.rootPath ?? null,
-            folderTreeLastScannedAt: restoredFolderTreeSource?.lastScannedAt ?? null,
-            selectedFolders: restoredFolderTreePaths,
-            selectedFolderSummary: restoredFolderTreeSource?.selectedFolderSummary ?? null
-          });
-          setAuditOptions({
-            ...restoredAuditOptions,
-            includeSubfolders:
-              restoredFolderTreeSource?.includeSubfolders ?? restoredAuditOptions.includeSubfolders
-          });
-        }
-      } catch (error: unknown) {
-        if (isMounted) {
-          setSettingsMessage(getErrorMessage(error, 'Could not load settings.'));
-        }
-      } finally {
-        if (isMounted) {
-          finishStorageLoading();
-        }
-      }
-    }
-
-    void loadInitialState();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [
+  useInitialVideoAuditState({
+    loadStoredAuditResultState,
+    loadSettings,
     applySourceSelectionState,
+    setAuditOptions,
     applyStoredAuditResult,
     finishStorageLoading,
-    loadSettings,
-    loadStoredAuditResultState
-  ]);
+    setSettingsMessage
+  });
 
   const auditedRootDirectory = useMemo(
     () => getAuditedRootDirectory(lastAuditRequest, auditSummary),
     [auditSummary, lastAuditRequest]
   );
-  const setMigrationActiveAction = useCallback((action: MigrationWorkflowActiveAction): void => {
-    setActiveAction(action);
-  }, []);
   const {
     migrationNewEditedDir,
     migrationScan,
@@ -785,7 +382,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   } = useMigrationWorkflow({
     auditedRootDirectory,
     setWorkflowMessage,
-    setActiveAction: setMigrationActiveAction,
+    setActiveAction: setWorkflowActiveAction,
     busyState: {
       activeAction
     }
@@ -825,9 +422,6 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     replacementProgress,
     isPremiereImportSubmitting
   });
-  const setFileOperationsActiveAction = useCallback((action: FileOperationsWorkflowActiveAction): void => {
-    setActiveAction(action);
-  }, []);
   const {
     trashPlan,
     trashPlanError,
@@ -870,7 +464,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     hideVideoPathsFromTable,
     openOperationHistory,
     setWorkflowMessage,
-    setActiveAction: setFileOperationsActiveAction,
+    setActiveAction: setWorkflowActiveAction,
     busyState: {
       isTrashExecuting,
       isMoveExecuting,
@@ -902,66 +496,12 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     premiereStatus: premiereStatus?.status ?? null
   });
 
-  const updateAuditOption = useCallback(
-    async <Key extends keyof AuditOptions>(key: Key, value: AuditOptions[Key]): Promise<void> => {
-      const nextOptions = {
-        ...auditOptions,
-        [key]: value
-      };
+  const { removeSelectedVideos } = useSelectedVideoActions({
+    selectedVideoCount,
+    selectedPaths,
+    hideVideoPathsFromTable
+  });
 
-      setAuditOptions(nextOptions);
-
-      if (key === 'includeSubfolders') {
-        await persistSettings({
-          includeSubfoldersDefault: Boolean(value),
-          latestFolderTreeSource: settings?.latestFolderTreeSource
-            ? {
-                ...settings.latestFolderTreeSource,
-                includeSubfolders: Boolean(value)
-              }
-            : null
-        });
-      }
-
-      if (key === 'includeLowResolutionAnalysis') {
-        await persistSettings({ lowResolutionAnalysisEnabledDefault: Boolean(value) });
-      }
-
-      if (key === 'includeBlackBorderAnalysis') {
-        await persistSettings({ blackBorderAnalysisEnabledDefault: Boolean(value) });
-      }
-    },
-    [auditOptions, persistSettings, settings?.latestFolderTreeSource]
-  );
-
-  const resetSettings = useCallback(async (): Promise<void> => {
-    const reset = await resetStoredSettings();
-
-    if (!reset) {
-      return;
-    }
-
-    applySourceSelectionState({
-      outputFolder: reset.defaultOutputDirectory,
-      selectedFolders: [],
-      selectedFolderSummary: null,
-      folderTreeRootPath: null,
-      folderTreeLastScannedAt: null
-    });
-    setAuditOptions(settingsToAuditOptions(reset));
-  }, [applySourceSelectionState, resetStoredSettings]);
-
-  const removeSelectedVideos = useCallback(async (): Promise<void> => {
-    if (selectedVideoCount === 0) {
-      return;
-    }
-
-    await hideVideoPathsFromTable(selectedPaths);
-  }, [hideVideoPathsFromTable, selectedPaths, selectedVideoCount]);
-
-  const setClearAuditDataActiveAction = useCallback((action: ClearAuditDataActiveAction): void => {
-    setActiveAction(action);
-  }, []);
   const { clearAuditData } = useClearAuditDataWorkflow({
     outputFolder,
     archiveCurrentResultToHistory,
@@ -984,7 +524,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     resetAuditResults,
     setStorageMessage,
     setWorkflowMessage,
-    setActiveAction: setClearAuditDataActiveAction
+    setActiveAction: setWorkflowActiveAction
   });
 
   const { settingsOpenRequestCount } = useAppCommands({

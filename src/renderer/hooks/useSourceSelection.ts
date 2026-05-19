@@ -10,7 +10,7 @@ import { mergeRecentPaths } from '../helpers/recentPaths';
 
 export type SourceSelectionActiveAction = 'folders' | 'files' | 'output' | null;
 
-interface SourceSelectionStatePatch {
+export interface SourceSelectionStatePatch {
   selectedFolders?: string[];
   selectedFolderSummary?: SelectedFolderSummary | null;
   folderTreeRootPath?: string | null;
@@ -28,7 +28,7 @@ interface UseSourceSelectionOptions {
   setActiveAction: (action: SourceSelectionActiveAction) => void;
 }
 
-interface UseSourceSelectionValue {
+export interface UseSourceSelectionValue {
   selectedFolders: string[];
   selectedFolderSummary: SelectedFolderSummary | null;
   folderTreeRootPath: string | null;

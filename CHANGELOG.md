@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.20] - 2026-05-19
+
+### Changed
+
+- Slimmed the video audit app controller into a lighter composition adapter by moving controller types, startup restoration, audit/source option coordination, and selected-row removal into focused renderer modules.
+
 ## [0.50.19] - 2026-05-19
 
 ### Changed

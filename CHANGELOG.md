@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.24] - 2026-05-19
+
+### Added
+
+- Added the focused video results Zustand store shell and pure selector helpers for result rows, selected row IDs, row visibility, media-preview merges, and derived table counts without adopting the store in the UI yet.
+
 ## [0.50.23] - 2026-05-19
 
 ### Added

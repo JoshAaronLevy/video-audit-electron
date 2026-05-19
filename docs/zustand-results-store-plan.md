@@ -1,1013 +1,778 @@
-# Zustand Results Store Plan
+# Zustand Store Implementation Plan
 
-## Project Context
+## Current Context
 
-The app is a standalone Electron version of `video-audit`.
+This plan was refreshed against the current `collie-video` codebase on 2026-05-19.
 
-The UI has become more feature-rich: audit results, filter dropdowns, hidden/removed rows, selected rows, thumbnails, preview clips, history restore, fresh scans, auto-fix/crop actions, Premiere handoff, and eventually file management.
+The app is a standalone macOS Electron app. Runtime filesystem access, ffmpeg/ffprobe work, job orchestration, settings, native dialogs, operation history, and OS integrations stay behind the Electron main/preload boundary. The renderer uses React, PrimeReact, typed renderer API clients, and focused workflow hooks.
 
-The current React hook/controller structure is starting to become fragile for table/result state. In particular, features like dynamic filter counts need to update consistently whenever any table-affecting event occurs:
+Zustand is already installed in `package.json` (`zustand` `^5.0.13`). The renderer does not currently have Zustand stores. State is currently managed with React hooks and controller composition:
 
-- a new audit completes
-- a previous audit snapshot is restored
-- a fresh audit is run from history
-- search changes
-- a filter changes
-- rows are hidden/removed/restored
-- selected rows change
-- table state is restored from persistence
-- thumbnail/preview metadata is merged into rows
-- future file-management actions update row availability/status
+- `src/renderer/hooks/useVideoAuditAppController.ts`
+  Composes focused renderer hooks and exposes the compatibility controller consumed by `src/renderer/App.tsx`.
+- `src/renderer/hooks/useAuditResults.ts`
+  Owns audit result rows, summaries, errors, row visibility, `showThumbnails`, storage messages, IndexedDB persistence, row hiding/restoring, and media-preview row merges.
+- `src/renderer/hooks/useResultFilters.ts`
+  Owns top-level result search/filter state, result counts, and filtered rows.
+- `src/renderer/hooks/useSelectionState.ts`
+  Owns selected row objects as `selectedVideos`.
+- `src/renderer/hooks/useSourceSelection.ts` and `useAuditSourceController.ts`
+  Own selected folders, selected files, output folder, folder-tree source metadata, source messages, and audit options coordination.
+- Workflow hooks such as `useAuditWorkflow`, `useMediaPreviewWorkflow`, `useAutoFixWorkflow`, `useAutoCropWorkflow`, `useFileOperationsWorkflow`, `usePostConversionWorkflow`, `useMigrationWorkflow`, and `usePremiereBridge`
+  Own workflow execution state, progress state, dialog state, result/error state, and IPC-facing orchestration.
+- `src/renderer/storage/auditResultStorage.ts`
+  Persists the latest audit result in renderer IndexedDB database `collie-video` and archives audit-history metadata when cache/data is cleared.
 
-This plan introduces a focused Zustand store for video result/table state.
+The current app already includes Auto-Fix, Auto-Crop, thumbnail generation, fresh preview frames, preview clips, Premiere handoff, migration, move-to-trash, move-to-folder, archive originals, post-conversion replacement, and operation history.
 
-## Important Architectural Decision
+## Goal
 
-Zustand should be used for **renderer-side results workspace state**, not as the entire app architecture.
+Implement Zustand strategically and intentionally where it improves the renderer architecture.
 
-Zustand should own state like:
+This is not a results-only plan. It is also not a plan to move the entire app into global state. The right target is a small set of focused stores for state that is shared, highly derived, mutation-prone, or currently awkward to coordinate through prop chains and controller callbacks.
 
-- current video rows
-- selected row IDs
-- hidden/removed row IDs
-- search query
-- active result filter
-- table sort/view state
-- thumbnail visibility
-- derived visible rows
-- derived filter counts
-- current restored/audit snapshot metadata
+The first recommended store is still a results workspace store because that is the clearest current pain point. Future stores should be added only where the same criteria apply.
 
-Zustand should **not** own:
+## Store Decision Criteria
+
+Use Zustand when state has most of these traits:
+
+- it is read or updated by several distant components/hooks
+- it has important derived selectors
+- stale object references are a known risk
+- updates can come from several workflows
+- prop drilling or controller pass-through is obscuring ownership
+- actions need one canonical mutation path
+- UI needs consistent behavior after restore, refresh, clear, row merge, or row hiding
+
+Avoid Zustand when state is:
+
+- local to one dialog or component
+- temporary progress state for one running job
+- a simple open/closed boolean with one owner
+- already cleanly owned by a focused workflow hook
+- durable app settings owned by the main process
+- filesystem, ffmpeg, ffprobe, Premiere, or file-operation execution state
+- raw IPC subscription details
+
+## Store Candidates
+
+### Recommended First Store: Results Workspace
+
+This should be implemented first.
+
+Current state is split across `useAuditResults`, `useResultFilters`, `useSelectionState`, `VideoResultsTable`, and `ResultsToolbar`. This has real correctness risk:
+
+- top-level counts are computed from `visibleVideoRows`, then PrimeReact global search is applied later inside `VideoResultsTable`
+- selection is stored as row objects, which can become stale when rows are replaced or media metadata is merged
+- row visibility, row merging, persistence, and workflow-driven row hiding all need one consistent path
+
+This store should own the result/table workspace state and derived pipeline.
+
+### Possible Later Store: Source Workspace
+
+Consider this only after the results workspace migration is stable.
+
+Potential scope:
+
+- selected folders
+- selected files
+- output folder
+- folder-tree root path and last scanned timestamp
+- selected folder summary
+- source selection messages
+- maybe audit option UI state if it continues to be tightly coupled to source selection
+
+Do not move source state just because Zustand exists. `useSourceSelection` and `useAuditSourceController` are already focused. A source store is only worthwhile if source state starts needing direct access from multiple non-parent surfaces or if source restore/reset behavior becomes hard to reason about.
+
+### Possible Later Store: App UI Workspace
+
+Consider only if shell UI state becomes more tangled.
+
+Potential scope:
+
+- source setup dialog visibility
+- folder-tree selector visibility
+- settings/utilities/diagnostics dialog visibility
+- app-menu open requests, if the request-count pattern becomes hard to maintain
+
+This state currently lives reasonably in `App.tsx` plus `useAppCommands`. Keep it local unless there is clear pressure.
+
+### Usually Not A Store: Workflow Execution
+
+Keep these in workflow hooks:
+
+- audit progress
+- discovery progress
+- ffprobe progress
+- thumbnail/preview progress
+- Auto-Fix/Auto-Crop progress and dialogs
+- migration progress and dialogs
+- file-operation planning/execution dialogs
+- replacement planning/execution dialogs
+- Premiere status/import submission
+- operation-history loading and selected record
+
+Zustand may receive final row updates from these workflows, but it should not become the workflow engine.
+
+### Not A Store: Main-Process Durable Domains
+
+Do not move these into Zustand:
+
+- app settings persistence
+- file operations and operation history persistence
+- ffmpeg/ffprobe execution
+- filesystem validation
+- native dialogs
+- Premiere bridge internals
+- raw IPC implementation
+
+Renderer stores may reflect typed state returned from these domains, but main/preload remains the boundary.
+
+## Important Corrections From The Original Plan
+
+- Do not install Zustand as a new dependency unless it has been removed. It is already present.
+- Do not frame the work as results-only. Results are the first store, not the entire strategy.
+- Do not plan around a monolithic controller as the only source of state. The app now has focused renderer hooks.
+- Do not describe file management as future-only. File-management workflows already exist and must be preserved.
+- Do not assume audit-history snapshot restore exists. The current `audit-history` IndexedDB store archives metadata only; it does not restore full result snapshots.
+- Do not confuse operation history with audit-result history. Operation history is a main-process file-operation history workflow.
+- Do not move persistence to main-process JSON as part of this Zustand migration. The current implemented audit-result persistence boundary is renderer IndexedDB in `auditResultStorage.ts`.
+- Do not assume `showThumbnails` currently controls table rendering. It is persisted and exposed by `useAuditResults`, but the current table always renders the Preview column. Verify the intended product behavior before making it a store-driven UI toggle.
+- Do not assume top-level result counts are search-aware today. Current `resultsViewCounts` are computed from `visibleVideoRows` before the PrimeReact `DataTable` global search is applied.
+- Do not absorb all PrimeReact row/column filter state in the first store pass. The table currently has column filters for file name, type, size, duration, modified date, resolution, aspect, and crop.
+
+## Architectural Decision
+
+Use Zustand for focused renderer workspace state, not as the whole app architecture.
+
+Zustand may own:
+
+- shared renderer state with multiple readers/writers
+- selected IDs and stable UI selection state
+- top-level search/filter state
+- row visibility/removal state
+- derived selectors and count pipelines
+- workspace metadata needed for restore/refresh/display
+- centralized row metadata updates
+- future source or app-shell UI state if it meets the decision criteria
+
+Zustand should not own:
 
 - Electron main-process filesystem logic
 - audit execution internals
-- ffmpeg child process execution
-- ffprobe logic
-- durable persistence itself
+- ffmpeg/ffprobe child process execution
 - Premiere bridge internals
+- file-operation execution or operation-history persistence
 - raw IPC implementation details
 - every dialog in the app
-- every app setting
+- app settings as a whole
+- transient progress snapshots for long-running jobs
+- durable persistence implementation details
 
-The main process remains the source of truth for filesystem operations and durable persistence. Zustand is the live renderer state model for the results workspace.
-
-## Why This Refactor Is Needed
-
-The table is becoming the center of the app.
-
-A feature like filter counts seems simple:
-
-```txt
-Low-res (12)
-High-res (384)
-Crop needed (6)
-Errors (3)
-```
-
-But those counts need to agree with the table after multiple kinds of changes.
-
-If counts are computed in a component, search state in a hook, removed rows in another hook, and restored history state in yet another place, bugs become likely.
-
-This plan creates a single consistent data pipeline:
-
-```txt
-allRows
-→ activeRows
-→ searchedRows
-→ filterCounts
-→ visibleRows
-→ selectedRows
-```
-
-The key idea:
-
-* `filterCounts` should be derived, not manually stored.
-* `visibleRows` should be derived, not manually maintained in multiple places.
-* selection should be tracked by stable row IDs, not stale row object references.
-* persistence should hydrate/dehydrate the store through explicit snapshots.
+Workflow hooks should continue owning execution. Stores should expose explicit actions for state changes that need to be shared or derived.
 
 ## Non-Goals
 
-* Do not move the whole app into Zustand.
-* Do not migrate every hook at once.
-* Do not add Redux, MobX, XState, or another state framework.
-* Do not use Zustand as the primary durable persistence layer.
-* Do not store dynamic counts as mutable state.
-* Do not rewrite audit, auto-fix, auto-crop, thumbnail, preview clip, Premiere, or migration logic unless needed for integration.
-* Do not add file-management workflows yet.
-* Do not redesign the UI.
-* Do not write tests unless explicitly requested.
+- Do not move the whole renderer into Zustand.
+- Do not migrate every hook at once.
+- Do not add Redux, MobX, XState, or another state framework.
+- Do not use Zustand `persist` with localStorage as the primary persistence mechanism.
+- Do not replace `auditResultStorage.ts` with main-process JSON in this plan.
+- Do not store dynamic counts as mutable state.
+- Do not rewrite audit, discovery, ffprobe, Auto-Fix, Auto-Crop, thumbnails, preview clips, Premiere, migration, file operations, replacement, or operation-history execution.
+- Do not redesign the UI.
+- Do not write tests unless explicitly requested.
 
-## Store Scope
+## Store Organization
 
-Create one focused store first:
+Create a store folder:
+
+```txt
+src/renderer/stores/
+```
+
+Recommended initial files:
 
 ```txt
 src/renderer/stores/useVideoResultsStore.ts
+src/renderer/stores/videoResultsSelectors.ts
 ```
 
-or, if the existing project prefers a `state` folder:
+If later stores are added, keep them focused and named by workspace/domain:
 
 ```txt
-src/renderer/state/useVideoResultsStore.ts
+src/renderer/stores/useSourceWorkspaceStore.ts
+src/renderer/stores/useAppUiStore.ts
 ```
 
-The store should initially own:
+Do not create one broad `useAppStore` unless there is a very strong reason. A giant app store would recreate the previous "large controller" problem in a different form.
 
-* `rows`
-* `removedRowIds`
-* `hiddenRowIds`
-* `selectedRowIds`
-* `searchQuery`
-* `activeViewFilter`
-* `sortField`
-* `sortOrder`
-* `showThumbnails`
-* `columnVisibility`, if currently tracked
-* current audit/snapshot metadata, if useful
+## First Store Scope: Results Workspace
 
-The store should expose actions for:
+The first store should own the result workspace state currently split across `useAuditResults`, `useResultFilters`, and `useSelectionState`:
 
-* setting/replacing rows
-* clearing rows
-* hydrating from a persisted snapshot
-* creating a persistable snapshot
-* setting search query
-* setting active view filter
-* setting sort state
-* setting thumbnail visibility
-* setting selected rows by ID
-* removing/hiding rows
-* restoring removed/hidden rows
-* merging row updates, such as thumbnail/preview metadata
+- `auditResult`
+- `rows`
+- `summary`
+- `errors`
+- `lastAuditRequest`
+- `selectedRowIds`
+- `searchQuery`
+- `activeViewFilter`
+- `showThumbnails`, if still meaningful
+- `storageSavedAt`
+- current workspace metadata, if useful
 
-The store should expose selectors/helpers for:
-
-* all rows
-* active rows
-* searched rows
-* visible rows
-* filter counts
-* selected rows
-* selected row capabilities
-* summary counts
-
-## Definitions
-
-### All Rows
-
-The complete current row list loaded into the app.
+Prefer the current row visibility model at first:
 
 ```txt
-allRows = rows
+row.visible === false means removed/hidden from the table
 ```
 
-### Active Rows
+Do not introduce separate `removedRowIds` and `hiddenRowIds` unless a specific UI distinction requires it. The current persistence already stores row visibility on the row object, and `restoreRemovedVideos` restores rows by marking them visible.
 
-Rows after applying hidden/removed state.
-
-This depends on app semantics. In most cases:
-
-```txt
-activeRows = rows - removedRows - hiddenRows
-```
-
-If the app has a “show hidden” mode, then hidden rows may remain visible when that mode is active.
-
-### Searched Rows
-
-Rows after applying the current search query, but before the active result filter.
-
-```txt
-searchedRows = applySearch(activeRows, searchQuery)
-```
-
-### Filter Counts
-
-Counts derived from `searchedRows`.
-
-Important: filter counts should usually be computed **before** applying the currently selected result filter.
-
-This means if the user searches `tennis`, the dropdown labels answer:
-
-```txt
-Among videos matching "tennis", how many are low-res, crop-needed, errors, etc.?
-```
-
-That is usually more useful than counts from the entire unsearched table.
-
-### Visible Rows
-
-Rows that the table actually displays after applying the selected filter.
-
-```txt
-visibleRows = applyViewFilter(searchedRows, activeViewFilter)
-```
-
-### Selected Rows
-
-Rows derived from `selectedRowIds`.
-
-Internally, store selected row IDs. Convert to row objects only when feeding PrimeReact DataTable or action handlers.
-
-```txt
-selectedRows = rows.filter(row => selectedRowIds.includes(row.id))
-```
-
-## Row Identity
-
-Use a stable row ID.
-
-Preferred:
-
-```txt
-row.id
-```
-
-If no stable `id` exists, use:
-
-```txt
-row.path
-```
-
-A video path is not perfect if files move, but it is stable enough for current audit table state and matches how most app workflows identify videos.
-
-Avoid tracking selected rows as objects in global store state. Object references become stale after rows are refreshed, restored, or merged.
-
-## Dynamic Filter Counts Semantics
-
-Use this pipeline for dropdown/filter counts:
-
-```txt
-rows
-→ remove hidden/removed rows
-→ apply search
-→ derive counts
-→ apply selected filter
-→ render table
-```
-
-Example:
-
-If search is empty:
-
-```txt
-All (500)
-Low-res (40)
-High-res (460)
-Crop needed (12)
-Errors (3)
-```
-
-If search is `tennis` and 50 rows match:
-
-```txt
-All (50)
-Low-res (8)
-High-res (42)
-Crop needed (2)
-Errors (0)
-```
-
-If the selected filter is `Low-res`, the counts should still show the distribution within the searched set, not only within low-res rows.
-
-## Persistence Philosophy
-
-Zustand should not directly persist important app state to localStorage as the primary mechanism.
-
-Instead:
-
-1. Zustand owns live renderer result/table state.
-2. Renderer creates a persistable snapshot from the store.
-3. Renderer sends that snapshot through typed preload APIs.
-4. Electron main writes it to durable JSON files under app `userData`.
-
-This allows integration with:
-
-* latest session restore
-* audit history snapshots
-* future projects
-* future file-management operation history
-
-Small UI-only preferences may use localStorage if already established, but important result/table state should go through main-process persistence.
-
----
-
-## Stage 1 — Add Zustand and Result Store Shell
-
-**Intelligence Level: High**
-
-### Goal
-
-Introduce Zustand with a focused store for video results/table state.
-
-This stage should create the structure without migrating all logic at once.
-
-### Why This Stage Exists
-
-Right now, result/table state is probably scattered across a large controller hook and child components. Before implementing dynamic filter counts, the app needs one clear place for the current result workspace state.
-
-The goal is to establish the store shape and make a small, safe first migration.
-
-### Requirements
-
-Install Zustand:
-
-```bash
-npm install zustand
-```
-
-Create:
-
-```txt
-src/renderer/stores/useVideoResultsStore.ts
-```
-
-or match the app’s existing folder conventions.
-
-The initial store should include:
-
-* `rows`
-* `removedRowIds`
-* `hiddenRowIds`
-* `selectedRowIds`
-* `searchQuery`
-* `activeViewFilter`
-* `sortField`
-* `sortOrder`
-* `showThumbnails`
-* `columnVisibility`, if currently tracked
-* `snapshotMeta`, if useful
+Do not migrate PrimeReact column filter state in the first pass. It can remain table-local unless the product requirement is to make toolbar counts include column filters too.
 
 Suggested state shape:
 
 ```ts
+type VideoResultsWorkspaceMeta = {
+  source: 'empty' | 'audit' | 'stored-audit';
+  savedAt: string | null;
+};
+
 type VideoResultsStoreState = {
+  auditResult: AuditResult | null;
   rows: VideoRow[];
+  summary: AuditSummary | null;
+  errors: AuditError[];
+  lastAuditRequest: AuditRequest | null;
 
-  removedRowIds: string[];
-  hiddenRowIds: string[];
   selectedRowIds: string[];
-
   searchQuery: string;
-  activeViewFilter: VideoViewFilter;
-
-  sortField: string | null;
-  sortOrder: 1 | -1 | 0 | null;
+  activeViewFilter: ResultsViewFilter;
 
   showThumbnails: boolean;
-  columnVisibility: Record<string, boolean>;
+  storageSavedAt: string | null;
+  workspaceMeta: VideoResultsWorkspaceMeta;
 
-  snapshotMeta: {
-    auditId: string | null;
-    historyId: string | null;
-    label: string | null;
-    restoredAt: string | null;
-  };
-
-  setRows: (rows: VideoRow[], meta?: Partial<SnapshotMeta>) => void;
-  clearRows: () => void;
+  applyAuditResult: (input: {
+    result: AuditResult;
+    request: AuditRequest | null;
+    source: VideoResultsWorkspaceMeta['source'];
+    savedAt?: string | null;
+    showThumbnails?: boolean;
+  }) => void;
+  clearResults: () => void;
 
   setSearchQuery: (query: string) => void;
-  setActiveViewFilter: (filter: VideoViewFilter) => void;
-  setSortState: (sort: { field: string | null; order: 1 | -1 | 0 | null }) => void;
+  setActiveViewFilter: (filter: ResultsViewFilter) => void;
   setShowThumbnails: (value: boolean) => void;
-  setColumnVisibility: (visibility: Record<string, boolean>) => void;
 
   setSelectedRowIds: (ids: string[]) => void;
   clearSelection: () => void;
 
-  removeRows: (ids: string[]) => void;
-  hideRows: (ids: string[]) => void;
-  restoreRows: (ids?: string[]) => void;
+  hideRowsByPath: (paths: string[]) => number;
+  restoreRemovedRows: () => void;
+  mergeMediaPreviewItems: (items: MediaPreviewResultItem[]) => void;
+  mergePreviewClipItems: (items: PreviewClipResultItem[]) => void;
 };
 ```
 
-Adapt names to current app conventions.
+Adapt names to project conventions while keeping the scope narrow.
 
-### Requirements
+## Row Identity
 
-* Do not migrate every component in this stage.
-* Do not implement dynamic counts yet.
-* Do not remove the old controller state until consumers are migrated.
-* Avoid duplicate behavior changes.
-* Keep store actions simple and explicit.
+Use one helper everywhere selection or row lookup needs identity:
 
-### Deliverables
+```ts
+function getVideoRowId(row: VideoRow): string {
+  return row.id ?? row.path;
+}
+```
 
-* Zustand dependency added
-* result store created
-* initial types created or reused
-* no major behavior changes yet
-* changelog/version/commit updated per project workflow
+The current `DataTable` uses `dataKey="path"`, and most workflows identify rows by path. That is acceptable for the first migration. If audit rows later receive a guaranteed stable `id`, the helper lets the app move without rewriting every selection call site.
 
-### Acceptance Criteria
+Avoid storing selected rows as objects in global store state. Convert IDs to row objects only at adapter boundaries:
 
-* App compiles.
-* Zustand store exists.
-* Store is focused on result/table state only.
-* No whole-app store is introduced.
-* Existing UI behavior remains unchanged or minimally affected.
+- PrimeReact `DataTable.selection`
+- workflow hooks that still expect `selectedVideos`
+- action bars that display selected row summaries
 
----
+## Results Pipeline Semantics
 
-## Stage 2 — Add Row Selectors and Filtering Pipeline
-
-**Intelligence Level: Extra High**
-
-### Goal
-
-Implement the derived state pipeline for rows, search, filters, counts, and selection.
-
-### Why This Stage Exists
-
-The upcoming filter count feature depends on having a single reliable definition of what counts as:
-
-* active rows
-* searched rows
-* visible rows
-* selected rows
-* category counts
-
-This should be centralized and derived from store state.
-
-### Requirements
-
-Create selectors and/or pure helper functions for:
-
-* `selectAllRows`
-* `selectActiveRows`
-* `selectSearchedRows`
-* `selectVisibleRows`
-* `selectFilterCounts`
-* `selectSelectedRows`
-* `selectResultSummary`
-* `selectSelectedCapabilities`
-
-Possible files:
+Current top-level result filters are defined in `src/renderer/types/resultsView.ts`:
 
 ```txt
-src/renderer/stores/videoResultsSelectors.ts
-src/renderer/helpers/videoResultFilters.ts
+all
+flagged
+low-res
+aspect
+crop
+errors
 ```
 
-Use pure functions for actual filtering where practical.
+Do not add `high-res` or `good-res` unless the UI gets a matching product requirement. Resolution classification exists in the table column filter, not the top-level result view filter.
 
-Suggested pipeline:
+The results workspace store should expose this pipeline:
+
+```txt
+rows
+-> remove rows where visible === false
+-> apply top-level search query
+-> derive top-level filter counts
+-> apply selected top-level result filter
+-> pass visible rows to the table
+```
+
+Counts should reflect the searched active row set before applying the selected result view filter.
+
+Example:
+
+```txt
+search = "tennis"
+searchedRows = 50
+
+All (50)
+Flagged (8)
+Low-res (3)
+Aspect (4)
+Crop (2)
+Errors (0)
+```
+
+If the selected filter is `Crop`, the counts still describe the searched row universe, not only the crop rows.
+
+PrimeReact column filters are a separate layer in the current UI. Unless this plan is expanded, top-level counts do not need to include column filters such as Type, Size, Duration, Modified, Resolution, Aspect, or Crop. If a future task requires that, the table filters should become controlled state and join the shared pipeline deliberately.
+
+## Persistence Policy
+
+For this plan, keep the current implemented persistence boundary:
+
+```txt
+src/renderer/storage/auditResultStorage.ts
+```
+
+Current behavior:
+
+- IndexedDB database: `collie-video`
+- store `audit-results`: latest saved audit under key `current`
+- store `audit-history`: archived metadata when cache/data is cleared
+- `saveStoredAuditResult` stores the exact `AuditRequest`, normalized `AuditResult`, and `showThumbnails`
+- startup restore flows through `useInitialVideoAuditState`
+- refresh replays `lastAuditRequest`
+
+The earlier persistence idea of sending snapshots through preload to main-process JSON files is a broader project/session persistence decision. Do not mix it into this Zustand migration unless explicitly requested.
+
+If the results workspace store starts persisting additional workspace UI state, use a versioned IndexedDB schema. Keep compatibility with existing schema version 1:
 
 ```ts
-const activeRows = getActiveRows(rows, {
-  removedRowIds,
-  hiddenRowIds,
-  showHidden,
-});
+type StoredAuditResultStateV1 = {
+  key: 'current';
+  schemaVersion: 1;
+  savedAt: string;
+  request: AuditRequest;
+  result: AuditResult;
+  showThumbnails: boolean;
+};
 
-const searchedRows = getSearchedRows(activeRows, searchQuery);
-
-const filterCounts = getFilterCounts(searchedRows);
-
-const visibleRows = getVisibleRows(searchedRows, activeViewFilter);
-
-const selectedRows = getSelectedRows(rows, selectedRowIds);
+type StoredAuditResultStateV2 = Omit<StoredAuditResultStateV1, 'schemaVersion'> & {
+  schemaVersion: 2;
+  workspace?: {
+    searchQuery?: string;
+    activeViewFilter?: ResultsViewFilter;
+    selectedRowIds?: string[];
+  };
+};
 ```
 
-### Requirements
+Only persist search/filter/selection if that is desired. The current app restores rows, request/source state, audit options, folder-tree source metadata, and `showThumbnails`; it does not currently restore search, result filter, or selected rows.
 
-Filter categories should match the app’s existing concepts.
-
-Likely categories:
-
-* all
-* flagged
-* low-res
-* high-res / good-res if applicable
-* aspect-ratio issue
-* crop-needed / black-border review
-* errors
-* maybe converted/fixed later if such states exist
-
-Do not invent categories that do not exist in the UI yet unless the current feature requires them.
-
-### Important Rule
-
-Do **not** store dynamic filter counts as mutable store state.
-
-Bad:
-
-```ts
-lowResCount: number;
-setLowResCount(count: number): void;
-```
-
-Good:
-
-```ts
-const counts = useVideoResultsStore(selectFilterCounts);
-```
-
-### Search Semantics
-
-Search should apply before counts.
-
-Counts should reflect the current searched result set, before applying the selected filter.
-
-### Removed/Hidden Semantics
-
-Counts should reflect the table’s active row universe.
-
-If removed rows are no longer visible in the table, counts should exclude them.
-
-If hidden rows are hidden from the table, counts should exclude them unless the current UI has a “show hidden” mode.
-
-### Deliverables
-
-* selector/helper files
-* derived counts implementation
-* row classification helper functions
-* no UI count labels yet unless trivial
-
-### Acceptance Criteria
-
-* Derived selectors compile.
-* Selectors produce consistent outputs from the same source state.
-* Counts are derived, not manually synchronized.
-* Search/filter/visibility pipeline is documented in code comments or helper names.
-
----
-
-## Stage 3 — Wire Results Toolbar, Table, and Selection Bar to the Store
-
-**Intelligence Level: Extra High**
+## Stage 1 - Zustand Architecture And Conventions
 
 ### Goal
 
-Move key result/table UI consumers to the Zustand store.
-
-### Why This Stage Exists
-
-The store only helps if the components that display and manipulate table state use it consistently.
-
-This stage should migrate the table/toolbar/action bar integration while preserving existing behavior.
+Add the store structure and conventions without changing behavior.
 
 ### Requirements
 
-Update components/hooks that currently consume result/table props directly from the large controller.
-
-Likely areas:
-
-* Results toolbar
-* filter dropdown/segmented filter controls
-* search input
-* VideoTable / DataTable wrapper
-* selection action bar
-* remove/restore buttons
-* thumbnail visibility toggle
-
-The table should receive:
-
-* `visibleRows` from the store selector
-* selected rows derived from `selectedRowIds`
-* selection changes converted back to IDs
-* sort state from store if currently controlled
-* show thumbnails state from store if relevant
-
-Example PrimeReact DataTable adapter:
-
-```tsx
-const visibleRows = useVideoResultsStore(selectVisibleRows);
-const selectedRows = useVideoResultsStore(selectSelectedRows);
-const setSelectedRowIds = useVideoResultsStore((state) => state.setSelectedRowIds);
-
-<DataTable
-  value={visibleRows}
-  selection={selectedRows}
-  onSelectionChange={(event) => {
-    setSelectedRowIds(event.value.map((row) => getVideoRowId(row)));
-  }}
-/>
-```
-
-### Requirements
-
-* Preserve existing table selection behavior.
-* Preserve search behavior.
-* Preserve remove/restore behavior.
-* Preserve thumbnail toggle behavior.
-* Preserve action enable/disable behavior.
-* Avoid double-state where both local React state and Zustand own the same value.
-* Remove old state from the controller only after corresponding UI is fully migrated.
-
-### Deliverables
-
-* Results toolbar reads/writes store state
-* DataTable reads visible rows from store
-* selection action bar reads selected rows/capabilities from store
-* controller reduced where safe
+- Do not run `npm install zustand` unless the dependency has been removed.
+- Create `src/renderer/stores/`.
+- Add a short architecture note in code comments or docs describing:
+  - when to add a store
+  - when to keep state in hooks/components
+  - how stores interact with workflow hooks
+  - why stores must not own main-process execution
+- Establish naming conventions for stores, actions, and selectors.
+- Do not add a generic `useAppStore`.
 
 ### Acceptance Criteria
 
-* Table displays same rows as before.
-* Search still works.
-* Filters still work.
-* Selection still works.
-* Action bar still works.
-* Remove/restore still works.
-* No stale selected rows after filtering/search/removing.
+- App compiles.
+- Store conventions are clear.
+- No app behavior changes.
 
----
-
-## Stage 4 — Implement Dynamic Filter Counts
-
-**Intelligence Level: High**
+## Stage 2 - Results Workspace Store Shell
 
 ### Goal
 
-Add count labels next to filter options using derived store selectors.
-
-### Why This Stage Exists
-
-This is the feature that triggered the store discussion. Counts must update reliably after any event that changes the table’s visible row universe.
+Create the first focused store for result/table state.
 
 ### Requirements
 
-Update the filter dropdown/segmented control labels to include counts.
+- Create `src/renderer/stores/useVideoResultsStore.ts`.
+- Create `src/renderer/stores/videoResultsSelectors.ts`.
+- Reuse existing shared and renderer types:
+  - `AuditRequest`, `AuditResult`, `AuditSummary`
+  - `VideoRow`
+  - `ResultsViewFilter`, `ResultsViewCounts`
+- Keep `useAuditResults`, `useResultFilters`, and `useSelectionState` working during this stage.
+- Add the row ID helper in one place.
+- Do not migrate source selection, dialogs, or workflow progress in this stage.
 
-Examples:
+### Deliverables
+
+- Results workspace store file with state and explicit actions.
+- Selector file with pure derived selectors.
+- No persistence schema changes.
+- No UI behavior changes.
+
+### Acceptance Criteria
+
+- App compiles.
+- The first Zustand store exists and is focused on result/table workspace state.
+- No whole-app store is introduced.
+- Existing UI behavior is unchanged.
+
+## Stage 3 - Shared Results Pipeline Helpers
+
+### Goal
+
+Move result row derivation into pure helpers/selectors that can be used by the store and UI.
+
+### Requirements
+
+Create or update helpers for:
+
+- `getVideoRowId`
+- `getActiveRows`
+- `getSearchedRows`
+- `getResultsViewCounts`
+- `getVisibleRowsForResultView`
+- `getSelectedRows`
+- `getSelectedPaths`
+- `getSelectedSummary`
+
+Search should match the current table search fields as closely as practical:
+
+- `displayFile`
+- `fileName`
+- `displayDirectory`
+- `directory`
+- `fileType`
+- `resolution`
+- `displayAspectRatio`
+- black-border classification/confidence/recommended-fix reason
+- `reasons`
+- `status`
+
+Reuse and extend `src/renderer/helpers/resultFilters.ts` rather than duplicating classification logic in components.
+
+### Acceptance Criteria
+
+- The pipeline can derive active rows, searched rows, counts, visible rows, and selected rows from one state object.
+- Counts are derived, not stored.
+- Search is applied before counts.
+- Rows with `visible === false` are excluded from active rows.
+
+## Stage 4 - Bridge Existing Result Hooks To The Store
+
+### Goal
+
+Adopt the results workspace store through existing hook boundaries before changing component contracts broadly.
+
+### Requirements
+
+Convert `useAuditResults` into a store-backed adapter, or progressively move its internals to store actions while preserving its public return shape.
+
+Current behaviors to preserve:
+
+- `applyAuditResult` normalizes `row.visible`.
+- new audit results clear selection.
+- stored audit results restore `showThumbnails`, `storageSavedAt`, `lastAuditRequest`, rows, summary, and errors.
+- `resetResultStateForAuditStart` clears current rows and stores the pending request.
+- `hideVideoPathsFromTable` marks matching rows `visible: false`, prunes selected rows, persists the updated result, and returns the hidden count.
+- `restoreRemovedVideos` marks all rows visible and persists.
+- media preview and preview clip results merge into both rows and current selection.
+- `archiveCurrentResultToHistory` stores metadata only.
+
+Keep storage messages/loading state in `useAuditResults` unless there is a clear benefit to moving them. They are UI/status state, not core row derivation.
+
+### Acceptance Criteria
+
+- Fresh audit, startup restore, refresh, clear data, row hide/restore, and media-preview merges still flow through the existing controller API.
+- The store is the canonical source for rows and row visibility.
+- There is no long-lived duplicate row source between hook state and store state.
+
+## Stage 5 - Selection By Stable IDs
+
+### Goal
+
+Replace global selected row objects with selected row IDs.
+
+### Requirements
+
+- Store `selectedRowIds`.
+- Derive `selectedVideos` from `rows` and `selectedRowIds`.
+- Keep PrimeReact `DataTable` integration working by passing selected row objects to `selection`.
+- Convert `onSelectionChange` row objects back to IDs.
+- Prune selected IDs when rows are hidden, cleared, or replaced.
+- Preserve the existing workflow interface initially by continuing to provide `selectedVideos`, `selectedVideoCount`, and `selectedPaths` from the controller.
+
+### Acceptance Criteria
+
+- Selection survives row metadata merges.
+- Hidden/removed rows are removed from selection.
+- Starting a new audit clears selection.
+- Existing workflows still receive the selected row objects they need.
+
+## Stage 6 - Search, Top-Level Filters, And Counts
+
+### Goal
+
+Make the toolbar search/filter/count UI read from the shared results pipeline.
+
+### Current Bug/Risk
+
+Today, `useResultFilters` computes counts from `visibleVideoRows`, then `VideoResultsTable` applies `globalFilter` inside PrimeReact. That means toolbar counts are not search-aware and can disagree with the visible table rows.
+
+### Requirements
+
+- Move `globalFilter` and `resultsViewFilter` into the store as `searchQuery` and `activeViewFilter`.
+- Derive:
+  - `activeRows`
+  - `searchedRows`
+  - `filterCounts`
+  - `visibleRows`
+  - `visibleRowCount`
+- Pass `visibleRows` to `VideoResultsTable`.
+- Avoid double-searching. Either remove `globalFilter` from `DataTable` or ensure it is no longer doing the authoritative toolbar search.
+- Update `ResultsToolbar` filter labels to include counts:
 
 ```txt
 All (482)
 Flagged (37)
 Low-res (12)
-High-res (445)
-Aspect issue (18)
-Crop needed (7)
+Aspect (18)
+Crop (7)
 Errors (3)
 ```
 
-Use the `selectFilterCounts` selector from Stage 2.
+- Keep the existing `shown` text meaningful. It should represent rows after top-level search and selected result filter. If column filters remain uncontrolled in PrimeReact, do not claim that number includes column filters.
 
 ### Count Update Requirements
 
 Counts must update after:
 
-* new audit results are loaded
-* audit history snapshot is restored
-* a fresh audit from history completes
-* search query changes
-* rows are removed
-* rows are hidden
-* rows are restored
-* table is cleared
-* media preview row metadata is merged if that affects filters
-* any row data changes that affect classification
+- fresh audit completion
+- startup saved-audit restore
+- audit refresh completion
+- search query changes
+- active result filter changes
+- rows are hidden/removed
+- rows are restored
+- table data is cleared
+- thumbnail/preview metadata is merged if a future filter depends on that metadata
+- any row data changes that affect top-level classification
 
-### Count Semantics
-
-Counts should be derived from:
-
-```txt
-activeRows after hidden/removed state
-+ current search query
-- active view filter
-```
-
-In other words:
-
-```txt
-filterCounts = counts(searchedRows)
-visibleRows = applySelectedFilter(searchedRows)
-```
-
-Counts should not collapse to zero for other filters simply because one filter is currently active.
-
-### Requirements
-
-* Avoid expensive recalculation if selectors are already efficient.
-* Do not duplicate filter classification logic in UI components.
-* Do not manually update counts in event handlers.
-* Ensure empty state labels are sensible, e.g. `Low-res (0)`.
-
-### Deliverables
-
-* filter labels with counts
-* any helper formatting
-* no duplicated count state
+Selection changes should not change top-level filter counts.
 
 ### Acceptance Criteria
 
-* Counts appear in the filter UI.
-* Counts update consistently.
-* Counts agree with table behavior.
-* No manual count synchronization exists.
+- Counts appear in the top-level filter UI.
+- Counts are search-aware.
+- Counts do not collapse to only the selected filter's count.
+- The displayed table rows and toolbar counts come from the same pipeline.
 
----
-
-## Stage 5 — Audit Result and History Restore Hydration
-
-**Intelligence Level: High**
+## Stage 7 - Row Update/Merge Actions
 
 ### Goal
 
-Ensure all entry points that load result rows hydrate the Zustand store consistently.
-
-### Why This Stage Exists
-
-Rows can enter the app through several flows:
-
-* fresh audit complete
-* restored latest session
-* restored audit history snapshot
-* fresh audit rerun from history
-* maybe future project open
-* clear cache / clear data
-* maybe import/open saved scan later
-
-If some flows set old React state and others set Zustand state, bugs will appear.
-
-This stage ensures there is one consistent hydration path.
+Centralize row metadata updates that currently happen in `useAuditResults`.
 
 ### Requirements
 
-Create a clear store action:
+Store actions should support:
 
-```ts
-hydrateFromAuditResult(...)
-```
-
-or:
-
-```ts
-loadResultSnapshot(...)
-```
-
-It should set:
-
-* rows
-* removed/hidden IDs if supplied
-* selected IDs if supplied and still valid
-* search/filter/table state if supplied
-* snapshot metadata
-
-Create a clear action for clearing:
-
-```ts
-clearResults()
-```
-
-Use this store hydration from all relevant flows.
-
-### Persistence Integration
-
-When saving current table state to audit history or latest session, use a store snapshot selector:
-
-```ts
-selectPersistableResultsSnapshot
-```
-
-Persistable snapshot should include:
-
-* rows
-* hidden/removed row IDs
-* table search/filter state
-* show thumbnails
-* sort/column state if applicable
-* snapshot metadata
-
-It should not include transient UI state like:
-
-* open dialogs
-* toasts
-* running job progress
-* temporary hover states
-
-### Requirements
-
-* Do not use Zustand localStorage persist as the primary durable layer.
-* Continue using Electron main-process persistence.
-* Avoid saving every minor change too aggressively unless debounced.
-* Preserve current history-saving behavior implemented by Claude.
-
-### Deliverables
-
-* hydration action(s)
-* persistable snapshot selector
-* existing restore/history flows updated to hydrate store
-* old duplicated state removed where safe
-
-### Acceptance Criteria
-
-* Fresh audit loads rows into store.
-* Restored cached audit loads rows into store.
-* Clear cache clears store.
-* Starting a new scan saves current store snapshot if required by existing behavior.
-* Counts and visible rows update after restore/clear/new scan.
-
----
-
-## Stage 6 — Row Update/Merge Utilities for Thumbnails, Preview Clips, and Future Status
-
-**Intelligence Level: High**
-
-### Goal
-
-Centralize how row metadata updates are merged into the current row list.
-
-### Why This Stage Exists
-
-Rows may get updated after initial audit by features such as:
-
-* thumbnail generation
-* preview clip generation
-* file validation
-* cached snapshot validation
-* future file-management operations
-* conversion status
-* missing/changed file status
-
-If every workflow manually maps over rows in its own way, table state gets fragile.
-
-### Requirements
-
-Add store actions/helpers such as:
-
-```ts
-updateRowsById(updates)
-mergeRowPatch(rowId, patch)
-mergeThumbnailResults(results)
-mergePreviewClipResults(results)
-markRowsAvailability(statuses)
-```
-
-Pick names that match the app’s existing types.
+- replacing rows from an audit result
+- hiding rows by path
+- restoring all removed rows
+- merging thumbnail/preview-frame metadata
+- merging preview-clip metadata
+- future row availability/status patches
 
 Rules:
 
-* preserve row order
-* preserve selected row IDs when rows remain
-* remove selected IDs if rows are removed
-* do not mutate rows in place
-* update derived counts automatically via selectors
-* keep row patching type-safe
+- preserve row order
+- keep row updates immutable
+- preserve selected IDs when rows remain
+- prune selected IDs when rows are no longer active
+- persist through `auditResultStorage.ts` only when existing behavior requires persistence
+- do not execute filesystem work inside the store
 
-### Requirements
-
-* Do not migrate every workflow if not necessary.
-* Prioritize workflows that already update table rows:
-
-  * thumbnails
-  * preview clips
-  * restore validation
-  * remove/restore
-* Leave clean extension points for future file management.
-
-### Deliverables
-
-* row update helpers/actions
-* migrated thumbnail/preview row update flow if applicable
-* documentation comments or notes for future workflows
+Existing helpers in `src/renderer/helpers/mediaPreviewRows.ts` should be reused or moved only if that improves the boundary.
 
 ### Acceptance Criteria
 
-* Row metadata updates use centralized actions.
-* Counts/visible rows update automatically after row metadata changes.
-* Future file-management status can be merged into rows without rewriting the table pipeline.
+- Thumbnail, fresh-frame, and preview-clip results update rows through one store-owned path.
+- File-management, Premiere, Auto-Fix, Auto-Crop, and post-conversion workflows still hide affected source rows through a single row-hiding action.
+- Future file availability can be represented as row metadata without rewriting the pipeline.
 
----
-
-## Stage 7 — Controller Cleanup and Prop Simplification
-
-**Intelligence Level: Extra High**
+## Stage 8 - Persistence Hydration And Optional Workspace Snapshot
 
 ### Goal
 
-Remove obsolete result/table state from the large app controller and simplify prop passing.
+Ensure every current result row-loading path hydrates the store consistently.
 
-### Why This Stage Exists
+### Current Loading Paths
 
-After the store is wired, the large controller should no longer own table/result state. This reduces complexity and prevents two sources of truth.
+- fresh audit completion through `useAuditWorkflow`
+- startup latest-audit restore through `useInitialVideoAuditState`
+- audit refresh completion through `lastAuditRequest`
+- clear data/cache through `useClearAuditDataWorkflow`
 
-### Requirements
-
-Inspect `useVideoAuditAppController.ts` and related parent components.
-
-Remove or simplify state/handlers that Zustand now owns:
-
-* rows
-* selected rows
-* search
-* active filter
-* show thumbnails
-* removed/hidden rows
-* row counts
-* selected-row capability flags where now derived by selectors
-
-Keep workflow logic in hooks where appropriate:
-
-* audit execution
-* auto-fix/crop execution
-* thumbnails/previews execution
-* Premiere workflow
-* migration workflow
-
-Components should either:
-
-1. read directly from the store, or
-2. receive grouped props from parent hooks,
-
-but avoid massive prop lists when possible.
+There is no full audit-history snapshot restore path today.
 
 ### Requirements
 
-* Do not remove behavior.
-* Do not change UI design.
-* Avoid a giant store import in every tiny component if prop passing is already clean.
-* Prefer direct store use in workspace-level components like toolbar/table/action bar.
-* Keep leaf components presentational when practical.
-
-### Deliverables
-
-* smaller `useVideoAuditAppController.ts`
-* fewer duplicated props/state
-* removed stale imports
-* updated component prop contracts if needed
+- Add a single hydration action such as `applyAuditResult` or `hydrateFromStoredAudit`.
+- Keep `loadStoredAuditResult` and `saveStoredAuditResult` in `auditResultStorage.ts`.
+- Preserve existing schema version 1 reads.
+- If persisting workspace UI state, add a backward-compatible schema version 2.
+- Do not persist transient state:
+  - open dialogs
+  - running job progress
+  - temporary errors/toasts
+  - hover state
+  - active action
 
 ### Acceptance Criteria
 
-* No duplicate source of truth for result/table state remains.
-* Main controller is smaller and clearer.
-* App behavior remains the same.
-* Dynamic counts still work.
+- Fresh audit loads rows into the store.
+- Stored latest audit loads rows into the store.
+- Refresh replaces rows through the same path.
+- Clear data clears rows, search/filter state, and selection.
+- Existing saved audits remain readable.
 
----
-
-## Stage 8 — Persistence and Store Boundary Documentation
-
-**Intelligence Level: Medium**
+## Stage 9 - Controller And Component Cleanup
 
 ### Goal
 
-Document the store’s scope so future Codex tasks do not dump everything into Zustand.
-
-### Why This Stage Exists
-
-Once Zustand exists, future tasks may be tempted to put everything into it. This documentation prevents the store from becoming the new God hook.
+Remove obsolete duplicated table/result state while preserving the current component architecture.
 
 ### Requirements
 
-Create or update:
+Inspect and simplify:
 
-```txt
-docs/renderer-state-architecture.md
-```
+- `useVideoAuditAppController.ts`
+- `useAuditResults.ts`
+- `useResultFilters.ts`
+- `useSelectionState.ts`
+- `VideoAuditAppController` type
+- `App.tsx` prop grouping
+- `ResultsToolbar.tsx`
+- `VideoResultsTable.tsx`
+- `SelectionActionBar.tsx`
+- `AppHeader.tsx`
 
-Document:
+After migration:
 
-* what Zustand owns
-* what Zustand does not own
-* row derivation pipeline
-* count semantics
-* how table state is persisted
-* how audit history hydrates the store
-* how future file-management features should interact with the store
-* how workflow hooks should write results into the store without moving main-process logic into renderer state
-
-Include a section:
-
-```md
-## Future File Management Integration
-```
-
-Explain that future file-management workflows should:
-
-* use main-process services for real file operations
-* use Zustand only to reflect row status/availability/selection in the renderer
-* update rows through centralized row patch actions
-* not execute filesystem mutations inside the store
-
-### Deliverables
-
-* renderer state architecture doc
-* comments in store/selectors if helpful
-* changelog/version/commit
+- `useVideoAuditAppController` should remain a composition adapter.
+- workflow hooks should keep owning workflow execution.
+- workspace-level components may read from the store directly if that reduces prop churn.
+- leaf components should stay presentational when practical.
+- avoid introducing store imports into every small component.
 
 ### Acceptance Criteria
 
-* Store boundaries are documented.
-* Future work has clear guidance.
-* The app has not moved durable persistence into localStorage-only Zustand state.
+- No duplicate canonical row state remains.
+- No duplicate canonical top-level search/filter state remains.
+- No duplicate canonical selection state remains.
+- The controller return shape is smaller where safe.
+- Existing workflows and dialogs still behave the same.
 
----
-
-## Stage 9 — Verification and Cleanup
-
-**Intelligence Level: High**
+## Stage 10 - Evaluate Next Zustand Store
 
 ### Goal
 
-Verify the store migration and clean up any leftover duplicated state.
+Decide whether another store is actually warranted after the results workspace migration.
 
 ### Requirements
+
+Review the remaining renderer state against the decision criteria:
+
+- source workspace state
+- app shell/dialog state
+- settings UI state
+- operation history UI state
+- workflow busy/capability derivation
+
+For each candidate, decide:
+
+- keep in focused hook
+- move to a new focused Zustand store
+- leave local to component
+- document as a future option
+
+Do not add a second store in the same pass unless there is a clear, current problem to solve.
+
+### Acceptance Criteria
+
+- The plan does not accidentally stop at results forever.
+- The app also does not drift into a broad global store.
+- Any next store has a concrete reason and owner boundary.
+
+## Stage 11 - Documentation
+
+### Goal
+
+Document the Zustand state boundary so future tasks do not dump everything into stores.
+
+### Requirements
+
+Update `docs/renderer-architecture.md` or create a focused `docs/renderer-state-architecture.md` with:
+
+- when Zustand should be used
+- when state should stay in hooks/components
+- what the first results workspace store owns
+- what Zustand stores do not own
+- row derivation pipeline
+- count semantics
+- selected row ID semantics
+- IndexedDB persistence/hydration behavior
+- how workflow hooks should update store-owned state
+- how future source/app UI stores should be evaluated
+- how file-management workflows should reflect row state without moving filesystem execution into the renderer store
+
+Include a future integration note for file availability validation:
+
+- main process validates files
+- renderer receives typed availability/status results
+- store merges row status if the results workspace owns that field
+- selectors derive capabilities and disabled reasons
+- table renders status from row data
+
+### Acceptance Criteria
+
+- Future tasks can tell where Zustand belongs.
+- Future tasks can tell where row/table state belongs.
+- Future tasks can tell where workflow execution belongs.
+- Persistence boundaries are explicit.
+
+## Stage 12 - Verification And Cleanup
+
+### Required Checks
 
 Run available checks:
 
@@ -1016,59 +781,58 @@ npm run typecheck
 npm run build
 ```
 
-Run lint if available:
+There is no `npm run lint` script currently. Do not add one as part of this plan unless requested.
 
-```bash
-npm run lint
-```
+### Manual Verification Checklist
 
-Manual verification checklist:
+- start with no saved audit
+- restore latest saved audit on launch
+- run a fresh folder audit
+- run a fresh selected-file audit
+- refresh the latest audit
+- search rows and verify counts update
+- switch top-level filters and verify counts stay search-aware
+- use table column filters and verify top-level count wording is still honest
+- select rows after searching/filtering
+- generate thumbnails for selected rows
+- generate thumbnails for all visible rows
+- fetch fresh thumbnails from details
+- generate preview clips
+- remove selected rows from the table
+- restore removed rows
+- send selected rows to Premiere
+- run Auto-Fix and Auto-Crop enough to verify row hiding/post-conversion handoff
+- use move-to-trash, move-to-folder, archive originals, and post-conversion replacement enough to verify row hiding still works
+- clear cache/data
+- relaunch app and verify latest-state restore behavior
 
-* run a fresh audit
-* restore an audit history snapshot
-* run a fresh audit from history
-* search table rows
-* switch filter dropdown options
-* verify counts update
-* remove selected videos
-* restore removed videos
-* clear cache/data
-* generate thumbnails
-* generate preview clips if available
-* select rows after filtering
-* verify selection action bar
-* verify counts after row updates
-* relaunch app if latest-session persistence exists
+### Cleanup
 
-Clean up:
+Remove:
 
-* unused imports
-* obsolete state variables
-* duplicated row filter helpers
-* stale comments
-* dead props
-* old count calculations
+- unused imports
+- obsolete local row state
+- obsolete local search/filter state
+- obsolete local selection state
+- duplicated row filter helpers
+- stale comments
+- dead props
+- old manual count calculations
 
-### Acceptance Criteria
+## Definition Of Done
 
-* Typecheck/build pass or known issues are documented.
-* Counts remain correct across major table events.
-* Store is focused and not bloated.
-* Controller no longer duplicates result/table state.
-* No obvious stale-state bugs remain.
+This implementation is complete when:
 
----
-
-## Definition of Done
-
-This store migration is complete when:
-
-* result/table state has a focused Zustand store
-* dynamic filter counts are derived and reliable
-* table visible rows use a single derivation pipeline
-* selected rows are tracked by stable IDs
-* restore/history/fresh audit flows hydrate the same store
-* row updates use centralized actions/helpers
-* durable persistence still goes through Electron main-process services
-* the main app controller no longer duplicates result/table state
-* future file-management workflows have a clean integration point
+- Zustand has clear usage criteria and store conventions
+- at least the first high-value store is implemented intentionally
+- result/table state has a focused results workspace store
+- dynamic top-level filter counts are derived and search-aware
+- table visible rows use a single derivation pipeline
+- selected rows are tracked by stable IDs
+- fresh audit, latest-audit restore, refresh, clear data, row hide/restore, and media-preview merges hydrate/update the same store
+- row updates use centralized actions/helpers
+- durable audit-result persistence still goes through the existing IndexedDB storage boundary unless a separate persistence plan changes that boundary
+- workflow hooks still own execution and IPC-facing orchestration
+- the main app controller no longer duplicates result/table state
+- current file-management, Premiere, Auto-Fix, Auto-Crop, thumbnail, preview, migration, and replacement workflows still work
+- any future Zustand store has a concrete reason instead of existing just because Zustand is available

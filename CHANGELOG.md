@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.15] - 2026-05-19
+
+### Changed
+
+- Extracted thumbnail generation, fresh preview-frame generation, and preview-clip generation state, progress subscriptions, start/cancel behavior, errors, row merging, and persistence handoff into a focused renderer hook.
+
 ## [0.50.14] - 2026-05-19
 
 ### Changed

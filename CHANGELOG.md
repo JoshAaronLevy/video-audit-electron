@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.60] - 2026-05-20
+
+### Fixed
+
+- Fixed DataTable dropdown filters so selected column filters keep matching rows visible and PrimeReact dropdown overlays no longer throw missing-provider errors.
+
 ## [0.50.59] - 2026-05-20
 
 ### Changed

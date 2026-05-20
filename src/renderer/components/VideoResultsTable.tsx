@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
-import { FilterMatchMode } from 'primereact/api';
+import { FilterMatchMode, FilterService } from 'primereact/api';
 import { Button } from 'primereact/button';
 import { Column } from 'primereact/column';
 import { DataTable } from 'primereact/datatable';
 import { Dropdown } from 'primereact/dropdown';
-import { InputText } from 'primereact/inputtext';
 import { Message } from 'primereact/message';
 import { MultiSelect } from 'primereact/multiselect';
 import { Tag } from 'primereact/tag';
@@ -71,6 +70,8 @@ type DurationFilterValue =
   | '45-60'
   | 'over-60';
 type FileSizeFilterValue = 'very-small' | 'small' | 'medium' | 'large' | 'very-large';
+type DirectoryFilterValue = string;
+type AvailabilityFilterValue = SavedFileAvailability | 'unchecked';
 type ModifiedFilterValue =
   | 'last-7'
   | 'last-30'
@@ -80,18 +81,65 @@ type ModifiedFilterValue =
   | 'more-than-365';
 type ResolutionFilterValue = 'high' | 'medium' | 'low';
 type CropFilterValue = 'Auto' | 'Review' | 'No' | 'Uncertain' | 'Error' | 'Not scanned';
+type TableFilterMatchMode = 'custom' | 'equals';
+type TableFilterDimension =
+  | 'directory'
+  | 'availability'
+  | 'type'
+  | 'size'
+  | 'duration'
+  | 'modified'
+  | 'resolution'
+  | 'aspect'
+  | 'crop';
 
 interface SelectOption<TValue> {
   label: string;
   value: TValue;
 }
 
+interface TableFilterMetaData<TValue = unknown> {
+  value: TValue | null;
+  matchMode: TableFilterMatchMode | undefined;
+}
+
+type TableFilterMeta = Record<string, TableFilterMetaData>;
+
 interface FilterTemplateOptions<TValue> {
   value: TValue;
   filterApplyCallback: (value?: TValue, index?: number) => void;
 }
 
+interface ActiveTableFilters {
+  directory: DirectoryFilterValue[];
+  availability: AvailabilityFilterValue[];
+  type: string[];
+  size: FileSizeFilterValue[];
+  duration: DurationFilterValue[];
+  modified: ModifiedFilterValue[];
+  resolution: ResolutionFilterValue | null;
+  aspect: boolean | null;
+  crop: CropFilterValue[];
+}
+
 const ROW_ACTION_TOOLTIP_OPTIONS = { position: 'top' } as const;
+const DEFAULT_PAGE_SIZE = 100;
+const TABLE_FILTER_FIELDS = {
+  directory: 'path',
+  availability: 'fileAvailability.status',
+  type: 'fileType',
+  size: 'sizeMB',
+  duration: 'durationSeconds',
+  modified: 'modifiedAt',
+  resolution: 'resolution',
+  aspect: 'isWrongAspectRatio',
+  crop: 'adjustments'
+} as const;
+const DIRECTORY_FILTER_ROOT_PREFIX = 'root:';
+const DIRECTORY_FILTER_DIRECTORY_PREFIX = 'dir:';
+const CUSTOM_TABLE_FILTER_MATCH_MODE: TableFilterMatchMode = 'custom';
+const EQUALS_TABLE_FILTER_MATCH_MODE: TableFilterMatchMode = 'equals';
+
 const durationFilterOptions: SelectOption<DurationFilterValue>[] = [
   { label: 'Under 5 minutes', value: 'under-5' },
   { label: '5-10 minutes', value: '5-10' },
@@ -133,6 +181,15 @@ const cropFilterOptions: SelectOption<CropFilterValue>[] = [
   { label: 'Error', value: 'Error' },
   { label: 'Not scanned', value: 'Not scanned' }
 ];
+const availabilityFilterOptionOrder: SelectOption<AvailabilityFilterValue>[] = [
+  { label: 'Available', value: 'available' },
+  { label: 'Changed', value: 'changed' },
+  { label: 'Missing', value: 'missing' },
+  { label: 'Unavailable', value: 'unavailable' },
+  { label: 'Unchecked', value: 'unchecked' }
+];
+
+registerTableFilterFunctions();
 
 export function VideoResultsTable({
   rows,
@@ -174,6 +231,9 @@ export function VideoResultsTable({
   onRevealKnownFile
 }: VideoResultsTableProps): ReactElement {
   const [detailPath, setDetailPath] = useState<string | null>(null);
+  const [pageFirst, setPageFirst] = useState(0);
+  const [pageRows, setPageRows] = useState(DEFAULT_PAGE_SIZE);
+  const [tableFilters, setTableFilters] = useState<TableFilterMeta>(() => createInitialTableFilters());
   const detailVideo = useMemo(() => {
     if (!detailPath) {
       return null;
@@ -182,13 +242,98 @@ export function VideoResultsTable({
     return (allRows ?? rows).find((row) => row.path === detailPath) ?? null;
   }, [allRows, detailPath, rows]);
   const availabilityCounts = useMemo(() => getFileAvailabilityCounts(allRows ?? rows), [allRows, rows]);
+  const activeTableFilters = useMemo(() => getActiveTableFilters(tableFilters), [tableFilters]);
+  const facetedRows = useMemo<Record<TableFilterDimension, VideoRow[]>>(
+    () => ({
+      directory: getRowsMatchingTableFilters(rows, activeTableFilters, 'directory'),
+      availability: getRowsMatchingTableFilters(rows, activeTableFilters, 'availability'),
+      type: getRowsMatchingTableFilters(rows, activeTableFilters, 'type'),
+      size: getRowsMatchingTableFilters(rows, activeTableFilters, 'size'),
+      duration: getRowsMatchingTableFilters(rows, activeTableFilters, 'duration'),
+      modified: getRowsMatchingTableFilters(rows, activeTableFilters, 'modified'),
+      resolution: getRowsMatchingTableFilters(rows, activeTableFilters, 'resolution'),
+      aspect: getRowsMatchingTableFilters(rows, activeTableFilters, 'aspect'),
+      crop: getRowsMatchingTableFilters(rows, activeTableFilters, 'crop')
+    }),
+    [activeTableFilters, rows]
+  );
+  const baseDirectoryFilterOptions = useMemo(
+    () => buildDirectoryFilterOptions(rows, displayRootPath),
+    [displayRootPath, rows]
+  );
+  const directoryFilterOptions = useMemo(
+    () => addDirectoryFilterOptionCounts(baseDirectoryFilterOptions, facetedRows.directory, displayRootPath),
+    [baseDirectoryFilterOptions, displayRootPath, facetedRows.directory]
+  );
+  const baseAvailabilityFilterOptions = useMemo(() => buildAvailabilityFilterOptions(rows), [rows]);
+  const availabilityFilterOptions = useMemo(
+    () =>
+      addFilterOptionCounts(baseAvailabilityFilterOptions, facetedRows.availability, (row, value) =>
+        availabilityFilterFunction(row.fileAvailability?.status ?? null, [value])
+      ),
+    [baseAvailabilityFilterOptions, facetedRows.availability]
+  );
+  const baseFileTypeFilterOptions = useMemo(() => buildFileTypeFilterOptions(rows), [rows]);
+  const fileTypeFilterOptions = useMemo(
+    () =>
+      addFilterOptionCounts(baseFileTypeFilterOptions, facetedRows.type, (row, value) =>
+        getFileTypeLabel(row) === value
+      ),
+    [baseFileTypeFilterOptions, facetedRows.type]
+  );
+  const countedFileSizeFilterOptions = useMemo(
+    () =>
+      addFilterOptionCounts(fileSizeFilterOptions, facetedRows.size, (row, value) =>
+        isFileSizeInRange(row.sizeMB, value)
+      ),
+    [facetedRows.size]
+  );
+  const countedDurationFilterOptions = useMemo(
+    () =>
+      addFilterOptionCounts(durationFilterOptions, facetedRows.duration, (row, value) =>
+        isDurationInRange(row.durationSeconds, value)
+      ),
+    [facetedRows.duration]
+  );
+  const countedModifiedFilterOptions = useMemo(
+    () =>
+      addFilterOptionCounts(modifiedFilterOptions, facetedRows.modified, (row, value) =>
+        isModifiedDateInRange(row.modifiedAt, value)
+      ),
+    [facetedRows.modified]
+  );
+  const countedResolutionFilterOptions = useMemo(
+    () =>
+      addFilterOptionCounts(resolutionFilterOptions, facetedRows.resolution, (row, value) =>
+        getResolutionCategoryFromRow(row).value === value
+      ),
+    [facetedRows.resolution]
+  );
+  const countedAspectFilterOptions = useMemo(
+    () =>
+      addFilterOptionCounts(aspectFilterOptions, facetedRows.aspect, (row, value) =>
+        row.isWrongAspectRatio === value
+      ),
+    [facetedRows.aspect]
+  );
+  const countedCropFilterOptions = useMemo(
+    () =>
+      addFilterOptionCounts(cropFilterOptions, facetedRows.crop, (row, value) =>
+        getBlackBorderCropStatus(row.adjustments) === value
+      ),
+    [facetedRows.crop]
+  );
 
   useEffect(() => {
     if (detailPath) {
       onClearPreviewFrameError();
     }
   }, [detailPath, onClearPreviewFrameError]);
-  const fileTypeFilterOptions = useMemo(() => buildFileTypeFilterOptions(rows), [rows]);
+
+  useEffect(() => {
+    setPageFirst(0);
+  }, [globalFilter, resultsViewFilter, rows.length]);
+
   const emptyState = getEmptyState({
     allRows,
     auditSummary,
@@ -263,10 +408,21 @@ export function VideoResultsTable({
         onSelectionChange={(event) => onSelectedVideosChange(event.value as VideoRow[])}
         metaKeySelection={false}
         paginator={!isStorageLoading && rows.length > 0}
-        rows={50}
+        first={pageFirst}
+        rows={pageRows}
         rowsPerPageOptions={[25, 50, 100, 250, 500, 1000]}
+        onPage={(event) => {
+          setPageFirst(event.first);
+          setPageRows(event.rows);
+        }}
         sortMode="multiple"
         removableSort
+        filters={tableFilters}
+        filterDelay={0}
+        onFilter={(event) => {
+          setPageFirst(0);
+          setTableFilters(normalizeTableFilters(event.filters as TableFilterMeta));
+        }}
         filterDisplay="row"
         stripedRows
         size="small"
@@ -292,9 +448,13 @@ export function VideoResultsTable({
           sortable
           filter
           filterMatchMode={FilterMatchMode.CUSTOM}
-          filterFunction={fileNameFilterFunction}
+          filterFunction={directoryFilterFunction}
           filterElement={(options) =>
-            fileNameFilterTemplate(options as FilterTemplateOptions<string | null>)
+            multiSelectFilterTemplate(
+              options as FilterTemplateOptions<DirectoryFilterValue[] | null>,
+              directoryFilterOptions,
+              'Directory'
+            )
           }
           showFilterMenu={false}
           body={(row: VideoRow) => fileTemplate(row, displayRootPath)}
@@ -304,6 +464,17 @@ export function VideoResultsTable({
           field="fileAvailability.status"
           header="Availability"
           body={availabilityTemplate}
+          filter
+          filterMatchMode={FilterMatchMode.CUSTOM}
+          filterFunction={availabilityFilterFunction}
+          filterElement={(options) =>
+            multiSelectFilterTemplate(
+              options as FilterTemplateOptions<AvailabilityFilterValue[] | null>,
+              availabilityFilterOptions,
+              'Availability'
+            )
+          }
+          showFilterMenu={false}
           style={{ width: '8rem' }}
         />
         <Column
@@ -334,7 +505,7 @@ export function VideoResultsTable({
           filterElement={(options) =>
             multiSelectFilterTemplate(
               options as FilterTemplateOptions<FileSizeFilterValue[] | null>,
-              fileSizeFilterOptions,
+              countedFileSizeFilterOptions,
               'Size'
             )
           }
@@ -352,7 +523,7 @@ export function VideoResultsTable({
           filterElement={(options) =>
             multiSelectFilterTemplate(
               options as FilterTemplateOptions<DurationFilterValue[] | null>,
-              durationFilterOptions,
+              countedDurationFilterOptions,
               'Duration'
             )
           }
@@ -370,7 +541,7 @@ export function VideoResultsTable({
           filterElement={(options) =>
             multiSelectFilterTemplate(
               options as FilterTemplateOptions<ModifiedFilterValue[] | null>,
-              modifiedFilterOptions,
+              countedModifiedFilterOptions,
               'Modified'
             )
           }
@@ -389,7 +560,7 @@ export function VideoResultsTable({
           filterElement={(options) =>
             dropdownFilterTemplate(
               options as FilterTemplateOptions<ResolutionFilterValue | null>,
-              resolutionFilterOptions,
+              countedResolutionFilterOptions,
               'Resolution'
             )
           }
@@ -407,7 +578,7 @@ export function VideoResultsTable({
           filterElement={(options) =>
             dropdownFilterTemplate(
               options as FilterTemplateOptions<boolean | null>,
-              aspectFilterOptions,
+              countedAspectFilterOptions,
               'Aspect'
             )
           }
@@ -424,7 +595,7 @@ export function VideoResultsTable({
           filterElement={(options) =>
             multiSelectFilterTemplate(
               options as FilterTemplateOptions<CropFilterValue[] | null>,
-              cropFilterOptions,
+              countedCropFilterOptions,
               'Crop'
             )
           }
@@ -476,21 +647,7 @@ function thumbnailTemplate(row: VideoRow): ReactElement {
   );
 }
 
-function fileNameFilterTemplate(options: FilterTemplateOptions<string | null>): ReactElement {
-  return (
-    <InputText
-      value={options.value ?? ''}
-      placeholder="File Name"
-      className="table-column-filter"
-      onChange={(event) => {
-        const nextValue = event.target.value;
-        options.filterApplyCallback(nextValue.trim() ? nextValue : null);
-      }}
-    />
-  );
-}
-
-function multiSelectFilterTemplate<TValue extends string>(
+function multiSelectFilterTemplate<TValue>(
   options: FilterTemplateOptions<TValue[] | null>,
   filterOptions: SelectOption<TValue>[],
   placeholder: string
@@ -505,7 +662,7 @@ function multiSelectFilterTemplate<TValue extends string>(
       maxSelectedLabels={1}
       onChange={(event) => {
         const nextValue = (event.value ?? []) as TValue[];
-        options.filterApplyCallback(nextValue);
+        options.filterApplyCallback(nextValue.length > 0 ? nextValue : null);
       }}
     />
   );
@@ -530,14 +687,25 @@ function dropdownFilterTemplate<TValue>(
   );
 }
 
-function fileNameFilterFunction(value: string | null, filter: string | null): boolean {
-  const normalizedFilter = filter?.trim().toLowerCase() ?? '';
-
-  if (!normalizedFilter) {
+function directoryFilterFunction(value: string | null, filter: DirectoryFilterValue[] | null): boolean {
+  if (!filter || filter.length === 0) {
     return true;
   }
 
-  return String(value ?? '').toLowerCase().includes(normalizedFilter);
+  const directory = getDirectoryFromPath(value ?? '');
+
+  return filter.some((filterValue) => directoryMatchesFilterValue(directory, filterValue));
+}
+
+function availabilityFilterFunction(
+  value: SavedFileAvailability | null | undefined,
+  filter: AvailabilityFilterValue[] | null
+): boolean {
+  if (!filter || filter.length === 0) {
+    return true;
+  }
+
+  return filter.includes(getAvailabilityFilterValue(value));
 }
 
 function fileTypeFilterFunction(value: string | null, filter: string[] | null): boolean {
@@ -676,6 +844,278 @@ function cropFilterFunction(
   }
 
   return filter.includes(getBlackBorderCropStatus(value ?? undefined) as CropFilterValue);
+}
+
+function registerTableFilterFunctions(): void {
+  FilterService.register(`custom_${TABLE_FILTER_FIELDS.directory}`, directoryFilterFunction);
+  FilterService.register(`custom_${TABLE_FILTER_FIELDS.availability}`, availabilityFilterFunction);
+  FilterService.register(`custom_${TABLE_FILTER_FIELDS.type}`, fileTypeFilterFunction);
+  FilterService.register(`custom_${TABLE_FILTER_FIELDS.size}`, fileSizeFilterFunction);
+  FilterService.register(`custom_${TABLE_FILTER_FIELDS.duration}`, durationFilterFunction);
+  FilterService.register(`custom_${TABLE_FILTER_FIELDS.modified}`, modifiedFilterFunction);
+  FilterService.register(`custom_${TABLE_FILTER_FIELDS.resolution}`, resolutionFilterFunction);
+  FilterService.register(`custom_${TABLE_FILTER_FIELDS.crop}`, cropFilterFunction);
+}
+
+function createInitialTableFilters(): TableFilterMeta {
+  return {
+    [TABLE_FILTER_FIELDS.directory]: { value: null, matchMode: CUSTOM_TABLE_FILTER_MATCH_MODE },
+    [TABLE_FILTER_FIELDS.availability]: { value: null, matchMode: CUSTOM_TABLE_FILTER_MATCH_MODE },
+    [TABLE_FILTER_FIELDS.type]: { value: null, matchMode: CUSTOM_TABLE_FILTER_MATCH_MODE },
+    [TABLE_FILTER_FIELDS.size]: { value: null, matchMode: CUSTOM_TABLE_FILTER_MATCH_MODE },
+    [TABLE_FILTER_FIELDS.duration]: { value: null, matchMode: CUSTOM_TABLE_FILTER_MATCH_MODE },
+    [TABLE_FILTER_FIELDS.modified]: { value: null, matchMode: CUSTOM_TABLE_FILTER_MATCH_MODE },
+    [TABLE_FILTER_FIELDS.resolution]: { value: null, matchMode: CUSTOM_TABLE_FILTER_MATCH_MODE },
+    [TABLE_FILTER_FIELDS.aspect]: { value: null, matchMode: EQUALS_TABLE_FILTER_MATCH_MODE },
+    [TABLE_FILTER_FIELDS.crop]: { value: null, matchMode: CUSTOM_TABLE_FILTER_MATCH_MODE }
+  };
+}
+
+function normalizeTableFilters(filters: TableFilterMeta): TableFilterMeta {
+  return {
+    ...createInitialTableFilters(),
+    ...filters
+  };
+}
+
+function getActiveTableFilters(filters: TableFilterMeta): ActiveTableFilters {
+  return {
+    directory: getArrayFilterValue<DirectoryFilterValue>(filters, TABLE_FILTER_FIELDS.directory),
+    availability: getArrayFilterValue<AvailabilityFilterValue>(filters, TABLE_FILTER_FIELDS.availability),
+    type: getArrayFilterValue<string>(filters, TABLE_FILTER_FIELDS.type),
+    size: getArrayFilterValue<FileSizeFilterValue>(filters, TABLE_FILTER_FIELDS.size),
+    duration: getArrayFilterValue<DurationFilterValue>(filters, TABLE_FILTER_FIELDS.duration),
+    modified: getArrayFilterValue<ModifiedFilterValue>(filters, TABLE_FILTER_FIELDS.modified),
+    resolution: getStringFilterValue<ResolutionFilterValue>(filters, TABLE_FILTER_FIELDS.resolution),
+    aspect: getBooleanFilterValue(filters, TABLE_FILTER_FIELDS.aspect),
+    crop: getArrayFilterValue<CropFilterValue>(filters, TABLE_FILTER_FIELDS.crop)
+  };
+}
+
+function getArrayFilterValue<TValue>(filters: TableFilterMeta, field: string): TValue[] {
+  const value = filters[field]?.value;
+  return Array.isArray(value) ? (value as TValue[]) : [];
+}
+
+function getStringFilterValue<TValue extends string>(filters: TableFilterMeta, field: string): TValue | null {
+  const value = filters[field]?.value;
+  return typeof value === 'string' ? (value as TValue) : null;
+}
+
+function getBooleanFilterValue(filters: TableFilterMeta, field: string): boolean | null {
+  const value = filters[field]?.value;
+  return typeof value === 'boolean' ? value : null;
+}
+
+function getRowsMatchingTableFilters(
+  rows: VideoRow[],
+  filters: ActiveTableFilters,
+  omittedDimension?: TableFilterDimension
+): VideoRow[] {
+  return rows.filter((row) => rowMatchesActiveTableFilters(row, filters, omittedDimension));
+}
+
+function rowMatchesActiveTableFilters(
+  row: VideoRow,
+  filters: ActiveTableFilters,
+  omittedDimension?: TableFilterDimension
+): boolean {
+  if (omittedDimension !== 'directory' && !directoryFilterFunction(row.path, filters.directory)) {
+    return false;
+  }
+
+  if (
+    omittedDimension !== 'availability' &&
+    !availabilityFilterFunction(row.fileAvailability?.status ?? null, filters.availability)
+  ) {
+    return false;
+  }
+
+  if (omittedDimension !== 'type' && !fileTypeFilterFunction(row.fileType, filters.type)) {
+    return false;
+  }
+
+  if (omittedDimension !== 'size' && !fileSizeFilterFunction(row.sizeMB, filters.size)) {
+    return false;
+  }
+
+  if (omittedDimension !== 'duration' && !durationFilterFunction(row.durationSeconds, filters.duration)) {
+    return false;
+  }
+
+  if (omittedDimension !== 'modified' && !modifiedFilterFunction(row.modifiedAt, filters.modified)) {
+    return false;
+  }
+
+  if (omittedDimension !== 'resolution' && !resolutionFilterFunction(row.resolution, filters.resolution)) {
+    return false;
+  }
+
+  if (omittedDimension !== 'aspect' && filters.aspect !== null && row.isWrongAspectRatio !== filters.aspect) {
+    return false;
+  }
+
+  if (omittedDimension !== 'crop' && !cropFilterFunction(row.adjustments, filters.crop)) {
+    return false;
+  }
+
+  return true;
+}
+
+function addFilterOptionCounts<TValue>(
+  options: SelectOption<TValue>[],
+  rows: VideoRow[],
+  matchesOption: (row: VideoRow, value: TValue) => boolean
+): SelectOption<TValue>[] {
+  return options.map((option) => ({
+    ...option,
+    label: `${option.label} (${rows.filter((row) => matchesOption(row, option.value)).length.toLocaleString()})`
+  }));
+}
+
+function buildDirectoryFilterOptions(
+  rows: VideoRow[],
+  displayRootPath: string | null
+): SelectOption<DirectoryFilterValue>[] {
+  const normalizedRoot = normalizePathForDisplay(displayRootPath ?? '');
+  const directoryOptions = new Map<string, string>();
+
+  rows.forEach((row) => {
+    const directory = normalizePathForDisplay(row.directory || getDirectoryFromPath(row.path));
+
+    getDirectoryFilterPaths(directory, normalizedRoot).forEach((directoryPath) => {
+      if (!directoryPath || directoryPath === normalizedRoot) {
+        return;
+      }
+
+      directoryOptions.set(directoryPath, getDirectoryFilterLabel(directoryPath, normalizedRoot));
+    });
+  });
+
+  const options = Array.from(directoryOptions.entries())
+    .map(([directoryPath, label]) => ({
+      label,
+      value: encodeDirectoryFilterValue('directory', directoryPath)
+    }))
+    .sort((first, second) => first.label.localeCompare(second.label));
+
+  return normalizedRoot
+    ? [{ label: 'Root', value: encodeDirectoryFilterValue('root', normalizedRoot) }, ...options]
+    : options;
+}
+
+function addDirectoryFilterOptionCounts(
+  options: SelectOption<DirectoryFilterValue>[],
+  rows: VideoRow[],
+  displayRootPath: string | null
+): SelectOption<DirectoryFilterValue>[] {
+  const countByValue = new Map<DirectoryFilterValue, number>();
+  const optionValues = new Set(options.map((option) => option.value));
+  const normalizedRoot = normalizePathForDisplay(displayRootPath ?? '');
+  const rootFilterValue = normalizedRoot ? encodeDirectoryFilterValue('root', normalizedRoot) : null;
+
+  rows.forEach((row) => {
+    const directory = normalizePathForDisplay(row.directory || getDirectoryFromPath(row.path));
+
+    if (rootFilterValue && directory === normalizedRoot) {
+      incrementOptionCount(countByValue, rootFilterValue);
+    }
+
+    getDirectoryFilterPaths(directory, normalizedRoot).forEach((directoryPath) => {
+      const filterValue = encodeDirectoryFilterValue('directory', directoryPath);
+
+      if (optionValues.has(filterValue)) {
+        incrementOptionCount(countByValue, filterValue);
+      }
+    });
+  });
+
+  return options.map((option) => ({
+    ...option,
+    label: `${option.label} (${(countByValue.get(option.value) ?? 0).toLocaleString()})`
+  }));
+}
+
+function incrementOptionCount(counts: Map<DirectoryFilterValue, number>, value: DirectoryFilterValue): void {
+  counts.set(value, (counts.get(value) ?? 0) + 1);
+}
+
+function getDirectoryFilterPaths(directory: string, normalizedRoot: string): string[] {
+  if (!directory) {
+    return [];
+  }
+
+  if (!normalizedRoot || !isSameOrChildPath(directory, normalizedRoot)) {
+    return [directory];
+  }
+
+  if (directory === normalizedRoot) {
+    return [normalizedRoot];
+  }
+
+  const relativeDirectory = directory.slice(normalizedRoot.length + 1);
+  const pathParts = relativeDirectory.split('/').filter(Boolean);
+
+  return pathParts.map((_, index) => `${normalizedRoot}/${pathParts.slice(0, index + 1).join('/')}`);
+}
+
+function getDirectoryFilterLabel(directory: string, normalizedRoot: string): string {
+  if (!normalizedRoot || !isSameOrChildPath(directory, normalizedRoot) || directory === normalizedRoot) {
+    return directory;
+  }
+
+  return directory.slice(normalizedRoot.length + 1);
+}
+
+function encodeDirectoryFilterValue(kind: 'root' | 'directory', directory: string): DirectoryFilterValue {
+  const prefix = kind === 'root' ? DIRECTORY_FILTER_ROOT_PREFIX : DIRECTORY_FILTER_DIRECTORY_PREFIX;
+  return `${prefix}${directory}`;
+}
+
+function parseDirectoryFilterValue(value: DirectoryFilterValue): { kind: 'root' | 'directory'; directory: string } | null {
+  if (value.startsWith(DIRECTORY_FILTER_ROOT_PREFIX)) {
+    return {
+      kind: 'root',
+      directory: value.slice(DIRECTORY_FILTER_ROOT_PREFIX.length)
+    };
+  }
+
+  if (value.startsWith(DIRECTORY_FILTER_DIRECTORY_PREFIX)) {
+    return {
+      kind: 'directory',
+      directory: value.slice(DIRECTORY_FILTER_DIRECTORY_PREFIX.length)
+    };
+  }
+
+  return null;
+}
+
+function directoryMatchesFilterValue(directory: string, filterValue: DirectoryFilterValue): boolean {
+  const parsedFilter = parseDirectoryFilterValue(filterValue);
+
+  if (!parsedFilter) {
+    return false;
+  }
+
+  if (parsedFilter.kind === 'root') {
+    return directory === parsedFilter.directory;
+  }
+
+  return isSameOrChildPath(directory, parsedFilter.directory);
+}
+
+function isSameOrChildPath(path: string, parentPath: string): boolean {
+  return path === parentPath || path.startsWith(`${parentPath}/`);
+}
+
+function buildAvailabilityFilterOptions(rows: VideoRow[]): SelectOption<AvailabilityFilterValue>[] {
+  const availableValues = new Set(rows.map((row) => getAvailabilityFilterValue(row.fileAvailability?.status ?? null)));
+
+  return availabilityFilterOptionOrder.filter((option) => availableValues.has(option.value));
+}
+
+function getAvailabilityFilterValue(value: SavedFileAvailability | null | undefined): AvailabilityFilterValue {
+  return value ?? 'unchecked';
 }
 
 function fileTemplate(row: VideoRow, displayRootPath: string | null): ReactElement {
@@ -836,15 +1276,37 @@ function getFileAvailabilitySeverity(status: SavedFileAvailability): TagSeverity
 }
 
 function sizeTemplate(row: VideoRow): string {
+  const sizeBytes = getBestSizeBytes(row);
+
+  if (sizeBytes !== null) {
+    return formatTableFileSize(sizeBytes);
+  }
+
   if (row.sizeGB !== null && row.sizeGB >= 1) {
-    return `${row.sizeGB} GB`;
+    return `${row.sizeGB.toFixed(2)} GB`;
   }
 
   if (row.sizeMB !== null) {
-    return `${row.sizeMB} MB`;
+    return `${Math.round(row.sizeMB).toLocaleString()} MB`;
   }
 
   return '';
+}
+
+function getBestSizeBytes(row: VideoRow): number | null {
+  const sizeBytes = row.fileSystemSizeBytes ?? row.sizeBytes ?? row.ffprobeFormatSizeBytes;
+
+  return typeof sizeBytes === 'number' && Number.isFinite(sizeBytes) ? sizeBytes : null;
+}
+
+function formatTableFileSize(bytes: number): string {
+  const sizeGB = bytes / 1024 ** 3;
+
+  if (sizeGB >= 1) {
+    return `${sizeGB.toFixed(2)} GB`;
+  }
+
+  return `${Math.round(bytes / 1024 ** 2).toLocaleString()} MB`;
 }
 
 function durationTemplate(row: VideoRow): string {

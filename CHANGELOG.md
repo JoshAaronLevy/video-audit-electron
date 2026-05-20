@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.56] - 2026-05-20
+
+### Changed
+
+- Hardened Stage 8 duplicate scan lifecycle boundaries so duplicate review state clears immediately when cache/data clearing starts and remains explicitly excluded from project snapshots, dirty signatures, and audit-result persistence.
+
 ## [0.50.55] - 2026-05-20
 
 ### Added

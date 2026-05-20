@@ -43,6 +43,7 @@ export interface BuildNamedVideoProjectSnapshotInput extends BuildVideoProjectSn
 }
 
 export function buildVideoProjectSnapshot(input: BuildVideoProjectSnapshotInput): DraftVideoProjectSnapshot {
+  // Duplicate review results and marks are destructive intent, so they remain transient.
   return {
     schemaVersion: PROJECT_SCHEMA_VERSION,
     sources: {
@@ -82,6 +83,7 @@ export function buildNamedVideoProjectSnapshot(input: BuildNamedVideoProjectSnap
 }
 
 export function buildVideoProjectDirtySignature(input: BuildVideoProjectDirtySignatureInput): string {
+  // Duplicate review state is intentionally excluded from dirty signatures.
   return JSON.stringify({
     sources: {
       selectedFolders: [...input.selectedFolders],

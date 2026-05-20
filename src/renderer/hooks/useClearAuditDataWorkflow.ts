@@ -87,6 +87,7 @@ export function useClearAuditDataWorkflow({
     setActiveAction('clearCache');
     setStorageMessage('Clearing cache...');
     setWorkflowMessage(null);
+    resetDuplicateScanWorkflow();
 
     const { savedHistoryMetadata, historyMetadataError } = await archiveCurrentResultToHistory({
       outputFolder

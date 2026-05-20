@@ -6,6 +6,7 @@ const AUDIT_RESULT_STORE_NAME = 'audit-results';
 const AUDIT_HISTORY_STORE_NAME = 'audit-history';
 const CURRENT_AUDIT_KEY = 'current';
 
+// Duplicate review sessions are intentionally not persisted with audit results.
 export interface StoredAuditResultState {
   key: typeof CURRENT_AUDIT_KEY;
   schemaVersion: 1;

@@ -21,7 +21,6 @@ import { useOperationHistory } from './useOperationHistory';
 import { usePathReveal } from './usePathReveal';
 import { usePremiereBridge } from './usePremiereBridge';
 import { usePostConversionWorkflow } from './usePostConversionWorkflow';
-import { useResultFilters } from './useResultFilters';
 import { useSelectedVideoActions } from './useSelectedVideoActions';
 import { useSelectionState } from './useSelectionState';
 import { useSettingsController } from './useSettingsController';
@@ -113,14 +112,12 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     storageSavedAt,
     isStorageLoading,
     lastAuditRequest,
-    showThumbnails,
     loadStoredAuditResultState,
     applyStoredAuditResult,
     finishStorageLoading,
     applyAuditResult,
     hideVideoPathsFromTable,
     restoreRemovedVideos,
-    setShowThumbnails,
     mergeMediaPreviewResult,
     mergeMediaPreviewItemsIntoRows,
     mergePreviewClipResult,
@@ -130,15 +127,6 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     archiveCurrentResultToHistory,
     clearStoredAuditResultState
   } = useAuditResults();
-  const {
-    globalFilter,
-    resultsViewFilter,
-    resultsViewCounts,
-    filteredVideoRows,
-    visibleRowCount,
-    setGlobalFilter,
-    setResultsViewFilter
-  } = useResultFilters();
   const applyRefreshAuditSources = useCallback((selection: {
     selectedFolders: string[];
     selectedFiles: string[];
@@ -600,14 +588,8 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     auditErrors,
     videoRows,
     visibleVideoRows,
-    filteredVideoRows,
     removedVideoCount,
     selectedVideos,
-    globalFilter,
-    resultsViewFilter,
-    resultsViewCounts,
-    visibleRowCount,
-    showThumbnails,
     isAuditActive,
     isDiscoveryActive,
     isFfprobeActive,
@@ -741,9 +723,6 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     removeSelectedVideos,
     restoreRemovedVideos,
     setSelectedVideos,
-    setGlobalFilter,
-    setResultsViewFilter,
-    setShowThumbnails,
     startDiscovery,
     cancelDiscovery,
     startFfprobe,

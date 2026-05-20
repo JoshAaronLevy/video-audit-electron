@@ -22,10 +22,12 @@ import { ThumbnailGenerationDialog } from './components/ThumbnailGenerationDialo
 import { UtilityPanel } from './components/UtilityPanel';
 import { VideoResultsTable } from './components/VideoResultsTable';
 import { FolderTreeSelectorDialog } from './components/source/FolderTreeSelectorDialog';
+import { useResultFilters } from './hooks/useResultFilters';
 import { useVideoAuditAppController } from './hooks/useVideoAuditAppController';
 
 export function App(): ReactElement {
   const controller = useVideoAuditAppController();
+  const resultFilters = useResultFilters();
   const [isSourceSetupVisible, setIsSourceSetupVisible] = useState(false);
   const [isFolderTreeSelectorVisible, setIsFolderTreeSelectorVisible] = useState(false);
   const [isUtilitiesVisible, setIsUtilitiesVisible] = useState(false);
@@ -103,27 +105,27 @@ export function App(): ReactElement {
   } satisfies ComponentProps<typeof AuditProgressPanel>;
 
   const resultsToolbarProps = {
-    globalFilter: controller.globalFilter,
-    resultsViewFilter: controller.resultsViewFilter,
-    resultsViewCounts: controller.resultsViewCounts,
-    visibleRowCount: controller.visibleRowCount,
+    globalFilter: resultFilters.globalFilter,
+    resultsViewFilter: resultFilters.resultsViewFilter,
+    resultsViewCounts: resultFilters.resultsViewCounts,
+    visibleRowCount: resultFilters.visibleRowCount,
     isAuditActive: controller.isAuditActive,
     isStorageLoading: controller.isStorageLoading,
     isCacheClearing: controller.activeAction === 'clearCache',
     canRefreshAudit: controller.canRefreshAudit,
     hasAuditData,
-    onGlobalFilterChange: controller.setGlobalFilter,
-    onResultsViewFilterChange: controller.setResultsViewFilter,
+    onGlobalFilterChange: resultFilters.setGlobalFilter,
+    onResultsViewFilterChange: resultFilters.setResultsViewFilter,
     onRefreshAudit: controller.refreshAudit,
     onClearData: controller.clearAuditData
   } satisfies ComponentProps<typeof ResultsToolbar>;
 
   const videoResultsTableProps = {
-    rows: controller.filteredVideoRows,
+    rows: resultFilters.filteredVideoRows,
     allRows: controller.videoRows,
     selectedVideos: controller.selectedVideos,
-    globalFilter: controller.globalFilter,
-    resultsViewFilter: controller.resultsViewFilter,
+    globalFilter: resultFilters.globalFilter,
+    resultsViewFilter: resultFilters.resultsViewFilter,
     hasSources,
     selectedFolderCount: controller.selectedFolders.length,
     selectedFileCount: controller.selectedFiles.length,

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.31] - 2026-05-20
+
+### Changed
+
+- Trimmed obsolete result filter and thumbnail-toggle fields from the app controller surface while reading top-level result filters directly through the store-backed workspace adapter.
+- Reused video results store selectors for selected row derivation so selected rows and paths no longer duplicate selection logic in the selection adapter.
+
 ## [0.50.30] - 2026-05-20
 
 ### Changed

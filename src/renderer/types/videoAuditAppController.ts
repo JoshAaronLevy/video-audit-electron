@@ -42,7 +42,6 @@ import type { AppSettings } from '../../shared/types/settings';
 import type { FfprobeResult, VideoPreviewFrame, VideoRow } from '../../shared/types/video';
 import type { AuditStartOutcome } from '../hooks/useAuditWorkflow';
 import type { PostConversionDialogMode } from '../hooks/usePostConversionWorkflow';
-import type { ResultsViewCounts, ResultsViewFilter } from './resultsView';
 
 export type ActiveAction =
   | 'folders'
@@ -100,14 +99,8 @@ export interface VideoAuditAppController {
   auditErrors: AuditResult['errors'];
   videoRows: VideoRow[] | null;
   visibleVideoRows: VideoRow[];
-  filteredVideoRows: VideoRow[];
   removedVideoCount: number;
   selectedVideos: VideoRow[];
-  globalFilter: string;
-  resultsViewFilter: ResultsViewFilter;
-  resultsViewCounts: ResultsViewCounts;
-  visibleRowCount: number;
-  showThumbnails: boolean;
   isAuditActive: boolean;
   isDiscoveryActive: boolean;
   isFfprobeActive: boolean;
@@ -246,9 +239,6 @@ export interface VideoAuditAppController {
   removeSelectedVideos: () => Promise<void>;
   restoreRemovedVideos: () => Promise<void>;
   setSelectedVideos: (videos: VideoRow[]) => void;
-  setGlobalFilter: (value: string) => void;
-  setResultsViewFilter: (value: ResultsViewFilter) => void;
-  setShowThumbnails: (value: boolean) => Promise<void>;
   startDiscovery: () => Promise<void>;
   cancelDiscovery: () => Promise<void>;
   startFfprobe: () => Promise<void>;

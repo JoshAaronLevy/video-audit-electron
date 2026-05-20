@@ -46,7 +46,6 @@ export interface UseAuditResultsValue {
   storageSavedAt: string | null;
   isStorageLoading: boolean;
   lastAuditRequest: AuditRequest | null;
-  showThumbnails: boolean;
   loadStoredAuditResultState: () => Promise<StoredAuditResultState | null>;
   applyStoredAuditResult: (storedAudit: StoredAuditResultState) => Promise<void>;
   finishStorageLoading: () => void;
@@ -58,7 +57,6 @@ export interface UseAuditResultsValue {
   persistCurrentResult: (nextResult: AuditResult, thumbnailValue?: boolean) => Promise<void>;
   hideVideoPathsFromTable: (paths: string[]) => Promise<number>;
   restoreRemovedVideos: () => Promise<void>;
-  setShowThumbnails: (value: boolean) => Promise<void>;
   mergeMediaPreviewResult: (result: MediaPreviewResult) => Promise<void>;
   mergeMediaPreviewItemsIntoRows: (items: MediaPreviewResultItem[]) => Promise<void>;
   mergePreviewClipResult: (result: PreviewClipResult) => Promise<void>;
@@ -82,7 +80,6 @@ export function useAuditResults(): UseAuditResultsValue {
   const applyAuditResultToStore = useVideoResultsStore((state) => state.applyAuditResult);
   const clearResultsInStore = useVideoResultsStore((state) => state.clearResults);
   const resetForAuditStartInStore = useVideoResultsStore((state) => state.resetForAuditStart);
-  const setShowThumbnailsInStore = useVideoResultsStore((state) => state.setShowThumbnails);
   const setStorageSavedAtInStore = useVideoResultsStore((state) => state.setStorageSavedAt);
   const hideRowsByPathInStore = useVideoResultsStore((state) => state.hideRowsByPath);
   const restoreRemovedRowsInStore = useVideoResultsStore((state) => state.restoreRemovedRows);
@@ -208,14 +205,6 @@ export function useAuditResults(): UseAuditResultsValue {
     await persistStoreAuditResult();
   }, [persistStoreAuditResult, restoreRemovedRowsInStore]);
 
-  const setShowThumbnails = useCallback(
-    async (value: boolean): Promise<void> => {
-      setShowThumbnailsInStore(value);
-      await persistStoreAuditResult(value);
-    },
-    [persistStoreAuditResult, setShowThumbnailsInStore]
-  );
-
   const mergeMediaPreviewItemsIntoRows = useCallback(
     async (items: MediaPreviewResultItem[]): Promise<void> => {
       if (!useVideoResultsStore.getState().auditResult) {
@@ -310,7 +299,6 @@ export function useAuditResults(): UseAuditResultsValue {
     storageSavedAt,
     isStorageLoading,
     lastAuditRequest,
-    showThumbnails,
     loadStoredAuditResultState,
     applyStoredAuditResult,
     finishStorageLoading,
@@ -318,7 +306,6 @@ export function useAuditResults(): UseAuditResultsValue {
     persistCurrentResult,
     hideVideoPathsFromTable,
     restoreRemovedVideos,
-    setShowThumbnails,
     mergeMediaPreviewResult,
     mergeMediaPreviewItemsIntoRows,
     mergePreviewClipResult,

@@ -214,7 +214,7 @@ export function getDuplicateScanCandidatesForTrash({
     };
   }
 
-  const sourceIds = new Set(scan.groups.map((group) => group.source.id));
+  const sourceIds = new Set(scan.groups.flatMap((group) => [group.source.id, group.source.path]));
 
   if (requestedIds.some((id) => sourceIds.has(id))) {
     return {
@@ -227,6 +227,7 @@ export function getDuplicateScanCandidatesForTrash({
   for (const group of scan.groups) {
     for (const candidate of group.candidates) {
       candidatesById.set(candidate.id, candidate);
+      candidatesById.set(candidate.path, candidate);
     }
   }
 

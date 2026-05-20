@@ -29,6 +29,15 @@ import type {
 import type { PathSelectionResult } from '../shared/types/dialog';
 import type { ToolDiagnosticsResult } from '../shared/types/diagnostics';
 import type {
+  DuplicateScanCancelResponse,
+  DuplicateScanJobSnapshot,
+  DuplicateScanRequest,
+  DuplicateScanResultResponse,
+  DuplicateScanStartResponse,
+  DuplicateScanTrashPlanRequest,
+  DuplicateScanTrashPlanResponse
+} from '../shared/types/duplicateScan';
+import type {
   CreateArchiveOperationPlanRequest,
   CreateArchiveOperationPlanResponse,
   CreateMoveOperationPlanRequest,
@@ -117,6 +126,7 @@ export interface VideoAuditApi {
     chooseVideoFiles: () => Promise<PathSelectionResult>;
     chooseOutputFolder: () => Promise<PathSelectionResult>;
     chooseMoveDestinationFolder: () => Promise<PathSelectionResult>;
+    chooseDuplicateScanFolder: () => Promise<PathSelectionResult>;
   };
   fileOperations: {
     revealFile: (request: RevealKnownPathRequest) => Promise<RevealKnownPathResponse>;
@@ -156,6 +166,13 @@ export interface VideoAuditApi {
     start: (request: FfprobeMetadataRequest) => Promise<FfprobeMetadataStartResponse>;
     cancel: (jobId: string) => Promise<FfprobeMetadataJobSnapshot>;
     onProgress: (callback: (progress: FfprobeMetadataJobSnapshot) => void) => () => void;
+  };
+  duplicateScan: {
+    start: (request: DuplicateScanRequest) => Promise<DuplicateScanStartResponse>;
+    cancel: (jobId: string) => Promise<DuplicateScanCancelResponse>;
+    getResult: (jobId: string) => Promise<DuplicateScanResultResponse>;
+    createTrashPlan: (request: DuplicateScanTrashPlanRequest) => Promise<DuplicateScanTrashPlanResponse>;
+    onProgress: (callback: (progress: DuplicateScanJobSnapshot) => void) => () => void;
   };
   autoFix: {
     start: (request: AutoFixRequest) => Promise<AutoFixStartResponse>;
@@ -236,7 +253,9 @@ export const videoAuditApi: VideoAuditApi = {
     chooseFolders: () => ipcRenderer.invoke(IPC_CHANNELS.dialogChooseFolders),
     chooseVideoFiles: () => ipcRenderer.invoke(IPC_CHANNELS.dialogChooseVideoFiles),
     chooseOutputFolder: () => ipcRenderer.invoke(IPC_CHANNELS.dialogChooseOutputFolder),
-    chooseMoveDestinationFolder: () => ipcRenderer.invoke(IPC_CHANNELS.dialogChooseMoveDestinationFolder)
+    chooseMoveDestinationFolder: () => ipcRenderer.invoke(IPC_CHANNELS.dialogChooseMoveDestinationFolder),
+    chooseDuplicateScanFolder: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.dialogChooseDuplicateScanFolder)
   },
   fileOperations: {
     revealFile: (request: RevealKnownPathRequest) =>
@@ -325,6 +344,25 @@ export const videoAuditApi: VideoAuditApi = {
 
       return () => {
         ipcRenderer.removeListener(IPC_CHANNELS.ffprobeProgress, listener);
+      };
+    }
+  },
+  duplicateScan: {
+    start: (request: DuplicateScanRequest) =>
+      ipcRenderer.invoke(IPC_CHANNELS.duplicateScanStart, request),
+    cancel: (jobId: string) => ipcRenderer.invoke(IPC_CHANNELS.duplicateScanCancel, jobId),
+    getResult: (jobId: string) => ipcRenderer.invoke(IPC_CHANNELS.duplicateScanGetResult, jobId),
+    createTrashPlan: (request: DuplicateScanTrashPlanRequest) =>
+      ipcRenderer.invoke(IPC_CHANNELS.duplicateScanCreateTrashPlan, request),
+    onProgress: (callback: (progress: DuplicateScanJobSnapshot) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, progress: DuplicateScanJobSnapshot): void => {
+        callback(progress);
+      };
+
+      ipcRenderer.on(IPC_CHANNELS.duplicateScanProgress, listener);
+
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.duplicateScanProgress, listener);
       };
     }
   },

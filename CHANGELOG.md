@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.51] - 2026-05-20
+
+### Added
+
+- Added the Stage 3 duplicate scan IPC, preload, renderer client, progress subscription, dedicated folder picker, and Trash plan bridge through the existing Electron-native boundary.
+
 ## [0.50.50] - 2026-05-20
 
 ### Added

@@ -69,6 +69,18 @@ export function registerDialogIpcHandlers(): void {
     }
   );
 
+  ipcMain.handle(
+    IPC_CHANNELS.dialogChooseDuplicateScanFolder,
+    async (event): Promise<PathSelectionResult> => {
+      const browserWindow = BrowserWindow.fromWebContents(event.sender) ?? undefined;
+      const result = await showDialog(browserWindow, {
+        title: 'Choose folder for Duplicate Scan',
+        properties: ['openDirectory']
+      });
+
+      return buildSelectionResult(result.canceled, result.filePaths, 'directory');
+    }
+  );
 }
 
 function showDialog(

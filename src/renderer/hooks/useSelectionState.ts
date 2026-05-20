@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import type { VideoRow } from '../../shared/types/video';
 import { getVideoRowId } from '../helpers/resultFilters';
 import { selectSelectedPaths, selectSelectedRows } from '../stores/videoResultsSelectors';
@@ -12,8 +13,8 @@ export interface UseSelectionStateValue {
 }
 
 export function useSelectionState(): UseSelectionStateValue {
-  const selectedVideos = useVideoResultsStore(selectSelectedRows);
-  const selectedPaths = useVideoResultsStore(selectSelectedPaths);
+  const selectedVideos = useVideoResultsStore(useShallow(selectSelectedRows));
+  const selectedPaths = useVideoResultsStore(useShallow(selectSelectedPaths));
   const setSelectedRowIds = useVideoResultsStore((state) => state.setSelectedRowIds);
 
   const setSelectedVideos = useCallback(

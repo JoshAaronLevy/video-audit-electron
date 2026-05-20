@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.45] - 2026-05-20
+
+### Fixed
+
+- Fixed the startup crash caused by unstable derived Zustand selector snapshots in the results toolbar and selection state.
+
 ## [0.50.44] - 2026-05-20
 
 ### Added

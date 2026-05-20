@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import type { VideoRow } from '../../shared/types/video';
 import {
   selectResultsViewCounts,
@@ -20,8 +21,8 @@ export interface UseResultFiltersValue {
 export function useResultFilters(): UseResultFiltersValue {
   const globalFilter = useVideoResultsStore((state) => state.searchQuery);
   const resultsViewFilter = useVideoResultsStore((state) => state.activeViewFilter);
-  const resultsViewCounts = useVideoResultsStore(selectResultsViewCounts);
-  const filteredVideoRows = useVideoResultsStore(selectVisibleRowsForResultView);
+  const resultsViewCounts = useVideoResultsStore(useShallow(selectResultsViewCounts));
+  const filteredVideoRows = useVideoResultsStore(useShallow(selectVisibleRowsForResultView));
   const visibleRowCount = useVideoResultsStore(selectVisibleRowCount);
   const setGlobalFilter = useVideoResultsStore((state) => state.setSearchQuery);
   const setResultsViewFilter = useVideoResultsStore((state) => state.setActiveViewFilter);

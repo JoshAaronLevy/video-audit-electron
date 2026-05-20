@@ -90,8 +90,6 @@ export function AppHeader({
           loading={isProjectSaving}
           onClick={onSaveProject}
         />
-        <Tag value={getPremiereLabel(premiereStatus)} severity={getPremiereSeverity(premiereStatus)} />
-        <Tag value={`v${appInfo?.version ?? '...'}`} severity="info" />
         <Button label="History" icon="pi pi-history" severity="secondary" onClick={onOpenOperationHistory} />
         <Button label="Tools" icon="pi pi-wrench" severity="info" onClick={onOpenUtilities} />
         <Button label="Settings" icon="pi pi-cog" severity="secondary" onClick={onOpenSettings} />

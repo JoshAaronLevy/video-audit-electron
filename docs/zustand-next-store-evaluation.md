@@ -27,6 +27,6 @@ Adding a second store without a concrete coordination problem would make Zustand
 - Keep counts and capabilities derived from state, not stored as mutable state.
 - Future stores should be introduced only after naming the concrete coordination problem, owner boundary, non-goals, and persistence boundary.
 
-## Current Next Step
+## Related State Boundary Docs
 
-Stage 11 should document the final renderer state architecture now that the results workspace migration is stable. That documentation should reference this decision: results are store-owned; the next store remains optional and must meet the same decision criteria.
+`docs/renderer-state-architecture.md` documents the current Zustand boundary: results are store-owned; the next store remains optional and must meet the same decision criteria.

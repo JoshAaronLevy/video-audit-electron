@@ -1,6 +1,6 @@
 {
   "name": "collie-video",
-  "version": "0.50.32",
+  "version": "0.50.33",
   "description": "Private macOS Electron version of Collie Video.",
   "private": true,
   "author": "Josh Levy",

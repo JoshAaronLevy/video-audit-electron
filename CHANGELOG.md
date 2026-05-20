@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.33] - 2026-05-20
+
+### Added
+
+- Added renderer state architecture documentation for the focused video results Zustand store boundary, selector-derived row/count semantics, selection IDs, persistence hydration, workflow update paths, and future file-availability integration.
+
+### Changed
+
+- Updated the renderer architecture guide to reflect the results store as the canonical result/table state owner while keeping workflow execution and durable persistence outside Zustand.
+
 ## [0.50.32] - 2026-05-20
 
 ### Added

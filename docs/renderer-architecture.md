@@ -7,6 +7,7 @@ This document describes the renderer architecture after the staged controller re
 - `src/renderer/App.tsx` composes the visible application shell and passes typed prop groups into UI components.
 - `src/renderer/hooks/useVideoAuditAppController.ts` composes focused renderer hooks and exposes the compatibility controller shape consumed by `App.tsx`.
 - `src/renderer/hooks/*` own workflow state, progress state, dialog state, and cross-workflow callbacks.
+- `src/renderer/stores/useVideoResultsStore.ts` owns focused video result/table workspace state. See `docs/renderer-state-architecture.md` for the Zustand boundary.
 - `src/renderer/api/*Client.ts` files are the only renderer modules that should call `window.videoAudit.*` directly.
 - `src/renderer/storage/auditResultStorage.ts` is the renderer IndexedDB boundary for saved audit rows and audit-history metadata.
 - `src/shared` defines cross-process types used by renderer, preload, and main.
@@ -44,9 +45,9 @@ These clients should stay small. They should not own workflow decisions, UI mess
 - `useAuditSourceController` owns audit options plus source-selection reset coordination.
 - `useSourceSelection` owns selected folders, selected files, output folder, folder-tree source metadata, picker calls, and source messages.
 - `useInitialVideoAuditState` restores settings, source state, saved audit rows, saved request options, and folder-tree source metadata during startup.
-- `useAuditResults` owns audit result rows, summary, errors, visible/hidden row derivation, thumbnail display state, IndexedDB persistence, row hiding, row restoring, media-preview row merging, and audit-history archiving.
-- `useResultFilters` owns global result search, view filter, visible counts, and filtered rows.
-- `useSelectionState` owns selected table rows and selected path derivation.
+- `useAuditResults` adapts workflow hooks to the results store, IndexedDB persistence, storage messages, row hiding/restoring, media-preview row merges, and audit-history archiving.
+- `useResultFilters` reads top-level result search, view filter, visible counts, and filtered rows from results store selectors.
+- `useSelectionState` adapts selected row objects and selected paths from store-owned selected row IDs.
 - `useWorkflowBusyState` derives active workflow booleans and blocking-work state from active action and job progress.
 - `useAuditWorkflow` owns audit start, refresh, cancel, progress subscription state, result retrieval, and audit-source replay after refresh.
 - `useDiscoveryWorkflow` owns discovery start/cancel, progress subscription state, and discovered paths.
@@ -93,37 +94,57 @@ Long-running operations follow a common shape:
 
 ## Result Row State
 
-`useAuditResults` owns the canonical audit result and row list:
+The focused Zustand results workspace store owns the canonical audit result and row list:
 
 - `auditResult`
-- `auditSummary`
-- `auditErrors`
-- `videoRows`
-- `visibleVideoRows`
-- `removedVideoCount`
+- `rows`
+- `summary`
+- `errors`
 - `lastAuditRequest`
+- `selectedRowIds`
+- `searchQuery`
+- `activeViewFilter`
 - `showThumbnails`
-- storage loading and saved-at messages
+- `storageSavedAt`
+- `workspaceMeta`
 
-Other workflows do not mutate row arrays directly. They call callbacks supplied by the controller, such as `applyAuditResult`, `hideVideoPathsFromTable`, `mergeMediaPreviewResult`, `mergeMediaPreviewItemsIntoRows`, and `mergePreviewClipResult`.
+`useAuditResults` is the adapter around that store. It exposes compatibility callbacks to workflow hooks, handles IndexedDB persistence and storage messages, and archives audit-history metadata. Other workflows do not mutate row arrays directly. They call callbacks supplied by the controller, such as `applyAuditResult`, `hideVideoPathsFromTable`, `mergeMediaPreviewResult`, `mergeMediaPreviewItemsIntoRows`, and `mergePreviewClipResult`.
+
+Derived rows and counts come from `src/renderer/stores/videoResultsSelectors.ts`; dynamic counts are not stored as mutable state.
 
 ## Selected Row State
 
-`useSelectionState` owns table selection:
+The results store stores selected row IDs, not selected row objects. Selection identity uses `row.id ?? row.path`.
+
+`useSelectionState` derives:
 
 - `selectedVideos`
 - `setSelectedVideos`
-- `clearSelectedVideos`
 - `selectedVideoCount`
 - `selectedPaths`
 
-`useAuditResults` clears selection when new audit results are applied and removes hidden rows from the current selection when rows are hidden. `SelectionActionBar` and row workflows consume selection through the controller.
+The store clears selection when new audit results are applied and prunes selected IDs when rows are hidden or no longer active. `SelectionActionBar` and row workflows consume selected row objects through the controller adapter.
 
 ## Settings State
 
 `useSettingsController` owns the loaded `AppSettings`, settings messages, and settings persistence. `useAuditSourceController` coordinates settings reset with audit option/source state so reset behavior updates the renderer state intentionally. `useInitialVideoAuditState` uses loaded settings and any saved audit request to restore startup state.
 
 Settings live in the Electron main process. Renderer settings changes must go through `settingsClient`.
+
+## Result Search, Filters, And Counts
+
+Top-level result search and view filtering are store-owned:
+
+```txt
+rows
+-> active rows where visible !== false
+-> searched rows
+-> search-aware top-level counts
+-> visible rows for the active result filter
+-> table rows
+```
+
+Count labels describe the searched active-row universe before the selected top-level filter is applied. PrimeReact column filters remain local to `VideoResultsTable` and are not included in top-level count labels.
 
 ## Audit Result Persistence
 
@@ -135,23 +156,40 @@ Audit result persistence lives in `src/renderer/storage/auditResultStorage.ts` u
 - `loadStoredAuditResult` is used during startup by `useInitialVideoAuditState`.
 - `clearStoredAuditResult` removes the current saved audit during cache clearing.
 
-The saved request is important because refresh replays the last request rather than reconstructing it from visible UI state.
+The saved request is important because refresh replays the last request rather than reconstructing it from visible UI state. Zustand reflects hydrated state; it is not the primary durable persistence layer.
 
 ## Row Hiding and Removal
 
-Rows are not removed from the underlying audit result when users remove selected rows from the table or when workflows hide completed rows. `useAuditResults.hideVideoPathsFromTable` marks matching rows with `visible: false`, updates `videoRows`, removes those rows from current selection, persists the updated result, and returns the hidden count.
+Rows are not removed from the underlying audit result when users remove selected rows from the table or when workflows hide completed rows. The results store marks matching rows with `visible: false`, updates the current audit result rows, prunes selected IDs, and returns the hidden count. `useAuditResults.hideVideoPathsFromTable` persists the updated result when existing behavior requires it.
 
-`visibleVideoRows` filters out rows where `visible === false`. `restoreRemovedVideos` marks all rows visible again and persists the result.
+Selectors filter out rows where `visible === false`. `restoreRemovedVideos` marks all rows visible again and persists the result.
 
 ## Media Preview Row Merging
 
-Media preview data is merged into existing rows through `useAuditResults`:
+Media preview data is merged into existing rows through store actions called by `useAuditResults`:
 
 - `mergeMediaPreviewResult` applies generated thumbnail metadata from a completed thumbnail job.
 - `mergeMediaPreviewItemsIntoRows` applies fresh thumbnail frame metadata for one or more rows.
 - `mergePreviewClipResult` applies preview clip metadata.
 
 The merge helpers live in `src/renderer/helpers/mediaPreviewRows.ts`; workflow hooks pass result data to `useAuditResults` instead of replacing the full audit result shape themselves.
+
+## Zustand Store Boundary
+
+Use Zustand for focused renderer workspace state only when there are multiple readers/writers, important derived selectors, stale object-reference risks, or several workflows needing one canonical mutation path.
+
+Do not put these in Zustand:
+
+- main-process filesystem logic
+- ffmpeg/ffprobe execution
+- native dialogs
+- raw IPC subscriptions
+- app settings persistence
+- workflow progress snapshots
+- operation-history persistence
+- one-off dialog visibility
+
+`docs/zustand-next-store-evaluation.md` records why no second store is currently warranted. `docs/renderer-state-architecture.md` is the detailed state-boundary reference for future work.
 
 ## Auto-Fix, Auto-Crop, and Post-Conversion Replacement
 
@@ -189,10 +227,10 @@ A future missing-file or file-availability check should be added without changin
 
 Likely integration points:
 
-- `useAuditResults`: store or merge availability state into rows, clear stale availability during new audit results, and persist any row-level availability state only if that becomes a product requirement.
-- `useSelectionState`: optionally drop or mark selected rows that are no longer eligible after availability validation.
+- main process validates files and returns typed availability/status results through preload and renderer API clients.
+- results store merges availability/status into row metadata if the field belongs to the results workspace.
+- selectors derive capabilities, disabled reasons, and row eligibility from row data.
 - `usePathReveal` or `fileOperationsClient.validateKnownPaths`: reuse the existing validated-path boundary instead of adding renderer filesystem access.
-- `workflowCapabilities`: disable or explain actions that cannot run against missing/unavailable files.
-- `VideoResultsTable`: render missing-file status, warnings, filters, or action disabled reasons from row state.
+- `VideoResultsTable`: renders missing-file status, warnings, filters, or action disabled reasons from row state.
 
 Do not implement file-availability validation as renderer filesystem checks. The renderer should call typed preload APIs, and the main process should own any real filesystem validation.

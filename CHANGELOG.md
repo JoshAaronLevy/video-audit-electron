@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.49] - 2026-05-20
+
+### Added
+
+- Added Stage 1 duplicate scan shared types and exact-filename matching semantics for the future Electron-native duplicate candidate review workflow.
+
 ## [0.50.48] - 2026-05-20
 
 ### Added

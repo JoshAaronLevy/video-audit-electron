@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.32] - 2026-05-20
+
+### Added
+
+- Added the Stage 10 Zustand next-store evaluation, documenting why source, app-shell, settings, operation-history, and workflow busy state should remain in focused hooks or local component state for now.
+
 ## [0.50.31] - 2026-05-20
 
 ### Changed

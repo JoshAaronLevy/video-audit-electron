@@ -99,7 +99,6 @@ export function useVideoAuditAppController(): VideoAuditAppController {
   const {
     selectedVideos,
     setSelectedVideos,
-    clearSelectedVideos,
     selectedVideoCount,
     selectedPaths
   } = useSelectionState();
@@ -130,7 +129,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     setStorageMessage,
     archiveCurrentResultToHistory,
     clearStoredAuditResultState
-  } = useAuditResults({ setSelectedVideos, clearSelectedVideos });
+  } = useAuditResults();
   const {
     globalFilter,
     resultsViewFilter,

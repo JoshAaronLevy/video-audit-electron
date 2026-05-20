@@ -1,23 +1,5 @@
 # Project Management And Save Cache Plan
 
-## Clarifying Questions
-
-1. Should saved projects live only inside the app support folder, or would you prefer user-visible project files later?
-
-   **Answer:** Let's go with internal app-managed projects under Electron `userData`, with export/import left for a later pass.
-
-2. After a project has been saved once, should Collie Video autosave meaningful changes, or should the prominent Save button be the only thing that updates the named project?
-
-   **Answer:** Let's go with explicit Save for confidence, plus a conservative autosave only for already-named projects after important mutations like hiding rows, generating thumbnails, or changing source/output settings.
-
-3. When opening a project and choosing `Scan Again`, should the app immediately run the saved request, or should it restore the source/output/options first and leave the user one click away from starting the scan?
-
-   **Answer:** Show a confirmation summary and then run the saved `AuditRequest` exactly, because that makes `Scan Again` meaningfully different from `Restore`.
-
-4. Should `Restore` bring back selected table rows, search, and filters exactly, or should it restore the saved data while clearing active selection?
-
-   **Answer:** Restore search/filter/show-thumbnails state, but clear selected rows so destructive actions never start with a stale selection.
-
 ## Goal
 
 Add project saving and project restore to Collie Video so a user can save the current workspace at any time, reopen saved projects from a prominent sidebar, delete projects with confirmation, and choose whether to restore the saved workspace or scan the saved sources again.
@@ -29,11 +11,14 @@ The key product behavior:
 - A prominent Save control is available in the main workspace.
 - First save prompts for a project name.
 - Later saves update the current project.
+- Named projects are internal app-managed projects under Electron `userData`. Export/import can be added later.
 - A project sidebar shows saved projects with source, output, scan, row, and saved-state details.
 - A project can be opened in either `Restore` or `Scan Again` mode.
 - `Restore` loads the saved state, including hidden/removed rows.
-- `Scan Again` reruns the saved scan request against the saved source/options.
+- `Restore` brings back search/filter/show-thumbnails state, but clears active table selection.
+- `Scan Again` shows a confirmation summary and then reruns the saved `AuditRequest` exactly.
 - Deleting a project prompts before removing it.
+- Explicit Save remains prominent, and already-named projects can conservatively autosave after important mutations.
 
 Example restore rule:
 
@@ -66,6 +51,8 @@ Use two related storage layers:
 2. Named project persistence
 
    Add main-process JSON project files under Electron `userData`. This should become the durable source of truth for named projects.
+
+   Keep named projects internal to the app for the first implementation. Do not add user-visible project files or file associations yet. Later, add `Export Project` / `Import Project` if backup or portability becomes important.
 
 Recommended app support layout:
 
@@ -153,7 +140,6 @@ export interface VideoProject {
     searchQuery: string;
     activeViewFilter: string;
     showThumbnails: boolean;
-    selectedRowIds: string[];
   };
 
   settingsSnapshot: Pick<
@@ -180,7 +166,8 @@ Important row behavior:
 - Preserve `VideoRow.visible`.
 - Do not create a separate `removedRowIds` list unless it becomes necessary for migration. The current row model already represents hidden rows with `visible: false`.
 - Use selectors such as `getActiveRows` to derive `visibleRowCount`.
-- Clear stale row selection on restore unless the clarifying answer says to restore it.
+- Do not persist active table selection in the project snapshot.
+- Clear table selection on restore so destructive actions never begin from stale selected rows.
 
 ## Main Process Project Service
 
@@ -309,7 +296,7 @@ Inputs should come from:
 - source selection state from `useAuditSourceController`
 - `auditOptions`
 - `lastAuditRequest`
-- `auditResult`, `rows`, `searchQuery`, `activeViewFilter`, `showThumbnails`, and selected row IDs from `useVideoResultsStore`
+- `auditResult`, `rows`, `searchQuery`, `activeViewFilter`, and `showThumbnails` from `useVideoResultsStore`
 - useful settings fields from `useSettingsController`
 - app version from `appInfo`
 
@@ -355,6 +342,8 @@ Subsequent save:
 - Show saved status.
 
 Do not block saving just because no audit has been run. A project with only selected sources/options/output folder is still useful.
+
+Already-named projects should also support conservative autosave after important mutations, but the explicit Save button remains the primary confidence affordance.
 
 ## Project Sidebar UX
 
@@ -424,7 +413,7 @@ Restore:
 3. Apply saved audit options from the saved request.
 4. Hydrate the saved `AuditResult` into `useVideoResultsStore`.
 5. Restore search/filter/show-thumbnails state.
-6. Clear selected rows by default.
+6. Clear selected rows.
 7. Set active project metadata.
 8. Close the sidebar/dialog.
 
@@ -433,9 +422,10 @@ Scan Again:
 1. Load the full project.
 2. Apply saved source selection state.
 3. Apply the saved audit options/request.
-4. Start a new audit using the saved `AuditRequest` exactly.
-5. Do not reuse old rows once the scan starts.
-6. Save the new audit result back into the active project only after the scan completes and either autosave is enabled or the user presses Save.
+4. Show a confirmation summary of the saved request, including sources, output folder, and audit options.
+5. Start a new audit using the saved `AuditRequest` exactly after confirmation.
+6. Do not reuse old rows once the scan starts.
+7. Save the new audit result back into the active project after the scan completes through conservative autosave, or immediately if the user presses Save.
 
 If a project has no saved `AuditRequest`, disable `Scan Again` and explain that the project can be restored but not rescanned yet.
 
@@ -470,7 +460,7 @@ Meaningful changes:
 - audit completed
 - rows hidden/restored
 - thumbnail/preview metadata merged
-- search/filter/show-thumbnails changed, if the clarifying answer says UI state should be part of restore
+- search/filter/show-thumbnails changed
 
 Do not mark dirty for:
 
@@ -481,17 +471,11 @@ Do not mark dirty for:
 - active hover/preview frame fetch state
 - Premiere status refresh
 
-Implementation options:
+Implementation rule:
 
-1. Manual save only
+Use explicit Save for user confidence, plus conservative autosave for already-named active projects. Debounce autosaves after durable state changes and avoid saving during every progress tick.
 
-   Set dirty state on meaningful changes and let the Save button persist it.
-
-2. Manual save plus conservative autosave
-
-   Manual save remains prominent. For an already-named active project, debounce saves after durable state changes. Avoid saving during every progress tick.
-
-My recommendation is option 2, but only after the explicit Save path works.
+Autosave should run after important mutations such as hiding/restoring rows, generating thumbnails or preview clips, changing source/output settings, changing audit options, or receiving a completed audit result. First save for an unnamed project must still prompt for a project name.
 
 ## File Availability Validation
 
@@ -633,16 +617,16 @@ Acceptance criteria:
 - Deleted projects disappear from the sidebar.
 - Source/output media files are not deleted.
 
-### Stage 9: Optional Autosave And Dirty State
+### Stage 9: Autosave And Dirty State
 
 - Add dirty tracking.
-- Add conservative autosave for already-named projects if desired.
+- Add conservative autosave for already-named projects.
 - Debounce saves and skip progress-only updates.
 
 Acceptance criteria:
 
 - Header status accurately reflects saved/unsaved/saving/failed state.
-- Autosave, if enabled, never writes on every progress tick.
+- Autosave never writes on every progress tick.
 - Explicit Save remains available.
 
 ### Stage 10: Optional File Availability Validation

@@ -19,10 +19,12 @@ interface DuplicateReviewWorkspaceProps {
   markedCandidateIds: string[];
   markedCount: number;
   markedSizeBytes: number;
+  trashPlanError: string | null;
+  isPreparingTrashPlan: boolean;
   onMarkCandidate: (candidateId: string, marked: boolean) => void;
   onClearMarks: () => void;
   onBackToResults: () => void;
-  onReviewMarkedCandidates?: () => void;
+  onReviewMarkedCandidates: () => void | Promise<void>;
 }
 
 type TagSeverity = 'success' | 'info' | 'warning' | 'danger' | 'secondary';
@@ -32,6 +34,8 @@ export function DuplicateReviewWorkspace({
   markedCandidateIds,
   markedCount,
   markedSizeBytes,
+  trashPlanError,
+  isPreparingTrashPlan,
   onMarkCandidate,
   onClearMarks,
   onBackToResults,
@@ -71,6 +75,7 @@ export function DuplicateReviewWorkspace({
         severity="info"
         text="Review possible duplicates by source video. Project sources are protected; only scanned duplicate candidates can be marked for Trash."
       />
+      {trashPlanError ? <Message severity="error" text={trashPlanError} /> : null}
 
       <DataTable
         value={result.groups}
@@ -150,20 +155,19 @@ export function DuplicateReviewWorkspace({
             icon="pi pi-eraser"
             severity="secondary"
             outlined
-            disabled={markedCount === 0}
+            disabled={markedCount === 0 || isPreparingTrashPlan}
             onClick={onClearMarks}
           />
           <Button
             label="Review & Move to Trash"
             icon="pi pi-trash"
             severity="danger"
-            disabled={markedCount === 0 || !onReviewMarkedCandidates}
-            title={
-              onReviewMarkedCandidates
-                ? 'Review marked duplicate candidates before moving them to Trash.'
-                : 'Final duplicate Trash confirmation is planned for the next stage.'
-            }
-            onClick={onReviewMarkedCandidates}
+            loading={isPreparingTrashPlan}
+            disabled={markedCount === 0}
+            title="Review marked duplicate candidates before moving them to Trash."
+            onClick={() => {
+              void onReviewMarkedCandidates();
+            }}
           />
         </div>
       </div>

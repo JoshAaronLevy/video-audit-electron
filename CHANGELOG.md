@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.55] - 2026-05-20
+
+### Added
+
+- Added the Stage 7 duplicate candidate Move to Trash review flow with grouped source/candidate confirmation, typed confirmation support, duplicate-specific moved/skipped/failed results, and candidate status updates after execution.
+
 ## [0.50.54] - 2026-05-20
 
 ### Added

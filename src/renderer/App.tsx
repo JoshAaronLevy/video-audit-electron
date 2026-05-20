@@ -11,6 +11,8 @@ import { DiagnosticsDialog } from './components/DiagnosticsDialog';
 import { DialogHeader } from './components/DialogChrome';
 import { DuplicateScanDialog } from './components/DuplicateScanDialog';
 import { DuplicateReviewWorkspace } from './components/DuplicateReviewWorkspace';
+import { DuplicateTrashConfirmDialog } from './components/DuplicateTrashConfirmDialog';
+import { DuplicateTrashResultDialog } from './components/DuplicateTrashResultDialog';
 import { FileOperationConfirmDialog } from './components/FileOperationConfirmDialog';
 import { FileOperationResultDialog } from './components/FileOperationResultDialog';
 import { MigrationResultDialog } from './components/MigrationResultDialog';
@@ -590,6 +592,24 @@ export function App(): ReactElement {
     onHide: controller.closeDuplicateScanDialog
   } satisfies ComponentProps<typeof DuplicateScanDialog>;
 
+  const duplicateTrashConfirmDialogProps = {
+    visible: controller.isDuplicateTrashConfirmDialogVisible,
+    result: controller.duplicateScanResult,
+    markedCandidateIds: controller.duplicateMarkedCandidateIds,
+    plan: controller.duplicateTrashPlan,
+    error: controller.duplicateTrashPlanError,
+    isSubmitting: controller.isDuplicateTrashExecuting,
+    onConfirm: controller.executeDuplicateTrashPlan,
+    onHide: controller.closeDuplicateTrashDialog
+  } satisfies ComponentProps<typeof DuplicateTrashConfirmDialog>;
+
+  const duplicateTrashResultDialogProps = {
+    visible: controller.isDuplicateTrashResultDialogVisible,
+    result: controller.duplicateTrashResult,
+    error: controller.duplicateTrashResultError,
+    onHide: controller.closeDuplicateTrashResultDialog
+  } satisfies ComponentProps<typeof DuplicateTrashResultDialog>;
+
   const migrationResultDialogProps = {
     visible: controller.isMigrationResultDialogVisible,
     result: controller.migrationResult,
@@ -726,9 +746,12 @@ export function App(): ReactElement {
             markedCandidateIds={controller.duplicateMarkedCandidateIds}
             markedCount={controller.duplicateMarkedCandidateCount}
             markedSizeBytes={controller.duplicateMarkedCandidateSizeBytes}
+            trashPlanError={controller.duplicateTrashPlanError}
+            isPreparingTrashPlan={controller.isDuplicateTrashPlanning}
             onMarkCandidate={controller.markDuplicateCandidate}
             onClearMarks={controller.clearDuplicateCandidateMarks}
             onBackToResults={() => setWorkspaceMode('results')}
+            onReviewMarkedCandidates={controller.createDuplicateTrashPlan}
           />
         ) : (
           <section className="results-workspace" aria-label="Results workspace">
@@ -787,6 +810,10 @@ export function App(): ReactElement {
       <MigrationScanDialog {...migrationScanDialogProps} />
 
       <DuplicateScanDialog {...duplicateScanDialogProps} />
+
+      <DuplicateTrashConfirmDialog {...duplicateTrashConfirmDialogProps} />
+
+      <DuplicateTrashResultDialog {...duplicateTrashResultDialogProps} />
 
       <MigrationResultDialog {...migrationResultDialogProps} />
 

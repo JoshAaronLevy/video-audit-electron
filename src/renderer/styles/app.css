@@ -2390,6 +2390,14 @@ select {
   width: min(780px, calc(100vw - 32px));
 }
 
+.duplicate-trash-dialog {
+  width: min(980px, calc(100vw - 32px));
+}
+
+.duplicate-trash-result-dialog {
+  width: min(760px, calc(100vw - 32px));
+}
+
 .settings-dialog {
   width: min(860px, calc(100vw - 32px));
 }
@@ -2407,6 +2415,8 @@ select {
 .utility-dialog .p-dialog-content,
 .migration-dialog .p-dialog-content,
 .duplicate-scan-dialog .p-dialog-content,
+.duplicate-trash-dialog .p-dialog-content,
+.duplicate-trash-result-dialog .p-dialog-content,
 .migration-result-dialog .p-dialog-content,
 .post-conversion-dialog .p-dialog-content,
 .file-operation-dialog .p-dialog-content,
@@ -2437,6 +2447,10 @@ select {
 .duplicate-scan-dialog-content,
 .duplicate-scan-progress,
 .duplicate-scan-no-results,
+.duplicate-trash-content,
+.duplicate-trash-result-content,
+.duplicate-trash-group-list,
+.duplicate-trash-attention-list,
 .migration-failed-items,
 .file-operation-content,
 .file-operation-path-panel,
@@ -2474,6 +2488,7 @@ select {
 .migration-summary-grid,
 .duplicate-scan-summary-grid,
 .duplicate-review-summary-grid,
+.duplicate-trash-summary-grid,
 .duplicate-source-metadata-grid,
 .replacement-summary-grid,
 .file-operation-summary-grid {
@@ -2496,8 +2511,10 @@ select {
 .migration-result-path-row,
 .duplicate-scan-summary-grid > div,
 .duplicate-review-summary-grid > div,
+.duplicate-trash-summary-grid > div,
 .duplicate-source-metadata-grid > div,
 .duplicate-scan-path-panel,
+.duplicate-trash-path-panel,
 .file-operation-summary-grid > div,
 .file-operation-path-panel,
 .typed-confirmation-row,
@@ -2526,8 +2543,10 @@ select {
 .migration-result-path-row span,
 .duplicate-scan-summary-grid span,
 .duplicate-review-summary-grid span,
+.duplicate-trash-summary-grid span,
 .duplicate-source-metadata-grid span,
 .duplicate-scan-path-panel span,
+.duplicate-trash-path-panel span,
 .file-operation-path-panel span,
 .file-operation-summary-grid span,
 .typed-confirmation-row span,
@@ -2547,7 +2566,9 @@ select {
 .migration-summary-grid strong,
 .duplicate-scan-summary-grid strong,
 .duplicate-review-summary-grid strong,
+.duplicate-trash-summary-grid strong,
 .duplicate-source-metadata-grid strong,
+.duplicate-trash-path-panel strong,
 .file-operation-path-panel strong,
 .file-operation-summary-grid strong,
 .replacement-summary-grid strong,
@@ -2565,6 +2586,7 @@ select {
 .migration-result-path-row code,
 .duplicate-scan-path-panel code,
 .duplicate-source-metadata-grid code,
+.duplicate-trash-path-panel code,
 .file-operation-path-panel code,
 .replacement-review-list code {
   min-width: 0;
@@ -3062,6 +3084,10 @@ select {
   grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
+.duplicate-trash-summary-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
 .duplicate-groups-table .p-datatable-wrapper,
 .duplicate-candidates-table .p-datatable-wrapper {
   border: 1px solid var(--border);
@@ -3202,6 +3228,91 @@ select {
   flex-wrap: wrap;
   gap: 0.5rem;
   justify-content: flex-end;
+}
+
+.duplicate-trash-source-group,
+.duplicate-trash-attention-list li {
+  display: grid;
+  gap: 0.65rem;
+  min-width: 0;
+  padding: 0.75rem;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.duplicate-trash-source-heading {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.duplicate-trash-source-heading > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.duplicate-trash-source-heading strong,
+.duplicate-trash-candidate-list strong,
+.duplicate-trash-attention-list strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 0.9rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.duplicate-trash-source-heading code,
+.duplicate-trash-candidate-list code {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted-strong);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.duplicate-trash-candidate-list,
+.duplicate-trash-attention-list ul {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.duplicate-trash-candidate-list li {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.65rem;
+  background: var(--surface);
+  border: 1px solid var(--border-muted);
+  border-radius: var(--radius-md);
+}
+
+.duplicate-trash-candidate-list li > div,
+.duplicate-trash-attention-list li > div {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  min-width: 0;
+}
+
+.duplicate-trash-candidate-list small,
+.duplicate-trash-attention-list small {
+  color: var(--text-muted-strong);
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.duplicate-trash-attention-list h3 {
+  margin: 0;
+  color: var(--text-heading);
+  font-size: 0.95rem;
 }
 
 .migration-notes {
@@ -3531,6 +3642,7 @@ select {
   .migration-summary-grid,
   .duplicate-scan-summary-grid,
   .duplicate-review-summary-grid,
+  .duplicate-trash-summary-grid,
   .duplicate-source-metadata-grid,
   .migration-path-grid,
   .migration-folder-row,

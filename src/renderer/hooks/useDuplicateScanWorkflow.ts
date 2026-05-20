@@ -332,7 +332,7 @@ export function useDuplicateScanWorkflow({
   }, []);
 
   const markDuplicateCandidate = useCallback((candidateId: string, marked: boolean): void => {
-    if (!duplicateScanResult || !hasDuplicateCandidate(duplicateScanResult, candidateId)) {
+    if (!duplicateScanResult || !hasMarkableDuplicateCandidate(duplicateScanResult, candidateId)) {
       return;
     }
 
@@ -350,7 +350,7 @@ export function useDuplicateScanWorkflow({
   }, [duplicateScanResult]);
 
   const toggleDuplicateCandidateMark = useCallback((candidateId: string): void => {
-    if (!duplicateScanResult || !hasDuplicateCandidate(duplicateScanResult, candidateId)) {
+    if (!duplicateScanResult || !hasMarkableDuplicateCandidate(duplicateScanResult, candidateId)) {
       return;
     }
 
@@ -422,7 +422,9 @@ export function useDuplicateScanWorkflow({
     }
 
     setIsDuplicateTrashConfirmDialogVisible(false);
+    setDuplicateTrashPlan(null);
     setDuplicateTrashPlanError(null);
+    setDuplicateScanResult((result) => (result ? clearDuplicateCandidateTrashPlan(result) : result));
   }, [busyState.activeAction]);
 
   const executeDuplicateTrashPlan = useCallback(async (typedConfirmation: string | null): Promise<void> => {
@@ -555,9 +557,13 @@ function isDuplicateScanActive(
   return activeAction === 'duplicateScan' || progress?.status === 'starting' || progress?.status === 'running';
 }
 
-function hasDuplicateCandidate(result: DuplicateScanResult, candidateId: string): boolean {
+function hasMarkableDuplicateCandidate(result: DuplicateScanResult, candidateId: string): boolean {
   return result.groups.some((group) =>
-    group.candidates.some((candidate) => candidate.id === candidateId || candidate.path === candidateId)
+    group.candidates.some(
+      (candidate) =>
+        (candidate.id === candidateId || candidate.path === candidateId) &&
+        candidate.trashStatus !== 'moved_to_trash'
+    )
   );
 }
 
@@ -612,6 +618,24 @@ function applyDuplicateCandidateTrashPlan(
           ? {
               ...candidate,
               trashStatus: 'planned',
+              trashError: null
+            }
+          : candidate
+      )
+    }))
+  };
+}
+
+function clearDuplicateCandidateTrashPlan(result: DuplicateScanResult): DuplicateScanResult {
+  return {
+    ...result,
+    groups: result.groups.map((group) => ({
+      ...group,
+      candidates: group.candidates.map((candidate) =>
+        candidate.trashStatus === 'planned'
+          ? {
+              ...candidate,
+              trashStatus: 'unmarked',
               trashError: null
             }
           : candidate

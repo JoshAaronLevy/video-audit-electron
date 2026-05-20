@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.47] - 2026-05-20
+
+### Added
+
+- Added staged implementation prompts for the project file availability plan.
+
 ## [0.50.46] - 2026-05-20
 
 ### Added

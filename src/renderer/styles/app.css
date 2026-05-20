@@ -190,6 +190,10 @@ select {
   color: var(--accent-strong);
 }
 
+.project-save-status.is-unsaved {
+  color: var(--warning-text);
+}
+
 .project-save-status.is-error {
   color: var(--danger-text);
 }

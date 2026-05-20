@@ -30,6 +30,11 @@ export interface BuildVideoProjectSnapshotInput {
   appVersion: string | null;
 }
 
+export type BuildVideoProjectDirtySignatureInput = Omit<
+  BuildVideoProjectSnapshotInput,
+  'settings' | 'appVersion'
+>;
+
 export interface BuildNamedVideoProjectSnapshotInput extends BuildVideoProjectSnapshotInput {
   id: string;
   name: string;
@@ -76,24 +81,64 @@ export function buildNamedVideoProjectSnapshot(input: BuildNamedVideoProjectSnap
   };
 }
 
-function getProjectAuditRequest(input: BuildVideoProjectSnapshotInput): AuditRequest | null {
-  const existingRequest = cloneAuditRequest(input.auditRequest);
-
-  if (existingRequest) {
-    return existingRequest;
-  }
-
-  if (input.selectedFolders.length === 0 && input.selectedFiles.length === 0) {
-    return null;
-  }
-
-  return {
-    folderPaths: [...input.selectedFolders],
-    filePaths: [...input.selectedFiles],
-    options: {
-      ...input.auditOptions
+export function buildVideoProjectDirtySignature(input: BuildVideoProjectDirtySignatureInput): string {
+  return JSON.stringify({
+    sources: {
+      selectedFolders: [...input.selectedFolders],
+      selectedFolderSummary: cloneSelectedFolderSummary(input.selectedFolderSummary),
+      folderTreeRootPath: input.folderTreeRootPath,
+      folderTreeLastScannedAt: input.folderTreeLastScannedAt,
+      selectedFiles: [...input.selectedFiles],
+      outputFolder: input.outputFolder
+    },
+    audit: {
+      request: getProjectAuditRequest(input),
+      result: cloneAuditResult(input.auditResult, input.auditRows),
+      savedAt: input.auditSavedAt
+    },
+    workspace: {
+      searchQuery: input.searchQuery,
+      activeViewFilter: input.activeViewFilter,
+      showThumbnails: input.showThumbnails
     }
-  };
+  });
+}
+
+export function buildVideoProjectDirtySignatureFromProject(project: VideoProject): string {
+  return JSON.stringify({
+    sources: {
+      selectedFolders: [...project.sources.selectedFolders],
+      selectedFolderSummary: cloneSelectedFolderSummary(project.sources.selectedFolderSummary),
+      folderTreeRootPath: project.sources.folderTreeRootPath,
+      folderTreeLastScannedAt: project.sources.folderTreeLastScannedAt,
+      selectedFiles: [...project.sources.selectedFiles],
+      outputFolder: project.sources.outputFolder
+    },
+    audit: {
+      request: cloneAuditRequest(project.audit.request),
+      result: cloneAuditResult(project.audit.result, project.audit.result?.videos ?? []),
+      savedAt: project.audit.savedAt
+    },
+    workspace: {
+      searchQuery: project.workspace.searchQuery,
+      activeViewFilter: project.workspace.activeViewFilter,
+      showThumbnails: project.workspace.showThumbnails
+    }
+  });
+}
+
+function getProjectAuditRequest(input: BuildVideoProjectDirtySignatureInput): AuditRequest | null {
+  if (input.selectedFolders.length > 0 || input.selectedFiles.length > 0) {
+    return {
+      folderPaths: [...input.selectedFolders],
+      filePaths: [...input.selectedFiles],
+      options: {
+        ...input.auditOptions
+      }
+    };
+  }
+
+  return cloneAuditRequest(input.auditRequest);
 }
 
 function cloneAuditRequest(request: AuditRequest | null): AuditRequest | null {

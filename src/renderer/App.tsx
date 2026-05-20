@@ -200,6 +200,7 @@ export function App(): ReactElement {
     projectMessage: controller.projectMessage,
     projectError: controller.projectError,
     isProjectSaving: controller.isProjectSaving,
+    isProjectDirty: controller.isProjectDirty,
     onOpenProjects: openProjectSidebar,
     onSaveProject: requestProjectSave,
     onOpenOperationHistory: controller.openOperationHistory,

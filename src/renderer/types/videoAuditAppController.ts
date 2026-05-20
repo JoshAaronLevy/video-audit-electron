@@ -95,6 +95,7 @@ export interface VideoAuditAppController {
   projectError: string | null;
   isProjectIndexLoading: boolean;
   isProjectSaving: boolean;
+  isProjectDirty: boolean;
   selectedFolders: string[];
   selectedFolderSummary: SelectedFolderSummary | null;
   folderTreeRootPath: string | null;

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.43] - 2026-05-20
+
+### Added
+
+- Added conservative dirty-state tracking and debounced autosave for already-named projects after durable workspace changes, with header status for unsaved, saving, saved, and failed save states.
+
 ## [0.50.42] - 2026-05-20
 
 ### Added

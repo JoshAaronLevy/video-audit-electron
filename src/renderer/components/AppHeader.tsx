@@ -16,6 +16,7 @@ interface AppHeaderProps {
   projectMessage: string | null;
   projectError: string | null;
   isProjectSaving: boolean;
+  isProjectDirty: boolean;
   onOpenProjects: () => void;
   onSaveProject: () => void;
   onOpenOperationHistory: () => void;
@@ -34,6 +35,7 @@ export function AppHeader({
   projectMessage,
   projectError,
   isProjectSaving,
+  isProjectDirty,
   onOpenProjects,
   onSaveProject,
   onOpenOperationHistory,
@@ -43,6 +45,7 @@ export function AppHeader({
   const projectName = activeProjectName ?? 'Untitled Project';
   const projectStatus = getProjectStatus({
     isProjectSaving,
+    isProjectDirty,
     projectError,
     projectMessage,
     projectSavedAt
@@ -99,6 +102,7 @@ export function AppHeader({
 
 interface ProjectStatusInput {
   isProjectSaving: boolean;
+  isProjectDirty: boolean;
   projectError: string | null;
   projectMessage: string | null;
   projectSavedAt: string | null;
@@ -106,6 +110,7 @@ interface ProjectStatusInput {
 
 function getProjectStatus({
   isProjectSaving,
+  isProjectDirty,
   projectError,
   projectMessage,
   projectSavedAt
@@ -121,6 +126,13 @@ function getProjectStatus({
     return {
       text: `Save failed: ${projectError}`,
       className: 'is-error'
+    };
+  }
+
+  if (isProjectDirty) {
+    return {
+      text: 'Unsaved changes',
+      className: 'is-unsaved'
     };
   }
 

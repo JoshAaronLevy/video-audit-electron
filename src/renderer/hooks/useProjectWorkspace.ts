@@ -1,11 +1,18 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ProjectIndex, ProjectIndexItem, VideoProject } from '../../shared/types/project';
 import * as projectClient from '../api/projectClient';
 import { getErrorMessage } from '../helpers/errors';
-import type { DraftVideoProjectSnapshot } from '../helpers/projectSnapshot';
+import {
+  buildVideoProjectDirtySignatureFromProject,
+  type DraftVideoProjectSnapshot
+} from '../helpers/projectSnapshot';
+
+const PROJECT_AUTOSAVE_DELAY_MS = 1800;
 
 interface UseProjectWorkspaceOptions {
   buildSnapshot: () => DraftVideoProjectSnapshot;
+  workspaceSignature: string;
+  isAutosavePaused: boolean;
 }
 
 export interface UseProjectWorkspaceValue {
@@ -17,6 +24,7 @@ export interface UseProjectWorkspaceValue {
   projectError: string | null;
   isProjectIndexLoading: boolean;
   isProjectSaving: boolean;
+  isProjectDirty: boolean;
   loadProjectIndex: () => Promise<ProjectIndex | null>;
   createProject: (name: string) => Promise<VideoProject | null>;
   saveProject: () => Promise<VideoProject | null>;
@@ -26,7 +34,13 @@ export interface UseProjectWorkspaceValue {
   clearProjectStatus: () => void;
 }
 
-export function useProjectWorkspace({ buildSnapshot }: UseProjectWorkspaceOptions): UseProjectWorkspaceValue {
+type ProjectSaveMode = 'manual' | 'autosave';
+
+export function useProjectWorkspace({
+  buildSnapshot,
+  workspaceSignature,
+  isAutosavePaused
+}: UseProjectWorkspaceOptions): UseProjectWorkspaceValue {
   const [projectIndexItems, setProjectIndexItems] = useState<ProjectIndexItem[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [activeProjectName, setActiveProjectName] = useState<string | null>(null);
@@ -35,6 +49,17 @@ export function useProjectWorkspace({ buildSnapshot }: UseProjectWorkspaceOption
   const [projectError, setProjectError] = useState<string | null>(null);
   const [isProjectIndexLoading, setIsProjectIndexLoading] = useState(false);
   const [isProjectSaving, setIsProjectSaving] = useState(false);
+  const [savedWorkspaceSignature, setSavedWorkspaceSignature] = useState<string | null>(null);
+  const [autosaveBlockedSignature, setAutosaveBlockedSignature] = useState<string | null>(null);
+  const isProjectDirty = useMemo(
+    () =>
+      Boolean(
+        activeProjectId &&
+          savedWorkspaceSignature !== null &&
+          workspaceSignature !== savedWorkspaceSignature
+      ),
+    [activeProjectId, savedWorkspaceSignature, workspaceSignature]
+  );
 
   const clearProjectStatus = useCallback((): void => {
     setProjectMessage(null);
@@ -45,6 +70,11 @@ export function useProjectWorkspace({ buildSnapshot }: UseProjectWorkspaceOption
     setActiveProjectId(project?.id ?? null);
     setActiveProjectName(project?.name ?? null);
     setProjectSavedAt(project?.updatedAt ?? null);
+  }, []);
+
+  const markProjectClean = useCallback((project: VideoProject | null): void => {
+    setSavedWorkspaceSignature(project ? buildVideoProjectDirtySignatureFromProject(project) : null);
+    setAutosaveBlockedSignature(null);
   }, []);
 
   const applyProjectIndex = useCallback(
@@ -59,13 +89,14 @@ export function useProjectWorkspace({ buildSnapshot }: UseProjectWorkspaceOption
 
       if (!activeIndexItem) {
         setActiveProjectMetadata(null);
+        markProjectClean(null);
         return;
       }
 
       setActiveProjectName(activeIndexItem.name);
       setProjectSavedAt(activeIndexItem.updatedAt);
     },
-    [activeProjectId, setActiveProjectMetadata]
+    [activeProjectId, markProjectClean, setActiveProjectMetadata]
   );
 
   const loadProjectIndex = useCallback(async (): Promise<ProjectIndex | null> => {
@@ -101,6 +132,7 @@ export function useProjectWorkspace({ buildSnapshot }: UseProjectWorkspaceOption
 
         applyProjectIndex(result.index);
         setActiveProjectMetadata(result.project);
+        markProjectClean(result.project);
         setProjectMessage(`Saved "${result.project.name}".`);
         return result.project;
       } catch (error: unknown) {
@@ -110,10 +142,10 @@ export function useProjectWorkspace({ buildSnapshot }: UseProjectWorkspaceOption
         setIsProjectSaving(false);
       }
     },
-    [applyProjectIndex, buildSnapshot, clearProjectStatus, setActiveProjectMetadata]
+    [applyProjectIndex, buildSnapshot, clearProjectStatus, markProjectClean, setActiveProjectMetadata]
   );
 
-  const saveProject = useCallback(async (): Promise<VideoProject | null> => {
+  const saveActiveProject = useCallback(async (mode: ProjectSaveMode): Promise<VideoProject | null> => {
     if (!activeProjectId || !activeProjectName) {
       setProjectError('Name this project before saving it.');
       return null;
@@ -139,9 +171,13 @@ export function useProjectWorkspace({ buildSnapshot }: UseProjectWorkspaceOption
 
       applyProjectIndex(result.index);
       setActiveProjectMetadata(result.project);
-      setProjectMessage(`Saved "${result.project.name}".`);
+      markProjectClean(result.project);
+      setProjectMessage(
+        mode === 'autosave' ? `Autosaved "${result.project.name}".` : `Saved "${result.project.name}".`
+      );
       return result.project;
     } catch (error: unknown) {
+      setAutosaveBlockedSignature(workspaceSignature);
       setProjectError(getErrorMessage(error, 'Could not save the project.'));
       return null;
     } finally {
@@ -154,7 +190,41 @@ export function useProjectWorkspace({ buildSnapshot }: UseProjectWorkspaceOption
     buildSnapshot,
     clearProjectStatus,
     loadProjectIndex,
-    setActiveProjectMetadata
+    markProjectClean,
+    setActiveProjectMetadata,
+    workspaceSignature
+  ]);
+
+  const saveProject = useCallback(async (): Promise<VideoProject | null> => {
+    return saveActiveProject('manual');
+  }, [saveActiveProject]);
+
+  useEffect(() => {
+    if (
+      !activeProjectId ||
+      !activeProjectName ||
+      !isProjectDirty ||
+      isProjectSaving ||
+      isAutosavePaused ||
+      autosaveBlockedSignature === workspaceSignature
+    ) {
+      return undefined;
+    }
+
+    const timeoutId = setTimeout(() => {
+      void saveActiveProject('autosave');
+    }, PROJECT_AUTOSAVE_DELAY_MS);
+
+    return () => clearTimeout(timeoutId);
+  }, [
+    activeProjectId,
+    activeProjectName,
+    autosaveBlockedSignature,
+    isAutosavePaused,
+    isProjectDirty,
+    isProjectSaving,
+    saveActiveProject,
+    workspaceSignature
   ]);
 
   const loadProject = useCallback(async (projectId: string): Promise<VideoProject | null> => {
@@ -179,6 +249,7 @@ export function useProjectWorkspace({ buildSnapshot }: UseProjectWorkspaceOption
   const activateProject = useCallback(
     async (project: VideoProject | null): Promise<void> => {
       setActiveProjectMetadata(project);
+      markProjectClean(project);
       clearProjectStatus();
 
       try {
@@ -188,7 +259,7 @@ export function useProjectWorkspace({ buildSnapshot }: UseProjectWorkspaceOption
         setProjectError(getErrorMessage(error, 'Could not update the active project.'));
       }
     },
-    [applyProjectIndex, clearProjectStatus, setActiveProjectMetadata]
+    [applyProjectIndex, clearProjectStatus, markProjectClean, setActiveProjectMetadata]
   );
 
   const deleteProject = useCallback(
@@ -201,6 +272,7 @@ export function useProjectWorkspace({ buildSnapshot }: UseProjectWorkspaceOption
 
         if (activeProjectId === projectId) {
           setActiveProjectMetadata(null);
+          markProjectClean(null);
         }
 
         setProjectMessage(result.deleted ? 'Deleted saved project.' : 'Saved project was already gone.');
@@ -210,7 +282,7 @@ export function useProjectWorkspace({ buildSnapshot }: UseProjectWorkspaceOption
         return false;
       }
     },
-    [activeProjectId, applyProjectIndex, clearProjectStatus, setActiveProjectMetadata]
+    [activeProjectId, applyProjectIndex, clearProjectStatus, markProjectClean, setActiveProjectMetadata]
   );
 
   return {
@@ -222,6 +294,7 @@ export function useProjectWorkspace({ buildSnapshot }: UseProjectWorkspaceOption
     projectError,
     isProjectIndexLoading,
     isProjectSaving,
+    isProjectDirty,
     loadProjectIndex,
     createProject,
     saveProject,

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.35] - 2026-05-20
+
+### Added
+
+- Added Stage 1 named-project foundations with shared project types, project manifest normalizers, project IPC channel constants, and Electron user-data project path helpers.
+
 ## [0.50.34] - 2026-05-20
 
 ### Added

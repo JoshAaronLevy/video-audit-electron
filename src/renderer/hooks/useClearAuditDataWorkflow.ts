@@ -46,6 +46,7 @@ interface UseClearAuditDataWorkflowOptions {
   resetAutoCropWorkflow: () => void;
   resetMediaPreviewWorkflow: () => void;
   resetMigrationWorkflow: () => void;
+  resetDuplicateScanWorkflow: () => void;
   resetFileOperationsWorkflow: () => void;
   resetPostConversionWorkflow: () => void;
   resetPremiereBridgeWorkflow: () => void;
@@ -73,6 +74,7 @@ export function useClearAuditDataWorkflow({
   resetAutoCropWorkflow,
   resetMediaPreviewWorkflow,
   resetMigrationWorkflow,
+  resetDuplicateScanWorkflow,
   resetFileOperationsWorkflow,
   resetPostConversionWorkflow,
   resetPremiereBridgeWorkflow,
@@ -133,6 +135,7 @@ export function useClearAuditDataWorkflow({
       resetAutoCropWorkflow();
       resetMediaPreviewWorkflow();
       resetMigrationWorkflow();
+      resetDuplicateScanWorkflow();
       resetFileOperationsWorkflow();
       resetPostConversionWorkflow();
       resetPremiereBridgeWorkflow();
@@ -158,6 +161,7 @@ export function useClearAuditDataWorkflow({
     resetAutoCropWorkflow,
     resetAutoFixWorkflow,
     resetDiscoveryWorkflow,
+    resetDuplicateScanWorkflow,
     resetFileOperationsWorkflow,
     resetFfprobeWorkflow,
     resetMediaPreviewWorkflow,

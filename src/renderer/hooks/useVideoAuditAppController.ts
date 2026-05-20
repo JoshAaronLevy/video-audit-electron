@@ -26,6 +26,7 @@ import { useAutoFixWorkflow } from './useAutoFixWorkflow';
 import { useClearAuditDataWorkflow } from './useClearAuditDataWorkflow';
 import { useDiagnosticsWorkflow } from './useDiagnosticsWorkflow';
 import { useDiscoveryWorkflow } from './useDiscoveryWorkflow';
+import { useDuplicateScanWorkflow } from './useDuplicateScanWorkflow';
 import { useFfprobeWorkflow } from './useFfprobeWorkflow';
 import { useFileOperationsWorkflow } from './useFileOperationsWorkflow';
 import { useInitialVideoAuditState } from './useInitialVideoAuditState';
@@ -470,6 +471,50 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     }
   });
   const {
+    duplicateScanFolder,
+    duplicateScanProgress,
+    duplicateScanPercent,
+    duplicateScanResult,
+    duplicateScanError,
+    duplicateMarkedCandidateIds,
+    duplicateMarkedCandidateCount,
+    duplicateMarkedCandidateSizeBytes,
+    duplicateTrashPlan,
+    duplicateTrashPlanError,
+    duplicateTrashResult,
+    duplicateTrashResultError,
+    isDuplicateScanDialogVisible,
+    isDuplicateTrashConfirmDialogVisible,
+    isDuplicateTrashResultDialogVisible,
+    canStartDuplicateScan,
+    hasDuplicateScanResults,
+    hasDuplicateScanNoResults,
+    setDuplicateScanFolder,
+    openDuplicateScanDialog,
+    closeDuplicateScanDialog,
+    selectDuplicateScanFolder,
+    startDuplicateScan,
+    cancelDuplicateScan,
+    clearDuplicateScanResult,
+    markDuplicateCandidate,
+    toggleDuplicateCandidateMark,
+    clearDuplicateCandidateMarks,
+    createDuplicateTrashPlan,
+    closeDuplicateTrashDialog,
+    executeDuplicateTrashPlan,
+    closeDuplicateTrashResultDialog,
+    resetDuplicateScanWorkflow
+  } = useDuplicateScanWorkflow({
+    selectedVideos,
+    previewOperationHistoryAfterExecution: settings?.previewOperationHistoryAfterExecution,
+    openOperationHistory,
+    setWorkflowMessage,
+    setActiveAction: setWorkflowActiveAction,
+    busyState: {
+      activeAction
+    }
+  });
+  const {
     isAuditActive,
     isDiscoveryActive,
     isFfprobeActive,
@@ -480,6 +525,9 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     isMigrationScanning,
     isMigrationExecuting,
     isMigrationActive,
+    isDuplicateScanActive,
+    isDuplicateTrashPlanning,
+    isDuplicateTrashExecuting,
     isTrashPlanning,
     isTrashExecuting,
     isMovePlanning,
@@ -501,6 +549,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     mediaPreviewProgress,
     previewClipProgress,
     migrationProgress,
+    duplicateScanProgress,
     replacementProgress,
     isPremiereImportSubmitting
   });
@@ -620,6 +669,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     resetAutoCropWorkflow,
     resetMediaPreviewWorkflow,
     resetMigrationWorkflow,
+    resetDuplicateScanWorkflow,
     resetFileOperationsWorkflow,
     resetPostConversionWorkflow,
     resetPremiereBridgeWorkflow,
@@ -639,6 +689,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     resetAutoCropWorkflow();
     resetMediaPreviewWorkflow();
     resetMigrationWorkflow();
+    resetDuplicateScanWorkflow();
     resetFileOperationsWorkflow();
     resetPostConversionWorkflow();
     resetPremiereBridgeWorkflow();
@@ -649,6 +700,7 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     resetAutoCropWorkflow,
     resetAutoFixWorkflow,
     resetDiscoveryWorkflow,
+    resetDuplicateScanWorkflow,
     resetFfprobeWorkflow,
     resetFileOperationsWorkflow,
     resetMediaPreviewWorkflow,
@@ -803,13 +855,15 @@ export function useVideoAuditAppController(): VideoAuditAppController {
 
   const runAuditWithAvailabilityReset = useCallback(async (): Promise<AuditStartOutcome> => {
     clearFileAvailabilityState();
+    resetDuplicateScanWorkflow();
     return runAudit();
-  }, [clearFileAvailabilityState, runAudit]);
+  }, [clearFileAvailabilityState, resetDuplicateScanWorkflow, runAudit]);
 
   const refreshAuditWithAvailabilityReset = useCallback(async (): Promise<void> => {
     clearFileAvailabilityState();
+    resetDuplicateScanWorkflow();
     await refreshAudit();
-  }, [clearFileAvailabilityState, refreshAudit]);
+  }, [clearFileAvailabilityState, refreshAudit, resetDuplicateScanWorkflow]);
 
   const clearAuditDataWithAvailabilityReset = useCallback(async (): Promise<void> => {
     clearFileAvailabilityState();
@@ -826,9 +880,13 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     cancelAutoCrop,
     cancelThumbnailGeneration,
     cancelPreviewClipGeneration,
+    cancelDuplicateScan,
     cancelReplacementExecution,
     closeMigrationDialog,
     closeMigrationResultDialog,
+    closeDuplicateScanDialog,
+    closeDuplicateTrashDialog,
+    closeDuplicateTrashResultDialog,
     closeReplacementResultDialog,
     closeOperationHistory,
     closeTrashDialog,
@@ -847,6 +905,10 @@ export function useVideoAuditAppController(): VideoAuditAppController {
       isAutoCropActive,
       isMediaPreviewActive,
       isPreviewClipActive,
+      isDuplicateScanActive,
+      isDuplicateScanDialogVisible,
+      isDuplicateTrashConfirmDialogVisible,
+      isDuplicateTrashResultDialogVisible,
       isMigrationScanDialogVisible,
       isMigrationResultDialogVisible,
       isReplacementExecuting,
@@ -960,6 +1022,27 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     isMigrationScanning,
     isMigrationExecuting,
     isMigrationActive,
+    duplicateScanFolder,
+    duplicateScanProgress,
+    duplicateScanPercent,
+    duplicateScanResult,
+    duplicateScanError,
+    duplicateMarkedCandidateIds,
+    duplicateMarkedCandidateCount,
+    duplicateMarkedCandidateSizeBytes,
+    duplicateTrashPlan,
+    duplicateTrashPlanError,
+    duplicateTrashResult,
+    duplicateTrashResultError,
+    isDuplicateScanDialogVisible,
+    isDuplicateTrashConfirmDialogVisible,
+    isDuplicateTrashResultDialogVisible,
+    isDuplicateScanActive,
+    isDuplicateTrashPlanning,
+    isDuplicateTrashExecuting,
+    canStartDuplicateScan,
+    hasDuplicateScanResults,
+    hasDuplicateScanNoResults,
     trashPlan,
     trashPlanError,
     trashResult,
@@ -1074,6 +1157,20 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     startMigrationScan,
     executeMigration,
     closeMigrationResultDialog,
+    setDuplicateScanFolder,
+    openDuplicateScanDialog,
+    closeDuplicateScanDialog,
+    selectDuplicateScanFolder,
+    startDuplicateScan,
+    cancelDuplicateScan,
+    clearDuplicateScanResult,
+    markDuplicateCandidate,
+    toggleDuplicateCandidateMark,
+    clearDuplicateCandidateMarks,
+    createDuplicateTrashPlan,
+    closeDuplicateTrashDialog,
+    executeDuplicateTrashPlan,
+    closeDuplicateTrashResultDialog,
     openTrashDialog,
     closeTrashDialog,
     executeTrashPlan,

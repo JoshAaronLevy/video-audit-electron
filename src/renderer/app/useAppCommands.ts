@@ -12,9 +12,13 @@ interface UseAppCommandsOptions {
   cancelAutoCrop: () => Promise<void>;
   cancelThumbnailGeneration: () => Promise<void>;
   cancelPreviewClipGeneration: () => Promise<void>;
+  cancelDuplicateScan: () => Promise<void>;
   cancelReplacementExecution: () => Promise<void>;
   closeMigrationDialog: () => void;
   closeMigrationResultDialog: () => void;
+  closeDuplicateScanDialog: () => void;
+  closeDuplicateTrashDialog: () => void;
+  closeDuplicateTrashResultDialog: () => void;
   closeReplacementResultDialog: () => void;
   closeOperationHistory: () => void;
   closeTrashDialog: () => void;
@@ -33,6 +37,10 @@ interface UseAppCommandsOptions {
     isAutoCropActive: boolean;
     isMediaPreviewActive: boolean;
     isPreviewClipActive: boolean;
+    isDuplicateScanActive: boolean;
+    isDuplicateScanDialogVisible: boolean;
+    isDuplicateTrashConfirmDialogVisible: boolean;
+    isDuplicateTrashResultDialogVisible: boolean;
     isMigrationScanDialogVisible: boolean;
     isMigrationResultDialogVisible: boolean;
     isReplacementExecuting: boolean;
@@ -65,9 +73,13 @@ export function useAppCommands({
   cancelAutoCrop,
   cancelThumbnailGeneration,
   cancelPreviewClipGeneration,
+  cancelDuplicateScan,
   cancelReplacementExecution,
   closeMigrationDialog,
   closeMigrationResultDialog,
+  closeDuplicateScanDialog,
+  closeDuplicateTrashDialog,
+  closeDuplicateTrashResultDialog,
   closeReplacementResultDialog,
   closeOperationHistory,
   closeTrashDialog,
@@ -107,6 +119,26 @@ export function useAppCommands({
 
     if (activeState.isPreviewClipActive) {
       await cancelPreviewClipGeneration();
+      return;
+    }
+
+    if (activeState.isDuplicateScanActive) {
+      await cancelDuplicateScan();
+      return;
+    }
+
+    if (activeState.isDuplicateScanDialogVisible) {
+      closeDuplicateScanDialog();
+      return;
+    }
+
+    if (activeState.isDuplicateTrashConfirmDialogVisible) {
+      closeDuplicateTrashDialog();
+      return;
+    }
+
+    if (activeState.isDuplicateTrashResultDialogVisible) {
+      closeDuplicateTrashResultDialog();
       return;
     }
 
@@ -188,6 +220,7 @@ export function useAppCommands({
     cancelAudit,
     cancelAutoCrop,
     cancelAutoFix,
+    cancelDuplicateScan,
     cancelReplacementExecution,
     cancelPreviewClipGeneration,
     cancelThumbnailGeneration,
@@ -195,6 +228,9 @@ export function useAppCommands({
     closeArchiveResultDialog,
     closeAutoCropDialog,
     closeAutoFixDialog,
+    closeDuplicateScanDialog,
+    closeDuplicateTrashDialog,
+    closeDuplicateTrashResultDialog,
     closeMigrationDialog,
     closeMigrationResultDialog,
     closeMoveDialog,

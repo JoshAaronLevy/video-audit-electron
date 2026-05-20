@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.52] - 2026-05-20
+
+### Added
+
+- Added the Stage 4 renderer duplicate scan workflow hook and controller integration for selected-source scan setup, progress/result state, candidate marks, duplicate Trash planning/execution state, busy-state tracking, Escape cancellation, and transient workspace resets.
+
 ## [0.50.51] - 2026-05-20
 
 ### Added

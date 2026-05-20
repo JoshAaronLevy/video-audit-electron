@@ -10,6 +10,7 @@ import type {
 import type { AutoCropJobSnapshot, AutoCropResult } from '../../shared/types/autoCrop';
 import type { AutoFixJobSnapshot, AutoFixResult } from '../../shared/types/autoFix';
 import type { ToolDiagnosticsResult } from '../../shared/types/diagnostics';
+import type { DuplicateScanJobSnapshot, DuplicateScanResult } from '../../shared/types/duplicateScan';
 import type {
   ArchiveOperationPlan,
   DestinationConflictStrategy,
@@ -58,6 +59,9 @@ export type ActiveAction =
   | 'previewClip'
   | 'migrationScan'
   | 'migrationExecute'
+  | 'duplicateScan'
+  | 'duplicateTrashPlan'
+  | 'duplicateTrashExecute'
   | 'trashPlan'
   | 'trashExecute'
   | 'movePlan'
@@ -169,6 +173,27 @@ export interface VideoAuditAppController {
   isMigrationScanning: boolean;
   isMigrationExecuting: boolean;
   isMigrationActive: boolean;
+  duplicateScanFolder: string;
+  duplicateScanProgress: DuplicateScanJobSnapshot | null;
+  duplicateScanPercent: number | null;
+  duplicateScanResult: DuplicateScanResult | null;
+  duplicateScanError: string | null;
+  duplicateMarkedCandidateIds: string[];
+  duplicateMarkedCandidateCount: number;
+  duplicateMarkedCandidateSizeBytes: number;
+  duplicateTrashPlan: TrashOperationPlan | null;
+  duplicateTrashPlanError: string | null;
+  duplicateTrashResult: FileOperationResult | null;
+  duplicateTrashResultError: string | null;
+  isDuplicateScanDialogVisible: boolean;
+  isDuplicateTrashConfirmDialogVisible: boolean;
+  isDuplicateTrashResultDialogVisible: boolean;
+  isDuplicateScanActive: boolean;
+  isDuplicateTrashPlanning: boolean;
+  isDuplicateTrashExecuting: boolean;
+  canStartDuplicateScan: boolean;
+  hasDuplicateScanResults: boolean;
+  hasDuplicateScanNoResults: boolean;
   trashPlan: TrashOperationPlan | null;
   trashPlanError: string | null;
   trashResult: FileOperationResult | null;
@@ -288,6 +313,20 @@ export interface VideoAuditAppController {
   startMigrationScan: () => Promise<void>;
   executeMigration: () => Promise<void>;
   closeMigrationResultDialog: () => void;
+  setDuplicateScanFolder: (folder: string) => void;
+  openDuplicateScanDialog: () => void;
+  closeDuplicateScanDialog: () => void;
+  selectDuplicateScanFolder: () => Promise<void>;
+  startDuplicateScan: () => Promise<void>;
+  cancelDuplicateScan: () => Promise<void>;
+  clearDuplicateScanResult: () => void;
+  markDuplicateCandidate: (candidateId: string, marked: boolean) => void;
+  toggleDuplicateCandidateMark: (candidateId: string) => void;
+  clearDuplicateCandidateMarks: () => void;
+  createDuplicateTrashPlan: () => Promise<void>;
+  closeDuplicateTrashDialog: () => void;
+  executeDuplicateTrashPlan: (typedConfirmation: string | null) => Promise<void>;
+  closeDuplicateTrashResultDialog: () => void;
   openTrashDialog: () => Promise<void>;
   closeTrashDialog: () => void;
   executeTrashPlan: (typedConfirmation: string | null) => Promise<void>;

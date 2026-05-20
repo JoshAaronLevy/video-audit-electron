@@ -12,6 +12,7 @@ export interface UseWorkflowBusyStateInput {
   mediaPreviewProgress?: WorkflowProgress;
   previewClipProgress?: WorkflowProgress;
   migrationProgress?: WorkflowProgress;
+  duplicateScanProgress?: WorkflowProgress;
   replacementProgress?: WorkflowProgress;
   isPremiereImportSubmitting: boolean;
 }
@@ -27,6 +28,9 @@ export interface UseWorkflowBusyStateValue {
   isMigrationScanning: boolean;
   isMigrationExecuting: boolean;
   isMigrationActive: boolean;
+  isDuplicateScanActive: boolean;
+  isDuplicateTrashPlanning: boolean;
+  isDuplicateTrashExecuting: boolean;
   isTrashPlanning: boolean;
   isTrashExecuting: boolean;
   isMovePlanning: boolean;
@@ -50,6 +54,7 @@ export function useWorkflowBusyState({
   mediaPreviewProgress,
   previewClipProgress,
   migrationProgress,
+  duplicateScanProgress,
   replacementProgress,
   isPremiereImportSubmitting
 }: UseWorkflowBusyStateInput): UseWorkflowBusyStateValue {
@@ -63,6 +68,9 @@ export function useWorkflowBusyState({
   const isMigrationScanning = activeAction === 'migrationScan';
   const isMigrationExecuting = activeAction === 'migrationExecute' || isRunningProgress(migrationProgress);
   const isMigrationActive = isMigrationScanning || isMigrationExecuting;
+  const isDuplicateScanActive = activeAction === 'duplicateScan' || isRunningProgress(duplicateScanProgress);
+  const isDuplicateTrashPlanning = activeAction === 'duplicateTrashPlan';
+  const isDuplicateTrashExecuting = activeAction === 'duplicateTrashExecute';
   const isTrashPlanning = activeAction === 'trashPlan';
   const isTrashExecuting = activeAction === 'trashExecute';
   const isMovePlanning = activeAction === 'movePlan';
@@ -82,6 +90,9 @@ export function useWorkflowBusyState({
     isMediaPreviewActive ||
     isPreviewClipActive ||
     isMigrationActive ||
+    isDuplicateScanActive ||
+    isDuplicateTrashPlanning ||
+    isDuplicateTrashExecuting ||
     isTrashPlanning ||
     isTrashExecuting ||
     isMovePlanning ||
@@ -104,6 +115,9 @@ export function useWorkflowBusyState({
     isMigrationScanning,
     isMigrationExecuting,
     isMigrationActive,
+    isDuplicateScanActive,
+    isDuplicateTrashPlanning,
+    isDuplicateTrashExecuting,
     isTrashPlanning,
     isTrashExecuting,
     isMovePlanning,

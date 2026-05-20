@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.30] - 2026-05-20
+
+### Changed
+
+- Routed fresh, refreshed, and stored audit result hydration through an explicit results-store hydration path, while keeping IndexedDB persistence on the existing audit-result storage boundary.
+- Let clear-data reset result rows, top-level search, active result filter, and selection through the results store clear action instead of duplicating those field resets in the workflow hook.
+
 ## [0.50.29] - 2026-05-20
 
 ### Changed

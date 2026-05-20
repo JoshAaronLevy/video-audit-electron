@@ -40,8 +40,6 @@ interface UseClearAuditDataWorkflowOptions {
   applySourceSelectionState: (patch: SourceSelectionResetPatch) => void;
   setAuditOptions: (options: AuditOptions) => void;
   resetAuditWorkflow: () => void;
-  setGlobalFilter: (value: string) => void;
-  setResultsViewFilter: (value: 'all') => void;
   resetDiscoveryWorkflow: () => void;
   resetFfprobeWorkflow: () => void;
   resetAutoFixWorkflow: () => void;
@@ -69,8 +67,6 @@ export function useClearAuditDataWorkflow({
   applySourceSelectionState,
   setAuditOptions,
   resetAuditWorkflow,
-  setGlobalFilter,
-  setResultsViewFilter,
   resetDiscoveryWorkflow,
   resetFfprobeWorkflow,
   resetAutoFixWorkflow,
@@ -131,8 +127,6 @@ export function useClearAuditDataWorkflow({
       });
       setAuditOptions(settingsToAuditOptions(updatedSettings));
       resetAuditWorkflow();
-      setGlobalFilter('');
-      setResultsViewFilter('all');
       resetDiscoveryWorkflow();
       resetFfprobeWorkflow();
       resetAutoFixWorkflow();
@@ -173,8 +167,6 @@ export function useClearAuditDataWorkflow({
     saveSettingsSilently,
     setActiveAction,
     setAuditOptions,
-    setGlobalFilter,
-    setResultsViewFilter,
     setStorageMessage,
     setWorkflowMessage
   ]);

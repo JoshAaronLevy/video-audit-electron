@@ -16,10 +16,12 @@ import {
   saveStoredAuditResult
 } from '../storage/auditResultStorage';
 import type { StoredAuditResultState } from '../storage/auditResultStorage';
+import type { VideoResultsWorkspaceSource } from '../stores/useVideoResultsStore';
 import { useVideoResultsStore } from '../stores/useVideoResultsStore';
 
 interface ApplyAuditResultOptions {
   persist: boolean;
+  source?: Exclude<VideoResultsWorkspaceSource, 'empty'>;
   savedAt?: string;
   showThumbnails?: boolean;
 }
@@ -135,7 +137,7 @@ export function useAuditResults(): UseAuditResultsValue {
       applyAuditResultToStore({
         result,
         request,
-        source: options.savedAt ? 'stored-audit' : 'audit',
+        source: options.source ?? 'audit',
         savedAt: options.savedAt,
         showThumbnails: options.showThumbnails
       });
@@ -166,6 +168,7 @@ export function useAuditResults(): UseAuditResultsValue {
       setStorageMessageState(`Restored saved audit from ${formatDateTime(storedAudit.savedAt)}.`);
       await applyAuditResult(storedAudit.result, storedAudit.request, {
         persist: false,
+        source: 'stored-audit',
         savedAt: storedAudit.savedAt,
         showThumbnails: storedAudit.showThumbnails
       });

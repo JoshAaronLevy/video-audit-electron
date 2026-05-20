@@ -510,8 +510,6 @@ export function useVideoAuditAppController(): VideoAuditAppController {
     applySourceSelectionState,
     setAuditOptions,
     resetAuditWorkflow,
-    setGlobalFilter,
-    setResultsViewFilter,
     resetDiscoveryWorkflow,
     resetFfprobeWorkflow,
     resetAutoFixWorkflow,

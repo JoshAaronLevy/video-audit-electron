@@ -19,13 +19,15 @@ export interface VideoResultsWorkspaceMeta {
   savedAt: string | null;
 }
 
-export interface ApplyVideoResultsInput {
+export interface HydrateVideoResultsInput {
   result: AuditResult;
   request: AuditRequest | null;
   source: VideoResultsWorkspaceSource;
   savedAt?: string | null;
   showThumbnails?: boolean;
 }
+
+export type ApplyVideoResultsInput = HydrateVideoResultsInput;
 
 export interface VideoRowPatch {
   path: string;
@@ -121,6 +123,40 @@ function updateRowsInResult(result: AuditResult | null, rows: VideoRow[]): Audit
   };
 }
 
+function getHydratedVideoResultsState(
+  state: VideoResultsStoreState,
+  { result, request, source, savedAt, showThumbnails }: HydrateVideoResultsInput
+): Pick<
+  VideoResultsStoreState,
+  | 'auditResult'
+  | 'rows'
+  | 'summary'
+  | 'errors'
+  | 'lastAuditRequest'
+  | 'selectedRowIds'
+  | 'showThumbnails'
+  | 'storageSavedAt'
+  | 'workspaceMeta'
+> {
+  const normalizedResult = normalizeResultRows(result);
+  const nextSavedAt = savedAt === undefined ? state.storageSavedAt : savedAt;
+
+  return {
+    auditResult: normalizedResult,
+    rows: normalizedResult.videos,
+    summary: normalizedResult.summary,
+    errors: normalizedResult.errors,
+    lastAuditRequest: request ?? state.lastAuditRequest,
+    selectedRowIds: [],
+    showThumbnails: showThumbnails ?? state.showThumbnails,
+    storageSavedAt: nextSavedAt,
+    workspaceMeta: {
+      source,
+      savedAt: nextSavedAt
+    }
+  };
+}
+
 function pruneSelectedRowIdsForActiveRows(selectedRowIds: string[], rows: VideoRow[]): string[] {
   if (selectedRowIds.length === 0) {
     return [];
@@ -145,25 +181,8 @@ function getRowsCommitState(
 export const useVideoResultsStore = create<VideoResultsStoreState>()((set, get) => ({
   ...getInitialVideoResultsState(),
 
-  applyAuditResult: ({ result, request, source, savedAt, showThumbnails }) => {
-    const state = get();
-    const normalizedResult = normalizeResultRows(result);
-    const nextSavedAt = savedAt === undefined ? state.storageSavedAt : savedAt;
-
-    set({
-      auditResult: normalizedResult,
-      rows: normalizedResult.videos,
-      summary: normalizedResult.summary,
-      errors: normalizedResult.errors,
-      lastAuditRequest: request ?? state.lastAuditRequest,
-      selectedRowIds: [],
-      showThumbnails: showThumbnails ?? state.showThumbnails,
-      storageSavedAt: nextSavedAt,
-      workspaceMeta: {
-        source,
-        savedAt: nextSavedAt
-      }
-    });
+  applyAuditResult: (input) => {
+    set(getHydratedVideoResultsState(get(), input));
   },
 
   clearResults: () => {

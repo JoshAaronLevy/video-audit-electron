@@ -25,6 +25,7 @@ The renderer API clients are thin wrappers over the typed preload API:
 - `diagnosticsClient`: ffmpeg/ffprobe diagnostics.
 - `dialogClient`: native folder, file, output-folder, and move-destination pickers.
 - `discoveryClient`: file discovery start/cancel and progress subscription.
+- `duplicateScanClient`: Duplicate Scan start/cancel/result, candidate Trash planning, and progress subscription.
 - `ffprobeClient`: ffprobe metadata extraction start/cancel and progress subscription.
 - `fileOperationsClient`: validated reveal actions and trash/move/archive plans and execution.
 - `folderTreeClient`: folder-tree root selection, scan/cancel/result, and scan progress subscription.
@@ -53,6 +54,7 @@ These clients should stay small. They should not own workflow decisions, UI mess
 - `useWorkflowBusyState` derives active workflow booleans and blocking-work state from active action and job progress.
 - `useAuditWorkflow` owns audit start, refresh, cancel, progress subscription state, result retrieval, and audit-source replay after refresh.
 - `useDiscoveryWorkflow` owns discovery start/cancel, progress subscription state, and discovered paths.
+- `useDuplicateScanWorkflow` owns Duplicate Scan dialog state, selected-source scan requests, progress subscription state, transient duplicate result state, candidate marks, grouped Trash plan/result state, and reset behavior.
 - `useFfprobeWorkflow` owns ffprobe metadata extraction start/cancel, progress subscription state, and metadata rows.
 - `usePathReveal` validates paths and reveals known files/folders through file-operation APIs.
 - `useOperationHistory` owns operation-history dialog state, recent records, selected record loading, refresh, and errors.
@@ -214,6 +216,17 @@ This keeps ffmpeg output generation separate from the later user-confirmed sourc
 Operation history is read through `operationHistoryClient` and owned by `useOperationHistory`. File operations and replacement execution can call `openOperationHistory` after completion when settings request a history preview.
 
 History is not owned by individual result dialogs. Result dialogs receive reveal callbacks and result data from the controller, while `OperationHistoryDialog` handles recent-record loading and record selection.
+
+## Duplicate Scan State
+
+Duplicate Scan is a transient review workflow, not a persisted result-table source.
+
+- Main-process `duplicateScanService` owns recursive discovery, exact filename matching, matched-candidate metadata reads, in-memory scan results, and candidate validation before Trash planning.
+- Renderer `useDuplicateScanWorkflow` owns the scan setup dialog, progress snapshots, current duplicate result, marked candidate ids, and duplicate-specific Trash confirmation/result dialogs.
+- Duplicate Review renders in a dedicated workspace mode in `App.tsx` using PrimeReact `DataTable` row expansion, separate from the main results table.
+- Duplicate candidate marks are keyed by stable candidate id/path and are never keyed by table row index.
+- Duplicate result state and marked-for-trash intent are reset on clear data/cache, project restore/rescan, fresh audit replacement, and new duplicate scan starts.
+- Project snapshots and audit-result IndexedDB persistence intentionally exclude duplicate scan result state and marked-for-trash intent.
 
 ## App Commands and Escape-Key Behavior
 

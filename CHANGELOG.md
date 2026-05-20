@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.58] - 2026-05-20
+
+### Added
+
+- Added Stage 10 Duplicate Scan verification documentation, README coverage, and renderer architecture notes for the duplicate scan client, workflow hook, transient review state, and manual verification checklist.
+
 ## [0.50.57] - 2026-05-20
 
 ### Changed

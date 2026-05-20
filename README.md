@@ -117,6 +117,9 @@ The current app includes:
 - persisted audit results in renderer IndexedDB with refresh and clear-data controls
 - PrimeReact results table with global search, multi-row selection, soft removal/restore, details, thumbnails, and row actions
 - migration scan/execute workflow with exact filename matching, copy/archive safety, manifests, and operation logs
+- Duplicate Scan workflow for selected project videos with recursive exact-filename
+  candidate discovery, protected source summaries, PrimeReact row-expansion review,
+  explicit Marked for Trash decisions, and macOS Trash execution after confirmation
 - safe file-management workflows for revealing known paths, moving selected videos to Trash, moving selected videos to chosen folders, archiving originals, reviewing post-conversion source/output pairs, and replacing originals with converted outputs after confirmation
 - file-management operation history with itemized results, partial-failure diagnostics, and reveal-in-Finder actions
 - file-management settings for safe conflict handling, typed confirmation thresholds, post-conversion prompting, and operation-history preview
@@ -128,6 +131,15 @@ The current app includes:
 File-management workflows are intentionally limited to files the app already understands. The renderer only calls typed preload APIs, while the Electron main process validates paths, builds dry-run plans, executes file moves, and records operation history.
 
 The app does not permanently delete files, delete directories, use recursive deletion, or overwrite destination files by default. Destructive cleanup uses macOS Trash, and replacement workflows require review and confirmation before originals are moved.
+
+## Duplicate Candidate Review
+
+Duplicate Scan verification is documented in `docs/dupe-scan-verification.md`.
+The v1 workflow finds possible duplicates by exact filename, including extension.
+Duration, file size, resolution, bitrate, and modified date are comparison
+metadata only. Project source files are protected, duplicate candidates are not
+preselected, and marked candidates move to macOS Trash through the existing
+review and revalidation flow.
 
 ## Folder Tree Source Selection
 

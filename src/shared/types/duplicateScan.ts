@@ -246,6 +246,7 @@ export interface VisualFingerprintCacheKey {
   algorithmVersion: string;
   profile: DuplicateScanProfile;
   sampleIntervalSeconds: number;
+  maxSamplesPerVideo: number;
 }
 
 export interface VisualFingerprintSample {
@@ -335,6 +336,8 @@ export interface ImprovedDuplicateScanResult {
   fingerprintedFileCount: number;
   cacheHitCount: number;
   cacheMissCount: number;
+  cacheStaleCount: number;
+  cacheErrorCount: number;
   groups: DuplicateCandidateGroup[];
   warnings: string[];
   summary: ImprovedDuplicateScanSummary;
@@ -350,6 +353,8 @@ export interface ImprovedDuplicateScanProgress {
   fingerprintedFiles: number;
   cacheHits: number;
   cacheMisses: number;
+  cacheStale: number;
+  cacheErrors: number;
   candidateGroupCount: number;
   currentFile: string | null;
   message: string | null;

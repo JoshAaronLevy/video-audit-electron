@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.66] - 2026-05-21
+
+### Added
+
+- Added Stage 3 improved duplicate detection fingerprint caching with user-data JSON cache files, cache invalidation by file identity and fingerprint parameters, atomic writes, and cache hit/miss/stale/error progress accounting.
+
 ## [0.50.65] - 2026-05-21
 
 ### Added

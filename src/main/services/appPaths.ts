@@ -31,6 +31,10 @@ export function getMediaPreviewCacheDir(): string {
   return join(getAppDataDir(), 'media-preview');
 }
 
+export function getDuplicateFingerprintCacheDir(): string {
+  return join(getAppDataDir(), 'duplicate-fingerprints');
+}
+
 export function getFileOperationHistoryDir(): string {
   return join(getAppDataDir(), 'file-operations');
 }

@@ -1,10 +1,10 @@
-import { createHash } from 'node:crypto';
 import { access, stat } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import type {
   DuplicateScanProfile,
   VisualFingerprint,
   VisualFingerprintAlgorithm,
+  VisualFingerprintCacheKey,
   VisualFingerprintSample
 } from '../../shared/types/duplicateScan';
 import {
@@ -13,6 +13,12 @@ import {
   IMPROVED_DUPLICATE_SCAN_FAST_PROFILE
 } from '../../shared/types/duplicateScan';
 import { runChildProcess } from '../utils/childProcess';
+import {
+  createVisualFingerprintCacheKey,
+  readCachedVisualFingerprint,
+  writeCachedVisualFingerprint
+} from './duplicateFingerprintCacheService';
+import type { VisualFingerprintCacheStatus } from './duplicateFingerprintCacheService';
 
 const DEFAULT_ALGORITHM: VisualFingerprintAlgorithm = 'dhash-v1';
 const ALGORITHM_VERSION = '1';
@@ -24,8 +30,11 @@ const DEEP_MAX_SAMPLES = 600;
 export interface GenerateVisualFingerprintOptions {
   filePath: string;
   profile?: DuplicateScanProfile;
+  durationSeconds?: number | null;
   sampleIntervalSeconds?: number;
   maxSamplesPerVideo?: number;
+  useCachedFingerprints?: boolean;
+  cacheDir?: string | null;
   pythonPath?: string | null;
   helperScriptPath?: string | null;
   signal?: AbortSignal;
@@ -42,9 +51,18 @@ export interface GenerateVisualFingerprintsProgress {
   processedFiles: number;
   succeededCount: number;
   failedCount: number;
+  cacheHitCount: number;
+  cacheMissCount: number;
+  cacheStaleCount: number;
+  cacheErrorCount: number;
+  cacheWriteErrorCount: number;
   currentFile: string | null;
   message: string | null;
 }
+
+export type GenerateVisualFingerprintCacheStatus =
+  | VisualFingerprintCacheStatus
+  | 'disabled';
 
 export type GenerateVisualFingerprintResult =
   | GenerateVisualFingerprintSuccess
@@ -57,6 +75,11 @@ export interface GenerateVisualFingerprintSuccess {
   warnings: string[];
   helperScriptPath: string;
   pythonPath: string;
+  cacheStatus: GenerateVisualFingerprintCacheStatus;
+  cacheKey: string;
+  cachePath?: string;
+  cacheMessage?: string;
+  cacheWriteError?: string;
 }
 
 export interface GenerateVisualFingerprintFailure {
@@ -66,6 +89,10 @@ export interface GenerateVisualFingerprintFailure {
   canceled: boolean;
   helperScriptPath: string;
   pythonPath: string;
+  cacheStatus?: GenerateVisualFingerprintCacheStatus;
+  cacheKey?: string;
+  cachePath?: string;
+  cacheMessage?: string;
   stdout?: string;
   stderr?: string;
 }
@@ -74,7 +101,17 @@ export interface GenerateVisualFingerprintsResult {
   items: GenerateVisualFingerprintResult[];
   succeededCount: number;
   failedCount: number;
+  cacheHitCount: number;
+  cacheMissCount: number;
+  cacheStaleCount: number;
+  cacheErrorCount: number;
+  cacheWriteErrorCount: number;
   canceled: boolean;
+}
+
+interface FingerprintSourceStats {
+  sizeBytes: number;
+  modifiedTimeMs: number;
 }
 
 interface FingerprintHelperSuccessPayload {
@@ -113,12 +150,22 @@ export async function generateVisualFingerprints({
   const items: GenerateVisualFingerprintResult[] = [];
   let succeededCount = 0;
   let failedCount = 0;
+  let cacheHitCount = 0;
+  let cacheMissCount = 0;
+  let cacheStaleCount = 0;
+  let cacheErrorCount = 0;
+  let cacheWriteErrorCount = 0;
 
   emitProgress(onProgress, {
     totalFiles: filePaths.length,
     processedFiles: 0,
     succeededCount,
     failedCount,
+    cacheHitCount,
+    cacheMissCount,
+    cacheStaleCount,
+    cacheErrorCount,
+    cacheWriteErrorCount,
     currentFile: null,
     message: 'Starting visual fingerprint generation.'
   });
@@ -131,6 +178,11 @@ export async function generateVisualFingerprints({
       processedFiles: index,
       succeededCount,
       failedCount,
+      cacheHitCount,
+      cacheMissCount,
+      cacheStaleCount,
+      cacheErrorCount,
+      cacheWriteErrorCount,
       currentFile: basename(filePath),
       message: `Generating fingerprint for ${basename(filePath)}...`
     });
@@ -144,13 +196,36 @@ export async function generateVisualFingerprints({
       failedCount += 1;
     }
 
+    if (item.cacheStatus === 'hit') {
+      cacheHitCount += 1;
+    } else if (item.cacheStatus === 'miss') {
+      cacheMissCount += 1;
+    } else if (item.cacheStatus === 'stale') {
+      cacheStaleCount += 1;
+    } else if (item.cacheStatus === 'error') {
+      cacheErrorCount += 1;
+    }
+
+    if (item.ok && item.cacheWriteError) {
+      cacheWriteErrorCount += 1;
+    }
+
     emitProgress(onProgress, {
       totalFiles: filePaths.length,
       processedFiles: index + 1,
       succeededCount,
       failedCount,
+      cacheHitCount,
+      cacheMissCount,
+      cacheStaleCount,
+      cacheErrorCount,
+      cacheWriteErrorCount,
       currentFile: basename(filePath),
-      message: item.ok ? 'Fingerprint ready.' : 'Fingerprint failed.'
+      message: item.ok
+        ? item.cacheStatus === 'hit'
+          ? 'Fingerprint loaded from cache.'
+          : 'Fingerprint ready.'
+        : 'Fingerprint failed.'
     });
 
     if (!item.ok && item.canceled) {
@@ -163,6 +238,11 @@ export async function generateVisualFingerprints({
     processedFiles: items.length,
     succeededCount,
     failedCount,
+    cacheHitCount,
+    cacheMissCount,
+    cacheStaleCount,
+    cacheErrorCount,
+    cacheWriteErrorCount,
     currentFile: null,
     message: 'Visual fingerprint generation complete.'
   });
@@ -171,6 +251,11 @@ export async function generateVisualFingerprints({
     items,
     succeededCount,
     failedCount,
+    cacheHitCount,
+    cacheMissCount,
+    cacheStaleCount,
+    cacheErrorCount,
+    cacheWriteErrorCount,
     canceled: items.some((item) => !item.ok && item.canceled)
   };
 }
@@ -178,8 +263,11 @@ export async function generateVisualFingerprints({
 export async function generateVisualFingerprint({
   filePath,
   profile = IMPROVED_DUPLICATE_SCAN_DEFAULT_PROFILE,
+  durationSeconds = null,
   sampleIntervalSeconds,
   maxSamplesPerVideo,
+  useCachedFingerprints = true,
+  cacheDir,
   pythonPath,
   helperScriptPath,
   signal
@@ -190,6 +278,7 @@ export async function generateVisualFingerprint({
   const resolvedSampleIntervalSeconds =
     sampleIntervalSeconds ?? getDefaultSampleIntervalSeconds(resolvedProfile);
   const resolvedMaxSamples = maxSamplesPerVideo ?? getDefaultMaxSamples(resolvedProfile);
+  const resolvedDurationSeconds = Number.isFinite(durationSeconds) ? durationSeconds : null;
 
   if (signal?.aborted) {
     return {
@@ -202,25 +291,106 @@ export async function generateVisualFingerprint({
     };
   }
 
-  const preflightError = await validateFingerprintRequest({
-    filePath,
-    pythonPath: resolvedPythonPath,
-    helperScriptPath: resolvedHelperScriptPath,
+  const requestError = validateFingerprintOptions({
     sampleIntervalSeconds: resolvedSampleIntervalSeconds,
     maxSamplesPerVideo: resolvedMaxSamples
   });
 
-  if (preflightError) {
+  if (requestError) {
     return {
       ok: false,
       filePath,
-      error: preflightError,
+      error: requestError,
       canceled: false,
       pythonPath: resolvedPythonPath,
       helperScriptPath: resolvedHelperScriptPath
     };
   }
 
+  const sourceStatsResult = await getFingerprintSourceStats(filePath);
+  if (!sourceStatsResult.ok) {
+    return {
+      ok: false,
+      filePath,
+      error: sourceStatsResult.error,
+      canceled: false,
+      pythonPath: resolvedPythonPath,
+      helperScriptPath: resolvedHelperScriptPath
+    };
+  }
+
+  const cacheIdentity = buildVisualFingerprintCacheIdentity({
+    filePath,
+    sourceStats: sourceStatsResult.sourceStats,
+    durationSeconds: resolvedDurationSeconds,
+    profile: resolvedProfile,
+    sampleIntervalSeconds: resolvedSampleIntervalSeconds,
+    maxSamplesPerVideo: resolvedMaxSamples
+  });
+  const cacheKey = createVisualFingerprintCacheKey(cacheIdentity);
+  let cacheStatus: GenerateVisualFingerprintCacheStatus = useCachedFingerprints
+    ? 'miss'
+    : 'disabled';
+  let cachePath: string | undefined;
+  let cacheMessage: string | undefined;
+
+  if (useCachedFingerprints) {
+    const cachedFingerprint = await readCachedVisualFingerprint(cacheIdentity, { cacheDir });
+    cacheStatus = cachedFingerprint.status;
+    cachePath = cachedFingerprint.cachePath;
+    cacheMessage = cachedFingerprint.message;
+
+    if (cachedFingerprint.status === 'hit' && cachedFingerprint.fingerprint) {
+      return {
+        ok: true,
+        filePath: cachedFingerprint.fingerprint.filePath,
+        fingerprint: cachedFingerprint.fingerprint,
+        warnings: cachedFingerprint.fingerprint.warnings,
+        pythonPath: resolvedPythonPath,
+        helperScriptPath: resolvedHelperScriptPath,
+        cacheStatus: cachedFingerprint.status,
+        cacheKey: cachedFingerprint.cacheKey,
+        cachePath,
+        cacheMessage
+      };
+    }
+
+    if (signal?.aborted) {
+      return {
+        ok: false,
+        filePath,
+        error: 'Visual fingerprint generation canceled.',
+        canceled: true,
+        pythonPath: resolvedPythonPath,
+        helperScriptPath: resolvedHelperScriptPath,
+        cacheStatus,
+        cacheKey: cachedFingerprint.cacheKey,
+        cachePath,
+        cacheMessage
+      };
+    }
+  }
+
+  const helperPreflightError = await validateFingerprintHelperAvailability({
+    pythonPath: resolvedPythonPath,
+    helperScriptPath: resolvedHelperScriptPath
+  });
+
+  if (helperPreflightError) {
+    return {
+      ok: false,
+      filePath,
+      error: helperPreflightError,
+      canceled: false,
+      pythonPath: resolvedPythonPath,
+      helperScriptPath: resolvedHelperScriptPath,
+      cacheStatus,
+      cacheKey,
+      cachePath,
+      cacheMessage
+    };
+  }
+
   if (signal?.aborted) {
     return {
       ok: false,
@@ -228,7 +398,11 @@ export async function generateVisualFingerprint({
       error: 'Visual fingerprint generation canceled.',
       canceled: true,
       pythonPath: resolvedPythonPath,
-      helperScriptPath: resolvedHelperScriptPath
+      helperScriptPath: resolvedHelperScriptPath,
+      cacheStatus,
+      cacheKey,
+      cachePath,
+      cacheMessage
     };
   }
 
@@ -256,6 +430,10 @@ export async function generateVisualFingerprint({
       canceled: true,
       pythonPath: resolvedPythonPath,
       helperScriptPath: resolvedHelperScriptPath,
+      cacheStatus,
+      cacheKey,
+      cachePath,
+      cacheMessage,
       stdout: result.stdout,
       stderr: result.stderr
     };
@@ -270,6 +448,10 @@ export async function generateVisualFingerprint({
       canceled: false,
       pythonPath: resolvedPythonPath,
       helperScriptPath: resolvedHelperScriptPath,
+      cacheStatus,
+      cacheKey,
+      cachePath,
+      cacheMessage,
       stdout: result.stdout,
       stderr: result.stderr
     };
@@ -283,12 +465,37 @@ export async function generateVisualFingerprint({
       canceled: false,
       pythonPath: resolvedPythonPath,
       helperScriptPath: resolvedHelperScriptPath,
+      cacheStatus,
+      cacheKey,
+      cachePath,
+      cacheMessage,
       stdout: result.stdout,
       stderr: result.stderr
     };
   }
 
-  const fingerprint = buildVisualFingerprint(parsed.payload);
+  const sourceChangedError = await getSourceChangedError(filePath, sourceStatsResult.sourceStats);
+  if (sourceChangedError) {
+    return {
+      ok: false,
+      filePath,
+      error: sourceChangedError,
+      canceled: false,
+      pythonPath: resolvedPythonPath,
+      helperScriptPath: resolvedHelperScriptPath,
+      cacheStatus,
+      cacheKey,
+      cachePath,
+      cacheMessage,
+      stdout: result.stdout,
+      stderr: result.stderr
+    };
+  }
+
+  const fingerprint = buildVisualFingerprint(parsed.payload, cacheIdentity, cacheKey);
+  const cacheWriteResult = useCachedFingerprints
+    ? await writeCachedVisualFingerprint(cacheIdentity, fingerprint, { cacheDir })
+    : null;
 
   return {
     ok: true,
@@ -296,7 +503,12 @@ export async function generateVisualFingerprint({
     fingerprint,
     warnings: fingerprint.warnings,
     pythonPath: resolvedPythonPath,
-    helperScriptPath: resolvedHelperScriptPath
+    helperScriptPath: resolvedHelperScriptPath,
+    cacheStatus,
+    cacheKey,
+    cachePath: cacheWriteResult?.cachePath,
+    cacheMessage,
+    cacheWriteError: cacheWriteResult && !cacheWriteResult.ok ? cacheWriteResult.error : undefined
   };
 }
 
@@ -324,19 +536,13 @@ function normalizeProfile(profile: DuplicateScanProfile): DuplicateScanProfile {
     : IMPROVED_DUPLICATE_SCAN_FAST_PROFILE;
 }
 
-async function validateFingerprintRequest({
-  filePath,
-  pythonPath,
-  helperScriptPath,
+function validateFingerprintOptions({
   sampleIntervalSeconds,
   maxSamplesPerVideo
 }: {
-  filePath: string;
-  pythonPath: string;
-  helperScriptPath: string;
   sampleIntervalSeconds: number;
   maxSamplesPerVideo: number;
-}): Promise<string | null> {
+}): string | null {
   if (!Number.isFinite(sampleIntervalSeconds) || sampleIntervalSeconds <= 0) {
     return 'sampleIntervalSeconds must be greater than 0.';
   }
@@ -345,17 +551,46 @@ async function validateFingerprintRequest({
     return 'maxSamplesPerVideo must be a positive integer.';
   }
 
+  return null;
+}
+
+async function getFingerprintSourceStats(
+  filePath: string
+): Promise<
+  | { ok: true; sourceStats: FingerprintSourceStats }
+  | { ok: false; error: string }
+> {
   try {
     const fileStats = await stat(filePath);
     if (!fileStats.isFile()) {
-      return 'Video path is not a file.';
+      return { ok: false, error: 'Video path is not a file.' };
     }
-  } catch (error) {
-    return error instanceof Error
-      ? `Video file is not available: ${error.message}`
-      : 'Video file is not available.';
-  }
 
+    return {
+      ok: true,
+      sourceStats: {
+        sizeBytes: fileStats.size,
+        modifiedTimeMs: fileStats.mtimeMs
+      }
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? `Video file is not available: ${error.message}`
+          : 'Video file is not available.'
+    };
+  }
+}
+
+async function validateFingerprintHelperAvailability({
+  pythonPath,
+  helperScriptPath
+}: {
+  pythonPath: string;
+  helperScriptPath: string;
+}): Promise<string | null> {
   try {
     await access(pythonPath);
   } catch {
@@ -366,6 +601,54 @@ async function validateFingerprintRequest({
     await access(helperScriptPath);
   } catch {
     return `OpenCV fingerprint helper was not found at ${helperScriptPath}.`;
+  }
+
+  return null;
+}
+
+function buildVisualFingerprintCacheIdentity({
+  filePath,
+  sourceStats,
+  durationSeconds,
+  profile,
+  sampleIntervalSeconds,
+  maxSamplesPerVideo
+}: {
+  filePath: string;
+  sourceStats: FingerprintSourceStats;
+  durationSeconds: number | null;
+  profile: DuplicateScanProfile;
+  sampleIntervalSeconds: number;
+  maxSamplesPerVideo: number;
+}): VisualFingerprintCacheKey {
+  return {
+    filePath,
+    sizeBytes: sourceStats.sizeBytes,
+    modifiedTimeMs: sourceStats.modifiedTimeMs,
+    durationSeconds,
+    algorithm: DEFAULT_ALGORITHM,
+    algorithmVersion: ALGORITHM_VERSION,
+    profile,
+    sampleIntervalSeconds,
+    maxSamplesPerVideo
+  };
+}
+
+async function getSourceChangedError(
+  filePath: string,
+  originalStats: FingerprintSourceStats
+): Promise<string | null> {
+  const currentStats = await getFingerprintSourceStats(filePath);
+
+  if (!currentStats.ok) {
+    return currentStats.error;
+  }
+
+  if (
+    currentStats.sourceStats.sizeBytes !== originalStats.sizeBytes ||
+    currentStats.sourceStats.modifiedTimeMs !== originalStats.modifiedTimeMs
+  ) {
+    return 'Video file changed while fingerprint generation was running. Try again to avoid caching stale analysis.';
   }
 
   return null;
@@ -459,14 +742,18 @@ function toFingerprintHelperPayload(value: unknown): FingerprintHelperPayload | 
   };
 }
 
-function buildVisualFingerprint(payload: FingerprintHelperSuccessPayload): VisualFingerprint {
+function buildVisualFingerprint(
+  payload: FingerprintHelperSuccessPayload,
+  cacheIdentity: VisualFingerprintCacheKey,
+  cacheKey: string
+): VisualFingerprint {
   return {
-    cacheKey: createPrototypeCacheKey(payload),
-    filePath: payload.filePath,
-    fileName: payload.fileName || basename(payload.filePath),
-    directory: payload.directory || dirname(payload.filePath),
-    sizeBytes: payload.sizeBytes,
-    modifiedTimeMs: payload.modifiedTimeMs,
+    cacheKey,
+    filePath: cacheIdentity.filePath,
+    fileName: basename(cacheIdentity.filePath),
+    directory: dirname(cacheIdentity.filePath),
+    sizeBytes: cacheIdentity.sizeBytes,
+    modifiedTimeMs: cacheIdentity.modifiedTimeMs,
     durationSeconds: payload.durationSeconds,
     width: payload.width,
     height: payload.height,
@@ -479,23 +766,6 @@ function buildVisualFingerprint(payload: FingerprintHelperSuccessPayload): Visua
     samples: payload.samples,
     warnings: payload.warnings
   };
-}
-
-function createPrototypeCacheKey(payload: FingerprintHelperSuccessPayload): string {
-  return createHash('sha256')
-    .update(
-      JSON.stringify({
-        filePath: payload.filePath,
-        sizeBytes: payload.sizeBytes,
-        modifiedTimeMs: payload.modifiedTimeMs,
-        durationSeconds: payload.durationSeconds,
-        algorithm: payload.algorithm,
-        algorithmVersion: payload.algorithmVersion,
-        profile: payload.profile,
-        sampleIntervalSeconds: payload.sampleIntervalSeconds
-      })
-    )
-    .digest('hex');
 }
 
 function readSamples(value: unknown): VisualFingerprintSample[] {

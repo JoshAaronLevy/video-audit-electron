@@ -1,20 +1,3 @@
-## Clarifying Questions
-
-1. Should improved duplicate detection scan only selected project/result rows as sources, or should there also be an "all active rows" source mode in the first implementation pass?
-**Answer:** The first implementation should scan only selected project/result rows as sources. This approach allows users to have more control over which videos are being analyzed for duplicates and can help manage the scope of the scan, especially since the dupe scans will likely be a lot more resource intensive with this new approach.
-
-2. For the first visual scanner, should the default be a faster preset that may miss some contained clips, or a deeper preset that scans fewer libraries per hour but catches more offset matches?
-**Answer:** Ideally I would like to be able to have the option to choose between a lighter preset and a deeper preset, mainly because it would let me weigh the accuracy of each compared to the time and resource cost. So although it does add some complexity, I think it would be worth it to have at least two presets available in the first implementation pass.
-
-3. Should the first review UI show exact filename, visual near-duplicate, and contained-clip results together with mode filters, or should each mode have its own tab/workspace section?
-**Answer:** I think it would be best to show all results together with mode filters. This way, users can easily compare and contrast the different types of duplicates without having to switch between tabs or sections. It also allows for a more streamlined review process, as users can see all potential duplicates in one place and make informed decisions based on the combined evidence.
-
-4. Is it acceptable for the first visual implementation to require the project-local Python `.venv`, or should the feature include a TypeScript/ffmpeg-only fallback for machines without OpenCV ready?
-**Answer:** Since I am the only user of the app, it's actually preferable to require the project-local Python `.venv` for the first visual implementation. It's important that we do get the OpenCV-based visual fingerprinting implemented and working well..
-
-5. Should "Ignore this candidate/group" be persisted anywhere, or should ignore state remain transient like current duplicate marks?
-**Answer:** For the first implementation, it would be best to keep the ignore state transient, similar to the current duplicate marks. This approach allows users to easily change their minds and review previously ignored candidates without having to manage persistent ignore lists. It also simplifies the implementation and avoids potential issues with stale ignore states in future scans.
-
 # Improved Duplicate Detection Plan
 
 ## 1. Overview
@@ -29,6 +12,14 @@ The goal is not perfect AI-grade video understanding. The goal is a local, deter
 - candidate groups with enough evidence for manual review before any file operation
 
 The recommended direction is a staged scanner that runs in the Electron main process, uses `ffmpeg`/`ffprobe` for media metadata and frame extraction support, uses local Python/OpenCV helpers for vision-specific fingerprinting, stores expensive fingerprints in a main-process local cache, and keeps the renderer behind typed preload APIs.
+
+Settled first-pass decisions:
+
+- Improved visual duplicate scans should use selected project/result rows as sources, not all active rows.
+- The first visual implementation should expose at least two scan profiles: a lighter/faster profile and a deeper/more thorough profile.
+- Exact filename, visual near-duplicate, and contained-clip results should appear together in one Duplicate Review workspace with mode filters.
+- Visual fingerprinting should require the project-local Python `.venv` and OpenCV setup in the first implementation. Exact filename matching can still run without OpenCV.
+- Ignore state should remain transient like current duplicate marks.
 
 Duplicate candidates should remain suggestions. The scanner should not delete, archive, replace, or hide files automatically.
 
@@ -150,15 +141,20 @@ This plan was written against the current `collie-video` checkout. The implement
 - Detect likely visual duplicates with different filenames.
 - Detect shorter clips contained inside longer videos.
 - Handle different start points and durations through offset/sequence matching, not timestamp-to-timestamp matching.
+- In the first implementation, scan selected project/result rows as the source set so the user controls cost and scope.
+- Offer at least two first-pass visual scan profiles: a lighter/faster profile and a deeper/more thorough profile.
 - Keep the scanner local/offline and deterministic.
 - Keep all filesystem and media processing in the Electron main process.
 - Keep renderer access behind typed preload APIs and renderer API clients.
+- Require the project-local Python `.venv` for first-pass visual/OpenCV modes instead of adding a TypeScript/ffmpeg-only visual fallback.
 - Cache expensive visual fingerprints.
 - Avoid recomputing fingerprints when file path, size, modified time, and algorithm version have not changed.
 - Avoid background CPU churn; scans should run only when the user starts them.
 - Support progress, cancellation, and per-file status.
 - Present likely candidate groups for manual review before any action.
+- Present exact filename, visual near-duplicate, and contained-clip groups in one review workspace with mode filters.
 - Reuse existing safe actions where practical: Move to Trash, Archive Originals, Remove from Table, Reveal, operation history.
+- Keep Ignore state transient in the first implementation.
 - Keep existing exact filename Duplicate Scan behavior from regressing while adding new modes.
 
 ## 4. Non-Goals
@@ -171,6 +167,9 @@ This plan was written against the current `collie-video` checkout. The implement
 - No Node, ffmpeg, ffprobe, Python, or OpenCV exposure to the renderer.
 - No scan-on-start behavior.
 - No background library watcher.
+- No all-active-row or full-library visual source mode in the first implementation.
+- No TypeScript/ffmpeg-only visual duplicate fallback for machines without the project-local Python/OpenCV environment in the first implementation.
+- No persisted ignore list in the first implementation.
 - No guarantee that every duplicate is found.
 - No claim that candidate groups are byte-identical duplicates.
 - No attempt to solve every cropped, watermarked, heavily edited, rotated, picture-in-picture, or re-recorded edge case in the MVP.
@@ -232,7 +231,7 @@ Pros:
 - Keeps Python/OpenCV behind the main-process boundary.
 - Lets TypeScript own jobs, progress, cancellation, cache invalidation, candidate grouping, and UI-facing results.
 - Lets OpenCV focus on frame/hash/feature work.
-- Allows fallback or future mode-specific helpers without changing renderer architecture.
+- Allows future mode-specific helpers without changing renderer architecture.
 - Avoids renderer IndexedDB becoming a media-processing cache.
 
 Cons:
@@ -250,18 +249,19 @@ Collie Video already has a clean split: main process owns media work and job orc
 
 - TypeScript main process orchestrates scan modes, file discovery, metadata reads, fingerprint cache lookup/write, matching, candidate grouping, progress, cancellation, and candidate validation.
 - `ffprobe` remains the metadata authority for duration, size, dimensions, frame rate, and codec.
-- `ffmpeg` remains available for preview frame/clip generation and can be used for fallback frame extraction if OpenCV cannot decode a file.
+- `ffmpeg` remains available for preview frame/clip generation and can be used for frame extraction if the chosen OpenCV helper path consumes image inputs. That is not a no-OpenCV fallback for the first visual implementation.
 - Python/OpenCV helper scripts compute visual fingerprints and, later, ORB/feature evidence.
 - Renderer shows reviewable candidate groups and invokes existing file-operation APIs only after user confirmation.
+- The first visual implementation requires the project-local Python `.venv` and OpenCV dependencies. It should not include a TypeScript/ffmpeg-only visual fallback for machines without OpenCV ready.
 
 ### Responsibilities By Layer
 
 Main process:
 
-- Validate scan requests and source rows.
+- Validate scan requests, selected source rows, requested modes, scan profile, and helper availability.
 - Discover target video files with `discoverVideoFiles`.
 - Read metadata with `runFfprobe`.
-- Resolve Python/OpenCV executable/helper paths.
+- Resolve the project-local Python/OpenCV executable/helper paths.
 - Run helper scripts through `runChildProcess` or a small Python-specific wrapper.
 - Own fingerprint cache files under Electron `userData`.
 - Match visual and contained candidates.
@@ -281,7 +281,7 @@ Python/OpenCV helpers:
 ffmpeg/ffprobe:
 
 - `ffprobe`: authoritative metadata and duration.
-- `ffmpeg`: existing preview frame/clip generation; possible fallback frame extraction if OpenCV decode fails or future helper design prefers image inputs.
+- `ffmpeg`: existing preview frame/clip generation; possible frame extraction if the OpenCV helper design prefers image inputs.
 - Existing settings overrides should be respected.
 
 Preload/API boundary:
@@ -292,12 +292,14 @@ Preload/API boundary:
 
 Renderer:
 
-- Offer scan setup controls.
+- Offer scan setup controls for selected project/result rows.
+- Offer first-pass Fast and Deep profile choices so the user can trade speed for contained-clip sensitivity.
 - Display progress.
+- Display exact filename, visual near-duplicate, and contained-clip groups together in one Duplicate Review workspace with mode filters.
 - Display candidate groups, evidence, confidence, and matched segment timestamps.
 - Let the user mark candidates or choose review actions.
 - Invoke existing action clients for Trash/Archive/Remove workflows.
-- Keep destructive intent transient unless a future plan deliberately adds persisted ignore decisions.
+- Keep destructive intent and Ignore state transient unless a future plan deliberately adds persisted decisions.
 
 Persistence/caching:
 
@@ -328,9 +330,12 @@ export type DuplicateScanMode =
   | 'visual-fingerprint'
   | 'contained-clip';
 
-export type DuplicateScanProfile = 'fast' | 'balanced' | 'deep';
+export type DuplicateScanProfile = 'fast' | 'deep';
+
+export type ImprovedDuplicateScanSourceScope = 'selected-result-rows';
 
 export interface ImprovedDuplicateScanOptions {
+  sourceScope: ImprovedDuplicateScanSourceScope;
   modes: DuplicateScanMode[];
   profile: DuplicateScanProfile;
   sampleIntervalSeconds: number;
@@ -342,6 +347,13 @@ export interface ImprovedDuplicateScanOptions {
 }
 ```
 
+First implementation notes:
+
+- `sourceScope` should only support `'selected-result-rows'`.
+- Do not add an all-active-rows or whole-library visual source mode yet.
+- Expose `fast` and `deep` profiles in the UI from the first visual implementation.
+- A future `balanced` profile can be added after real library calibration if two profiles are too coarse.
+
 Fingerprint cache identity:
 
 ```ts
@@ -351,8 +363,10 @@ export interface VisualFingerprintCacheKey {
   filePath: string;
   sizeBytes: number;
   modifiedTimeMs: number;
+  durationSeconds: number | null;
   algorithm: VisualFingerprintAlgorithm;
   algorithmVersion: string;
+  profile: DuplicateScanProfile;
   sampleIntervalSeconds: number;
 }
 ```
@@ -379,6 +393,7 @@ export interface VisualFingerprint {
   width: number | null;
   height: number | null;
   frameRate: number | null;
+  profile: DuplicateScanProfile;
   sampleIntervalSeconds: number;
   algorithm: VisualFingerprintAlgorithm;
   algorithmVersion: string;
@@ -566,19 +581,25 @@ Possible later algorithms:
 
 Sampling:
 
-- Start with a balanced default of 5 seconds.
+- Expose two first-pass profiles: Fast and Deep.
+- Default the setup dialog to Fast so expensive analysis is opt-in, while keeping Deep available in the first implementation.
 - Skip the first and last 1 second for normal videos to avoid blank decoder/transition frames.
 - For very short videos, sample at least 3 usable points when possible.
-- For long videos, cap sample count, for example `maxSamplesPerVideo = 240` in balanced mode, by increasing the effective interval.
+- For long videos, cap sample count by profile and increase the effective interval when needed.
 - Store the effective interval and timestamps in the fingerprint.
 - Preserve enough timestamps for contained-clip offset matching.
 
 Suggested initial profiles:
 
 ```txt
-fast      sample every 10s, max 120 samples/video
-balanced  sample every 5s,  max 240 samples/video
-deep      sample every 2s,  max 600 samples/video
+fast  sample every 10s, max 120 samples/video
+deep  sample every 2s,  max 600 samples/video
+```
+
+Possible later profile:
+
+```txt
+balanced  sample every 5s, max 240 samples/video
 ```
 
 Frame quality filtering:
@@ -716,9 +737,9 @@ Use a staged narrowing pipeline:
 5. Sequence/offset verification:
    - run the more expensive offset analysis only on candidate pairs
 6. Result cap:
-   - cap candidate groups per scan/profile unless the user chooses a deeper scan
+   - cap candidate groups per scan/profile and make Deep increase analysis depth without expanding the source scope
 
-For selected-row source scans, compare selected source rows against scanned-folder candidates first. Full-library all-vs-all can be a later mode because it has a much larger performance envelope.
+For the first implementation, compare selected source rows against scanned-folder candidates. Full-library all-vs-all can be a later mode because it has a much larger performance envelope.
 
 ## 8. Caching Strategy
 
@@ -819,7 +840,7 @@ This scanner may be CPU-heavy and long-running. It should follow existing job co
 
 Main-process progress phases:
 
-- `validating`: validate scan request, selected sources, modes, and helper availability
+- `validating`: validate scan request, selected source rows, modes, Fast/Deep profile, and project-local OpenCV helper availability when visual modes are selected
 - `walking`: discover target videos
 - `metadata`: run `ffprobe` for candidate/source metadata
 - `fingerprint-cache`: check cache keys and load cached fingerprints
@@ -864,7 +885,8 @@ The existing Duplicate Review workspace is the right foundation. Extend it rathe
 Use a dedicated Duplicate Review workspace with PrimeReact `DataTable` patterns:
 
 - top summary band
-- mode filter or tabs
+- Fast/Deep profile and scan summary metadata
+- mode filters, not separate tabs
 - candidate group table
 - row expansion for evidence and files
 - sticky footer for marked/review actions
@@ -934,7 +956,7 @@ Recommended MVP action policy:
 
 - Keep existing Move to Trash integration first.
 - Add Archive only after candidate review can build candidate-scoped archive plans safely.
-- Keep Ignore transient unless a later stage deliberately persists ignore decisions.
+- Keep Ignore transient in the first implementation.
 - Never preselect destructive actions based on confidence.
 
 Copy should say "candidate", "likely match", "contained clip", and "Move to Trash". Avoid "delete duplicate" and avoid implying certainty.
@@ -1013,7 +1035,7 @@ Files/modules likely affected:
 
 Implementation notes:
 
-- Add `DuplicateScanMode`, algorithm types, fingerprint cache types, improved progress/result types.
+- Add `DuplicateScanMode`, selected-row source-scope, Fast/Deep profile, algorithm types, fingerprint cache types, improved progress/result types.
 - Keep current `DuplicateScanResult` compatible.
 - Do not add new renderer UI yet.
 - Do not call Python/OpenCV yet.
@@ -1024,6 +1046,8 @@ Acceptance criteria:
 - Types compile.
 - Existing duplicate scan behavior and UI are unchanged.
 - The new contract clearly distinguishes scan mode from match type.
+- The new contract reflects selected result rows as the only first-pass improved scan source scope.
+- The new contract reflects Fast and Deep as the first-pass visual profiles.
 - Renderer still has no Node/OpenCV access.
 
 Risks:
@@ -1056,6 +1080,8 @@ Implementation notes:
 - Extend the Python helper from metadata-only to JSON fingerprint output.
 - Keep Python input/output explicit and schema-validated.
 - Start with `dhash-v1` and frame quality metrics.
+- Require the project-local Python `.venv` for visual fingerprint generation in the first implementation.
+- Do not add a TypeScript/ffmpeg-only visual fallback path for machines without OpenCV ready.
 - Run only from the main process.
 - Support cancellation.
 - Return warnings for decode/sample failures.
@@ -1066,6 +1092,7 @@ Acceptance criteria:
 - Main process can request a fingerprint for a known file.
 - Helper returns JSON with timestamps, hashes, dimensions, duration, and warnings.
 - Failed helper execution returns a typed error.
+- Missing `.venv`/OpenCV setup blocks visual fingerprinting with a clear diagnostic error while exact filename scan mode remains available.
 - Renderer does not execute Python or access helper paths.
 - Current duplicate scan behavior remains unchanged.
 
@@ -1100,7 +1127,7 @@ Implementation notes:
 
 - Add `getDuplicateFingerprintCacheDir()`.
 - Cache per-file JSON under userData.
-- Key by path, size, modified time, duration, algorithm, algorithm version, and sample interval/profile.
+- Key by path, size, modified time, duration, algorithm, algorithm version, sample interval, and Fast/Deep profile.
 - Validate cache entries before use.
 - Write atomically.
 - Track cache hit/miss/stale/error counts.
@@ -1144,6 +1171,7 @@ Files/modules likely affected:
 Implementation notes:
 
 - Preserve exact filename mode as a separate first pass.
+- Keep improved visual scans scoped to selected project/result rows as sources.
 - Build hash index from usable fingerprint samples.
 - Generate candidate pairs from shared/near hashes.
 - Score visual near-duplicates with match ratio, sequence order, average distance, and duration similarity.
@@ -1154,6 +1182,7 @@ Acceptance criteria:
 
 - Different filenames with visually similar content can produce candidate groups.
 - Exact filename groups still appear as before.
+- Fast and Deep profiles are both available for visual matching.
 - Candidate groups include evidence and confidence.
 - Low-information frame matches alone do not create high-confidence groups.
 - Scan can be canceled during fingerprinting or matching.
@@ -1197,6 +1226,7 @@ Implementation notes:
 - Match samples by hash distance.
 - Compute offset buckets from `longTime - shortTime`.
 - Require sequential runs at a consistent offset.
+- Use Deep profile as the recommended first-pass option for contained-clip scans where offset sensitivity matters more than speed.
 - Store matched start/end timestamps for both files.
 - Show lower confidence for short matches with sparse evidence.
 - Reject single-frame or scattered matches.
@@ -1241,8 +1271,9 @@ Files/modules likely affected:
 
 Implementation notes:
 
-- Add scan mode selection in setup dialog.
-- Add confidence/mode filters in review workspace.
+- Add scan mode selection and Fast/Deep profile selection in setup dialog.
+- Start improved scans from selected project/result rows only.
+- Add confidence/mode filters in one unified review workspace; do not split exact filename, visual, and contained-clip groups into separate tabs.
 - Add evidence panel in row expansion.
 - Show matched segment timestamps for contained clips.
 - Use existing preview/detail actions before building a full side-by-side player.
@@ -1255,6 +1286,7 @@ Acceptance criteria:
 - Exact filename, visual, and contained candidates are distinguishable.
 - Contained-clip evidence includes offset and matched ranges.
 - Candidate marks remain stable across filtering/pagination/expansion.
+- Ignore state remains transient and can be reset by leaving/resetting review.
 - No automatic destructive action is introduced.
 
 Risks:
@@ -1295,7 +1327,7 @@ Implementation notes:
 - Reuse `createTrashPlan` and `executeTrashPlan`.
 - Add Archive only by delegating to `createArchivePlan` and existing archive execution.
 - Remove from Table should only apply to rows that exist in the current results store.
-- Ignore should be transient unless a future persisted-ignore decision is made.
+- Ignore should remain transient in the first implementation.
 - Operation history should remain the record of executed file operations.
 
 Acceptance criteria:
@@ -1304,13 +1336,14 @@ Acceptance criteria:
 - Candidate Trash still uses macOS Trash and immediate revalidation.
 - Archive, if added, uses existing archive semantics.
 - Remove from Table does not mutate files.
+- Ignore does not persist to project JSON, IndexedDB, or fingerprint cache.
 - Partial success/failure is displayed clearly.
 
 Risks:
 
 - Candidate groups may include files that are not current audit rows.
 - Archive semantics for external candidate files need clear known-root handling.
-- Persisted ignore decisions can become stale if added too early.
+- Persisted ignore decisions can become stale, so they should remain out of scope for the first implementation.
 
 Suggested verification steps:
 
@@ -1342,7 +1375,7 @@ Implementation notes:
 
 - Add OpenCV/Python diagnostics.
 - Add cache stats and optional cache clear.
-- Add scan profiles rather than many advanced knobs.
+- Add Fast/Deep scan profiles rather than many advanced knobs.
 - Record per-scan warnings: helper unavailable, decode failures, low sample counts, cache errors.
 - Add result caps and performance safeguards.
 - Tune thresholds with real-world fixtures.
@@ -1350,7 +1383,7 @@ Implementation notes:
 
 Acceptance criteria:
 
-- User can see when OpenCV is unavailable.
+- User can see when OpenCV is unavailable; visual modes are blocked until the project-local `.venv` is ready, while exact filename mode remains available.
 - User can clear fingerprint cache if needed.
 - Large scans show useful progress and do not freeze UI.
 - Low-confidence/unsupported cases are reported as warnings, not crashes.
@@ -1388,17 +1421,13 @@ Stage 8 — Tuning, Diagnostics, and Hardening (**Extra High**)
 
 ## 14. Open Questions / Decisions Needed
 
-- Source scope: selected rows only first, or selected rows plus all active result rows?
-- Default profile: fast, balanced, or deep?
-- Initial sample interval and max samples per video.
-- Initial hash algorithm: `dhash-v1` first, or `phash-v1` if OpenCV implementation cost is similar.
+- Exact Fast and Deep sample intervals and max samples per video after testing against real libraries.
+- Whether to keep `dhash-v1` for the MVP after prototype evidence, or switch to `phash-v1` if it is similarly cheap and materially better.
 - Whether OpenCV reads video directly first, or consumes ffmpeg-extracted frames for decode consistency.
 - Exact helper invocation shape: CLI args versus JSON stdin.
-- Fingerprint cache location and retention policy.
-- Whether exact filename, visual, and contained results share one table with filters or separate tabs.
+- Fingerprint cache retention and pruning policy.
 - Confidence thresholds for "likely duplicate" and "likely contained clip".
 - Whether low-confidence candidates should be hidden by default or shown with a warning.
-- Whether "Ignore" should persist per project, per cache key, or remain transient.
 - Whether Archive should be part of the first safe-actions pass or deferred after Trash review is stable.
 - Whether side-by-side segment preview is required before contained-clip actions are enabled.
 - How to handle files OpenCV cannot decode but ffmpeg can decode.

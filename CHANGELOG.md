@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.70] - 2026-05-21
+
+### Added
+
+- Added Stage 7 improved duplicate detection safe actions integration so visual and contained-clip candidates resolve through stored scan results, protect project source files, reuse the existing macOS Trash plan/confirmation/execution flow, and reflect planned/moved/skipped/failed review statuses.
+
 ## [0.50.69] - 2026-05-21
 
 ### Added

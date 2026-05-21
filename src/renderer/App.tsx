@@ -57,10 +57,6 @@ export function App(): ReactElement {
   const hasSources = controller.selectedFolders.length > 0 || controller.selectedFiles.length > 0;
   const hasAuditData = Boolean(controller.videoRows) || Boolean(controller.storageSavedAt);
   const tableDisplayRootPath = controller.folderTreeRootPath ?? controller.auditedRootDirectory;
-  const legacyDuplicateScanResult =
-    controller.duplicateScanResult && !isImprovedDuplicateScanResult(controller.duplicateScanResult)
-      ? controller.duplicateScanResult
-      : null;
 
   useEffect(() => {
     if (controller.settingsOpenRequestCount > 0) {
@@ -604,7 +600,7 @@ export function App(): ReactElement {
 
   const duplicateTrashConfirmDialogProps = {
     visible: controller.isDuplicateTrashConfirmDialogVisible,
-    result: legacyDuplicateScanResult,
+    result: controller.duplicateScanResult,
     markedCandidateIds: controller.duplicateMarkedCandidateIds,
     plan: controller.duplicateTrashPlan,
     error: controller.duplicateTrashPlanError,

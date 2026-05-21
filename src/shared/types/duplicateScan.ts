@@ -69,6 +69,7 @@ export type DuplicateCandidateReviewStatus =
   | 'moved-to-trash'
   | 'archived'
   | 'removed-from-table'
+  | 'skipped'
   | 'failed';
 
 export type ImprovedDuplicateScanPhase =

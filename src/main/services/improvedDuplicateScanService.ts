@@ -5,6 +5,7 @@ import type { DiscoveredVideoFile } from '../../shared/types/audit';
 import type {
   DuplicateCandidateFile,
   DuplicateCandidateGroup,
+  DuplicateScanTrashPlanRequest,
   DuplicateScanMode,
   DuplicateScanProfile,
   DuplicateScanSource,
@@ -65,6 +66,11 @@ interface FingerprintStats {
   cacheMissCount: number;
   cacheStaleCount: number;
   cacheErrorCount: number;
+}
+
+export interface ImprovedDuplicateScanCandidateSelection {
+  scan: ImprovedDuplicateScanResult;
+  candidates: DuplicateCandidateFile[];
 }
 
 const improvedDuplicateScanResults = new Map<string, ImprovedDuplicateScanResult>();
@@ -362,6 +368,79 @@ export function clearImprovedDuplicateScanResult(scanId: string): boolean {
 
 export function clearImprovedDuplicateScanResults(): void {
   improvedDuplicateScanResults.clear();
+}
+
+export function getImprovedDuplicateScanCandidatesForTrash({
+  scanId,
+  candidateIds
+}: DuplicateScanTrashPlanRequest): ImprovedDuplicateScanCandidateSelection | { error: string } {
+  const scan = getImprovedDuplicateScanResult(scanId);
+
+  if (!scan) {
+    return {
+      error: 'Improved duplicate scan result not found. Run a fresh duplicate scan before moving candidates to Trash.'
+    };
+  }
+
+  const requestedIds = [...new Set(candidateIds.filter((id) => id.trim() !== ''))];
+
+  if (requestedIds.length === 0) {
+    return {
+      error: 'Mark at least one duplicate candidate before creating a Move to Trash plan.'
+    };
+  }
+
+  const sourceIds = new Set(
+    scan.groups.flatMap((group) =>
+      group.files
+        .filter((file) => file.role === 'source')
+        .flatMap((file) => [file.id, file.filePath])
+    )
+  );
+
+  if (requestedIds.some((id) => sourceIds.has(id))) {
+    return {
+      error: 'Project source files are protected and cannot be moved to Trash from duplicate review.'
+    };
+  }
+
+  const candidatesById = new Map<string, DuplicateCandidateFile>();
+
+  for (const group of scan.groups) {
+    for (const file of group.files) {
+      if (file.role !== 'candidate') {
+        continue;
+      }
+
+      candidatesById.set(file.id, file);
+      candidatesById.set(file.filePath, file);
+    }
+  }
+
+  const candidates: DuplicateCandidateFile[] = [];
+  const missingIds: string[] = [];
+
+  for (const id of requestedIds) {
+    const candidate = candidatesById.get(id);
+
+    if (!candidate) {
+      missingIds.push(id);
+      continue;
+    }
+
+    candidates.push(candidate);
+  }
+
+  if (missingIds.length > 0) {
+    return {
+      error: `${missingIds.length.toLocaleString()} marked duplicate candidate(s) were not found in the improved scan result.`
+    };
+  }
+
+  return {
+    scan,
+    candidates
+  };
 }
 
 async function normalizeImprovedDuplicateScanRequest(

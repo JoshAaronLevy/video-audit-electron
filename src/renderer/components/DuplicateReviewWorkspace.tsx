@@ -287,7 +287,7 @@ export function DuplicateReviewWorkspace({
             title={
               canReviewMarkedCandidates
                 ? 'Review marked duplicate candidates before moving them to Trash.'
-                : 'Safe file actions for improved duplicate candidates are planned for the next stage.'
+                : 'Run a duplicate scan before reviewing candidates for Trash.'
             }
             onClick={() => {
               void onReviewMarkedCandidates();
@@ -1007,6 +1007,8 @@ function formatReviewStatus(status: DuplicateCandidateReviewStatus): string {
       return 'Archived';
     case 'removed-from-table':
       return 'Removed from Table';
+    case 'skipped':
+      return 'Skipped';
     case 'failed':
       return 'Failed';
   }
@@ -1027,6 +1029,8 @@ function getReviewStatusSeverity(status: DuplicateCandidateReviewStatus): TagSev
     case 'archived':
     case 'removed-from-table':
       return 'success';
+    case 'skipped':
+      return 'warning';
     case 'failed':
       return 'danger';
   }

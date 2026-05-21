@@ -1,7 +1,9 @@
 import { BrowserWindow, ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants/ipcChannels';
 import type {
+  DuplicateCandidateFile,
   DuplicateScanCancelResponse,
+  DuplicateScanCandidate,
   DuplicateScanJobSnapshot,
   DuplicateScanRequest,
   DuplicateScanResult,
@@ -18,6 +20,7 @@ import {
   runDuplicateScan
 } from '../services/duplicateScanService';
 import { createTrashPlan } from '../services/fileOperationService';
+import { getImprovedDuplicateScanCandidatesForTrash } from '../services/improvedDuplicateScanService';
 import { notifyLongJobComplete } from '../services/notificationService';
 
 const duplicateScanJobs = new JobRegistry<
@@ -25,6 +28,17 @@ const duplicateScanJobs = new JobRegistry<
   DuplicateScanJobSnapshot,
   DuplicateScanResult
 >();
+
+interface DuplicateTrashSelection {
+  scannedFolder: string;
+  candidates: Array<{
+    id: string;
+    path: string;
+    fileName: string;
+    sizeBytes?: number | null;
+    modifiedAtMs?: number | null;
+  }>;
+}
 
 export function registerDuplicateScanIpcHandlers(): void {
   ipcMain.handle(
@@ -214,7 +228,7 @@ async function createDuplicateScanTrashPlan(
     };
   }
 
-  const selection = getDuplicateScanCandidatesForTrash(validation.request);
+  const selection = getDuplicateTrashSelection(validation.request);
 
   if ('error' in selection) {
     return {
@@ -238,10 +252,66 @@ async function createDuplicateScanTrashPlan(
   const response = await createTrashPlan({
     operationType: 'trash',
     items,
-    knownRootDirectories: [selection.scan.scannedFolder]
+    knownRootDirectories: [selection.scannedFolder]
   });
 
   return response;
+}
+
+function getDuplicateTrashSelection(
+  request: DuplicateScanTrashPlanRequest
+): DuplicateTrashSelection | { error: string } {
+  const exactSelection = getDuplicateScanCandidatesForTrash(request);
+
+  if (!('error' in exactSelection)) {
+    return {
+      scannedFolder: exactSelection.scan.scannedFolder,
+      candidates: exactSelection.candidates.map(exactCandidateToTrashCandidate)
+    };
+  }
+
+  if (!isExactDuplicateScanResultNotFoundError(exactSelection.error)) {
+    return exactSelection;
+  }
+
+  const improvedSelection = getImprovedDuplicateScanCandidatesForTrash(request);
+
+  if ('error' in improvedSelection) {
+    return improvedSelection;
+  }
+
+  return {
+    scannedFolder: improvedSelection.scan.scannedFolder,
+    candidates: improvedSelection.candidates.map(improvedCandidateToTrashCandidate)
+  };
+}
+
+function exactCandidateToTrashCandidate(
+  candidate: DuplicateScanCandidate
+): DuplicateTrashSelection['candidates'][number] {
+  return {
+    id: candidate.id,
+    path: candidate.path,
+    fileName: candidate.fileName,
+    sizeBytes: candidate.sizeBytes,
+    modifiedAtMs: candidate.modifiedAtMs
+  };
+}
+
+function improvedCandidateToTrashCandidate(
+  candidate: DuplicateCandidateFile
+): DuplicateTrashSelection['candidates'][number] {
+  return {
+    id: candidate.id,
+    path: candidate.filePath,
+    fileName: candidate.fileName,
+    sizeBytes: candidate.sizeBytes,
+    modifiedAtMs: candidate.modifiedAtMs
+  };
+}
+
+function isExactDuplicateScanResultNotFoundError(error: string): boolean {
+  return error.startsWith('Duplicate scan result not found.');
 }
 
 function validateDuplicateScanStartRequest(

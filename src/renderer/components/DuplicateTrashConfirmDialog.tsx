@@ -5,17 +5,18 @@ import { InputText } from 'primereact/inputtext';
 import { Message } from 'primereact/message';
 import { Tag } from 'primereact/tag';
 import type {
-  DuplicateScanCandidate,
-  DuplicateScanGroup,
+  DuplicateCandidateFile,
+  DuplicateReviewScanResult,
   DuplicateScanResult
 } from '../../shared/types/duplicateScan';
+import { isImprovedDuplicateScanResult } from '../../shared/types/duplicateScan';
 import type { FileOperationPlanItem, TrashOperationPlan } from '../../shared/types/fileOperations';
 import { formatBytes } from '../helpers/fileSize';
 import { DialogFooter, DialogHeader } from './DialogChrome';
 
 interface DuplicateTrashConfirmDialogProps {
   visible: boolean;
-  result: DuplicateScanResult | null;
+  result: DuplicateReviewScanResult | null;
   markedCandidateIds: string[];
   plan: TrashOperationPlan | null;
   error: string | null;
@@ -27,13 +28,22 @@ interface DuplicateTrashConfirmDialogProps {
 type TagSeverity = 'success' | 'info' | 'warning' | 'danger' | 'secondary';
 
 interface CandidateReviewItem {
-  candidate: DuplicateScanCandidate;
+  candidate: TrashReviewCandidate;
   planItem: FileOperationPlanItem | null;
 }
 
 interface SourceReviewGroup {
-  group: DuplicateScanGroup;
+  id: string;
+  sourceFileName: string;
+  sourcePath: string;
   candidates: CandidateReviewItem[];
+}
+
+interface TrashReviewCandidate {
+  id: string;
+  path: string;
+  fileName: string;
+  sizeBytes?: number | null;
 }
 
 export function DuplicateTrashConfirmDialog({
@@ -150,14 +160,14 @@ export function DuplicateTrashConfirmDialog({
 
             <section className="duplicate-trash-group-list" aria-label="Grouped duplicate Trash review">
               {reviewGroups.map((reviewGroup) => (
-                <article key={reviewGroup.group.id} className="duplicate-trash-source-group">
+                <article key={reviewGroup.id} className="duplicate-trash-source-group">
                   <div className="duplicate-trash-source-heading">
                     <div>
                       <Tag value="Project Source" severity="success" />
                       <Tag value="Kept" severity="secondary" />
                     </div>
-                    <strong title={reviewGroup.group.source.path}>{reviewGroup.group.source.fileName}</strong>
-                    <code title={reviewGroup.group.source.path}>{reviewGroup.group.source.path}</code>
+                    <strong title={reviewGroup.sourcePath}>{reviewGroup.sourceFileName}</strong>
+                    <code title={reviewGroup.sourcePath}>{reviewGroup.sourcePath}</code>
                   </div>
 
                   <ul className="duplicate-trash-candidate-list">
@@ -216,7 +226,7 @@ function Metric({ label, value }: { label: string; value: string }): ReactElemen
 }
 
 function getReviewGroups(
-  result: DuplicateScanResult | null,
+  result: DuplicateReviewScanResult | null,
   markedCandidateIds: string[],
   plan: TrashOperationPlan | null
 ): SourceReviewGroup[] {
@@ -224,6 +234,18 @@ function getReviewGroups(
     return [];
   }
 
+  if (isImprovedDuplicateScanResult(result)) {
+    return getImprovedReviewGroups(result, markedCandidateIds, plan);
+  }
+
+  return getLegacyReviewGroups(result, markedCandidateIds, plan);
+}
+
+function getLegacyReviewGroups(
+  result: DuplicateScanResult,
+  markedCandidateIds: string[],
+  plan: TrashOperationPlan | null
+): SourceReviewGroup[] {
   const markedIds = new Set(markedCandidateIds);
   const planItemsByPath = new Map((plan?.items ?? []).map((item) => [item.sourcePath, item]));
 
@@ -241,11 +263,59 @@ function getReviewGroups(
       }
 
       return {
-        group,
+        id: group.id,
+        sourceFileName: group.source.fileName,
+        sourcePath: group.source.path,
         candidates
       };
     })
     .filter((group): group is SourceReviewGroup => group !== null);
+}
+
+function getImprovedReviewGroups(
+  result: DuplicateReviewScanResult,
+  markedCandidateIds: string[],
+  plan: TrashOperationPlan | null
+): SourceReviewGroup[] {
+  if (!isImprovedDuplicateScanResult(result)) {
+    return [];
+  }
+
+  const markedIds = new Set(markedCandidateIds);
+  const planItemsByPath = new Map((plan?.items ?? []).map((item) => [item.sourcePath, item]));
+
+  return result.groups
+    .map((group): SourceReviewGroup | null => {
+      const source = group.files.find((file) => file.role === 'source');
+      const candidates = group.files
+        .filter((file) => file.role === 'candidate')
+        .filter((candidate) => markedIds.has(candidate.id) || markedIds.has(candidate.filePath))
+        .map((candidate) => ({
+          candidate: improvedCandidateToTrashReviewCandidate(candidate),
+          planItem: planItemsByPath.get(candidate.filePath) ?? null
+        }));
+
+      if (candidates.length === 0) {
+        return null;
+      }
+
+      return {
+        id: group.id,
+        sourceFileName: source?.fileName ?? 'Protected source',
+        sourcePath: source?.filePath ?? result.scannedFolder,
+        candidates
+      };
+    })
+    .filter((group): group is SourceReviewGroup => group !== null);
+}
+
+function improvedCandidateToTrashReviewCandidate(candidate: DuplicateCandidateFile): TrashReviewCandidate {
+  return {
+    id: candidate.id,
+    path: candidate.filePath,
+    fileName: candidate.fileName,
+    sizeBytes: candidate.sizeBytes
+  };
 }
 
 function formatPlanStatus(status: FileOperationPlanItem['status']): string {

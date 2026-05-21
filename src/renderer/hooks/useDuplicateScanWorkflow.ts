@@ -7,7 +7,6 @@ import type {
   DuplicateScanJobSnapshot,
   DuplicateScanMode,
   DuplicateScanProfile,
-  DuplicateScanResult,
   DuplicateScanSourceInput,
   ImprovedDuplicateScanJobSnapshot,
   ImprovedDuplicateScanRequest
@@ -135,9 +134,7 @@ export function useDuplicateScanWorkflow({
     busyState.activeAction,
     duplicateScanProgress
   );
-  const canReviewMarkedDuplicateCandidates = Boolean(
-    duplicateScanResult && !isImprovedDuplicateScanResult(duplicateScanResult)
-  );
+  const canReviewMarkedDuplicateCandidates = Boolean(duplicateScanResult);
   const hasDuplicateScanResults = Boolean(duplicateScanResult && duplicateScanResult.groups.length > 0);
   const hasDuplicateScanNoResults = Boolean(duplicateScanResult && duplicateScanResult.groups.length === 0);
 
@@ -481,14 +478,6 @@ export function useDuplicateScanWorkflow({
       return;
     }
 
-    if (isImprovedDuplicateScanResult(duplicateScanResult)) {
-      const message =
-        'Move to Trash for visual and contained-clip candidates will be connected in a later safety stage. Exact filename-only scans can still use Move to Trash now.';
-      setDuplicateTrashPlanError(message);
-      setWorkflowMessage(message);
-      return;
-    }
-
     setDuplicateTrashPlan(null);
     setDuplicateTrashPlanError(null);
     setDuplicateTrashResult(null);
@@ -510,9 +499,7 @@ export function useDuplicateScanWorkflow({
 
       setDuplicateTrashPlan(response.plan);
       setDuplicateScanResult((result) =>
-        result && !isImprovedDuplicateScanResult(result)
-          ? applyDuplicateCandidateTrashPlan(result, markedSummary.candidateIds)
-          : result
+        result ? applyDuplicateCandidateTrashPlan(result, markedSummary.candidateIds) : result
       );
       setIsDuplicateTrashConfirmDialogVisible(true);
       setWorkflowMessage(null);
@@ -534,7 +521,7 @@ export function useDuplicateScanWorkflow({
     setDuplicateTrashPlan(null);
     setDuplicateTrashPlanError(null);
     setDuplicateScanResult((result) =>
-      result && !isImprovedDuplicateScanResult(result) ? clearDuplicateCandidateTrashPlan(result) : result
+      result ? clearDuplicateCandidateTrashPlan(result) : result
     );
   }, [busyState.activeAction]);
 
@@ -565,9 +552,7 @@ export function useDuplicateScanWorkflow({
 
       setDuplicateTrashResult(response.result);
       setDuplicateScanResult((result) =>
-        result && !isImprovedDuplicateScanResult(result)
-          ? applyDuplicateTrashResult(result, response.result as FileOperationResult)
-          : result
+        result ? applyDuplicateTrashResult(result, response.result as FileOperationResult) : result
       );
       setDuplicateMarkedCandidateIds([]);
       setIsDuplicateTrashConfirmDialogVisible(false);
@@ -886,10 +871,27 @@ function summarizeMarkedImprovedCandidates(
 }
 
 function applyDuplicateCandidateTrashPlan(
-  result: DuplicateScanResult,
+  result: DuplicateReviewScanResult,
   candidateIds: string[]
-): DuplicateScanResult {
+): DuplicateReviewScanResult {
   const candidateIdSet = new Set(candidateIds);
+
+  if (isImprovedDuplicateScanResult(result)) {
+    return {
+      ...result,
+      groups: result.groups.map((group) => ({
+        ...group,
+        files: group.files.map((file) =>
+          file.role === 'candidate' && (candidateIdSet.has(file.id) || candidateIdSet.has(file.filePath))
+            ? {
+                ...file,
+                reviewStatus: 'marked-for-trash' as const
+              }
+            : file
+        )
+      }))
+    };
+  }
 
   return {
     ...result,
@@ -908,7 +910,24 @@ function applyDuplicateCandidateTrashPlan(
   };
 }
 
-function clearDuplicateCandidateTrashPlan(result: DuplicateScanResult): DuplicateScanResult {
+function clearDuplicateCandidateTrashPlan(result: DuplicateReviewScanResult): DuplicateReviewScanResult {
+  if (isImprovedDuplicateScanResult(result)) {
+    return {
+      ...result,
+      groups: result.groups.map((group) => ({
+        ...group,
+        files: group.files.map((file) =>
+          file.reviewStatus === 'marked-for-trash'
+            ? {
+                ...file,
+                reviewStatus: 'unreviewed' as const
+              }
+            : file
+        )
+      }))
+    };
+  }
+
   return {
     ...result,
     groups: result.groups.map((group) => ({
@@ -927,10 +946,38 @@ function clearDuplicateCandidateTrashPlan(result: DuplicateScanResult): Duplicat
 }
 
 function applyDuplicateTrashResult(
-  result: DuplicateScanResult,
+  result: DuplicateReviewScanResult,
   trashResult: FileOperationResult
-): DuplicateScanResult {
+): DuplicateReviewScanResult {
   const resultItemsByPath = new Map(trashResult.items.map((item) => [item.sourcePath, item]));
+
+  if (isImprovedDuplicateScanResult(result)) {
+    return {
+      ...result,
+      groups: result.groups.map((group) => ({
+        ...group,
+        files: group.files.map((file) => {
+          const resultItem = resultItemsByPath.get(file.filePath);
+
+          if (!resultItem || file.role !== 'candidate') {
+            return file;
+          }
+
+          return {
+            ...file,
+            reviewStatus:
+              resultItem.status === 'success'
+                ? 'moved-to-trash'
+                : resultItem.status === 'skipped'
+                  ? 'skipped'
+                  : resultItem.status === 'failed'
+                    ? 'failed'
+                    : file.reviewStatus
+          };
+        })
+      }))
+    };
+  }
 
   return {
     ...result,

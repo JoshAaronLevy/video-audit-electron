@@ -21,6 +21,7 @@ import {
   IMPROVED_DUPLICATE_SCAN_SOURCE_SCOPE
 } from '../../shared/types/duplicateScan';
 import { discoverVideoFiles } from './fileDiscoveryService';
+import { buildContainedClipCandidateGroups } from './duplicateContainedClipMatcher';
 import { generateVisualFingerprints } from './duplicateFingerprintService';
 import { getDuplicateFilenameKey } from './duplicateScanService';
 import {
@@ -169,6 +170,7 @@ export async function runImprovedDuplicateScan({
     ? exactFilenameResult.pairKeys
     : new Set<string>();
   let visualGroups: DuplicateCandidateGroup[] = [];
+  let containedClipGroups: DuplicateCandidateGroup[] = [];
   let fingerprintStats: FingerprintStats = {
     fingerprintedFileCount: 0,
     cacheHitCount: 0,
@@ -176,8 +178,10 @@ export async function runImprovedDuplicateScan({
     cacheStaleCount: 0,
     cacheErrorCount: 0
   };
+  const needsFingerprints =
+    options.modes.includes('visual-fingerprint') || options.modes.includes('contained-clip');
 
-  if (options.modes.includes('visual-fingerprint')) {
+  if (needsFingerprints) {
     emitProgress(onProgress, {
       scanId: effectiveScanId,
       phase: 'fingerprint-cache',
@@ -253,35 +257,69 @@ export async function runImprovedDuplicateScan({
       }
     }
 
-    throwIfAborted(signal);
-    emitProgress(onProgress, {
-      scanId: effectiveScanId,
-      phase: 'matching-visual',
-      totalFiles: fingerprintPaths.length,
-      processedFiles: fingerprintPaths.length,
-      fingerprintedFiles: fingerprintStats.fingerprintedFileCount,
-      cacheHits: fingerprintStats.cacheHitCount,
-      cacheMisses: fingerprintStats.cacheMissCount,
-      cacheStale: fingerprintStats.cacheStaleCount,
-      cacheErrors: fingerprintStats.cacheErrorCount,
-      candidateGroupCount: exactFilenameGroups.length,
-      currentFile: null,
-      message: 'Matching visual fingerprints.'
-    });
+    if (options.modes.includes('visual-fingerprint')) {
+      throwIfAborted(signal);
+      emitProgress(onProgress, {
+        scanId: effectiveScanId,
+        phase: 'matching-visual',
+        totalFiles: fingerprintPaths.length,
+        processedFiles: fingerprintPaths.length,
+        fingerprintedFiles: fingerprintStats.fingerprintedFileCount,
+        cacheHits: fingerprintStats.cacheHitCount,
+        cacheMisses: fingerprintStats.cacheMissCount,
+        cacheStale: fingerprintStats.cacheStaleCount,
+        cacheErrors: fingerprintStats.cacheErrorCount,
+        candidateGroupCount: exactFilenameGroups.length,
+        currentFile: null,
+        message: 'Matching visual fingerprints.'
+      });
 
-    visualGroups = buildVisualDuplicateCandidateGroups({
-      sources,
-      scannedFiles: discoveryResult.files,
-      fingerprintsByPath,
-      exactMatchPairKeys: exactPairKeysForVisual,
-      profile: options.profile,
-      hashDistanceThreshold: options.hashDistanceThreshold,
-      minSequentialMatches: options.minSequentialMatches,
-      signal
-    });
+      visualGroups = buildVisualDuplicateCandidateGroups({
+        sources,
+        scannedFiles: discoveryResult.files,
+        fingerprintsByPath,
+        exactMatchPairKeys: exactPairKeysForVisual,
+        profile: options.profile,
+        hashDistanceThreshold: options.hashDistanceThreshold,
+        minSequentialMatches: options.minSequentialMatches,
+        signal
+      });
+    }
+
+    if (options.modes.includes('contained-clip')) {
+      const groupsFoundBeforeContainedClipMatching =
+        exactFilenameGroups.length + visualGroups.length;
+
+      throwIfAborted(signal);
+      emitProgress(onProgress, {
+        scanId: effectiveScanId,
+        phase: 'matching-contained-clips',
+        totalFiles: fingerprintPaths.length,
+        processedFiles: fingerprintPaths.length,
+        fingerprintedFiles: fingerprintStats.fingerprintedFileCount,
+        cacheHits: fingerprintStats.cacheHitCount,
+        cacheMisses: fingerprintStats.cacheMissCount,
+        cacheStale: fingerprintStats.cacheStaleCount,
+        cacheErrors: fingerprintStats.cacheErrorCount,
+        candidateGroupCount: groupsFoundBeforeContainedClipMatching,
+        currentFile: null,
+        message: 'Matching contained clips by offset.'
+      });
+
+      containedClipGroups = buildContainedClipCandidateGroups({
+        sources,
+        scannedFiles: discoveryResult.files,
+        fingerprintsByPath,
+        exactMatchPairKeys: exactPairKeysForVisual,
+        profile: options.profile,
+        hashDistanceThreshold: options.hashDistanceThreshold,
+        minSequentialMatches: options.minSequentialMatches,
+        signal
+      });
+    }
   }
 
-  const groups = [...exactFilenameGroups, ...visualGroups];
+  const groups = [...exactFilenameGroups, ...visualGroups, ...containedClipGroups];
   const result = buildImprovedDuplicateScanResult({
     scanId: effectiveScanId,
     scannedFolder: scanFolder,
@@ -404,7 +442,11 @@ function normalizeImprovedDuplicateScanOptions(
   const profile =
     candidate.profile === IMPROVED_DUPLICATE_SCAN_DEEP_PROFILE
       ? IMPROVED_DUPLICATE_SCAN_DEEP_PROFILE
-      : IMPROVED_DUPLICATE_SCAN_FAST_PROFILE;
+      : candidate.profile === IMPROVED_DUPLICATE_SCAN_FAST_PROFILE
+        ? IMPROVED_DUPLICATE_SCAN_FAST_PROFILE
+        : modes.includes('contained-clip')
+          ? IMPROVED_DUPLICATE_SCAN_DEEP_PROFILE
+          : IMPROVED_DUPLICATE_SCAN_FAST_PROFILE;
 
   return {
     ok: true,
@@ -439,7 +481,9 @@ function normalizeModes(value: unknown): DuplicateScanMode[] {
 
   for (const mode of requestedModes) {
     if (
-      (mode === 'filename-exact' || mode === 'visual-fingerprint') &&
+      (mode === 'filename-exact' ||
+        mode === 'visual-fingerprint' ||
+        mode === 'contained-clip') &&
       !supportedModes.includes(mode)
     ) {
       supportedModes.push(mode);
@@ -660,7 +704,7 @@ function buildImprovedDuplicateScanResult({
     summary: {
       exactFilenameGroupCount: groups.filter((group) => group.matchType === 'exact-filename').length,
       visualGroupCount: groups.filter((group) => group.matchType === 'near-duplicate').length,
-      containedClipGroupCount: 0,
+      containedClipGroupCount: groups.filter((group) => group.matchType === 'contained-clip').length,
       sharedSegmentGroupCount: 0,
       candidateFileCount: groups.reduce(
         (total, group) => total + group.files.filter((file) => file.role === 'candidate').length,

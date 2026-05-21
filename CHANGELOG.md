@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.68] - 2026-05-21
+
+### Added
+
+- Added Stage 5 improved duplicate detection contained-clip matching with offset-bucket analysis, sequential run evidence, matched segment timestamps, confidence scoring, and contained-mode progress reporting.
+
 ## [0.50.67] - 2026-05-21
 
 ### Added

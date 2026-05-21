@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.63] - 2026-05-21
+
+### Added
+
+- Added Stage 1 shared type contracts for future improved duplicate detection modes, visual fingerprint cache entries, candidate evidence, and improved scan progress/result payloads without changing current exact filename duplicate scan behavior.
+
 ## [0.50.62] - 2026-05-20
 
 ### Added

@@ -328,6 +328,7 @@ export interface ImprovedDuplicateScanSummary {
 export interface ImprovedDuplicateScanResult {
   scanId: string;
   status: Extract<JobStatus, 'complete'>;
+  scannedFolder: string;
   startedAt: string;
   completedAt: string;
   sourceCount: number;

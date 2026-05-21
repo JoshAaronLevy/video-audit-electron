@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.67] - 2026-05-21
+
+### Added
+
+- Added Stage 4 improved duplicate detection visual candidate matching with main-process near-duplicate scoring, exact-filename preservation, fingerprint-driven progress, cancellation checks, and transient candidate group output for future review UI integration.
+
 ## [0.50.66] - 2026-05-21
 
 ### Added
